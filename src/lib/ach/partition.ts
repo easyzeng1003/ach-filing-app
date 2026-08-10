@@ -23,6 +23,10 @@ import {
   parseRecordFields,
   type ImportProgress,
 } from "./import";
+import {
+  filterExcludedDetailLines,
+  type ExcludeRulesDoc,
+} from "./exclude";
 import type {
   Branch,
   DetailRow,
@@ -837,13 +841,22 @@ function extractDetailLines(text: string, recordLength?: number): string[] {
 
 /**
  * 依 index 合併分割檔 → 單一 ACH 大檔（重算尾錄總筆數／總金額）。
+ * 可選 exclude：合併後、重算尾錄前剔除符合規則的明細。
  */
 export function mergeAchPartitions(
   schema: FormatSchema,
   input: MergeInput,
   txids: Txid[],
   branches: Branch[],
-): { content: string; filename: string; detailCount: number; amount: number } {
+  options?: { exclude?: ExcludeRulesDoc | null },
+): {
+  content: string;
+  filename: string;
+  detailCount: number;
+  amount: number;
+  excludedCount: number;
+  totalBeforeExclude: number;
+} {
   if (input.index.formatCode !== schema.code) {
     throw new Error(
       `索引格式為 ${input.index.formatCode}，與目前 ${schema.code} 不符`,
@@ -883,21 +896,32 @@ export function mergeAchPartitions(
     );
   }
 
+  const filtered = filterExcludedDetailLines(
+    schema,
+    details,
+    options?.exclude ?? null,
+  );
+  const kept = filtered.kept;
+  let keptAmount = 0;
+  for (const line of kept) {
+    keptAmount += amountFromDetailLine(line, schema);
+  }
+
   const header = { ...input.index.header };
   // 一律依目前索引 header 重算首錄，避免沿用分割當下的舊 headerLine
   const headerLine = buildHeaderLine(
     schema,
     header,
-    details.length,
-    amount,
+    kept.length,
+    keptAmount,
     txids,
     branches,
   );
   const trailer = buildTrailerLine(
     schema,
     header,
-    details.length,
-    amount,
+    kept.length,
+    keptAmount,
     txids,
     branches,
   );
@@ -905,9 +929,16 @@ export function mergeAchPartitions(
   const base =
     input.index.sourceFilename.replace(/\.[^.]+$/, "") || schema.code;
   const filename = `${base}.merged.txt`;
-  const content = [headerLine, ...details, trailer].join(ending) + ending;
+  const content = [headerLine, ...kept, trailer].join(ending) + ending;
 
-  return { content, filename, detailCount: details.length, amount };
+  return {
+    content,
+    filename,
+    detailCount: kept.length,
+    amount: keptAmount,
+    excludedCount: filtered.excludedCount,
+    totalBeforeExclude: filtered.totalBefore,
+  };
 }
 
 /**

@@ -363,6 +363,7 @@ export function mergeSessionToFile(
   session: PartitionSession,
   txids: Txid[],
   branches: Branch[],
+  options?: { exclude?: import("./exclude").ExcludeRulesDoc | null },
 ) {
   const index = syncIndex(session);
   const parts: Record<string, string> = {};
@@ -374,6 +375,7 @@ export function mergeSessionToFile(
     { index, parts },
     txids,
     branches,
+    { exclude: options?.exclude ?? null },
   );
 }
 

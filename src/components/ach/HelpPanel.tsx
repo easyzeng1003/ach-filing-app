@@ -152,6 +152,33 @@ export function HelpPanel() {
       <div className="card p-5">
         <div className="mb-2 flex items-center gap-2">
           <MonitorSmartphone className="size-5 text-primary" />
+          <h3 className="font-bold">排除後輸出</h3>
+        </div>
+        <p className="mb-2 text-sm text-muted">
+          載入排除規則 JSON 後，合併／轉檔輸出會剔除符合條件的明細（編輯中的分割包不受影響）。
+          單一規則內多欄位為 <strong className="text-fg">AND</strong>；多條規則為{" "}
+          <strong className="text-fg">OR</strong>。
+        </p>
+        <pre className="mt-3 overflow-x-auto rounded-lg bg-header p-3 font-mono text-[11px] text-header-fg">
+{`{
+  "version": 1,
+  "kind": "ach-exclude-rules",
+  "formatCode": "ACHP01",
+  "rules": [
+    { "bankCode": "0040000", "amount": "1000" },
+    { "account": "0000001234567890" }
+  ]
+}`}
+        </pre>
+        <p className="mt-2 text-xs text-muted">
+          範例檔：<code className="font-mono text-xs">public/data/exclude-rules.example.json</code>
+          ；欄位 key 請用表單明細鍵（如 bankCode／account／amount／userNo／txid）。
+        </p>
+      </div>
+
+      <div className="card p-5">
+        <div className="mb-2 flex items-center gap-2">
+          <MonitorSmartphone className="size-5 text-primary" />
           <h3 className="font-bold">分行符號（依 OS）</h3>
         </div>
         <p className="mb-2 text-sm text-muted">
