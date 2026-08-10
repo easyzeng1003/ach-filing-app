@@ -25,6 +25,7 @@ import {
   sessionIndex,
   usePartitionStore,
 } from "@/lib/ach/partitionStore";
+import { LineEndingSelect } from "./LineEndingSelect";
 
 type Props = {
   schema: FormatSchema;
@@ -248,6 +249,7 @@ export function PartitionWorkspaceBar({
             )}
             存回此包
           </button>
+          <LineEndingSelect compact />
           <button
             type="button"
             className="btn btn-primary"

@@ -152,6 +152,30 @@ export function HelpPanel() {
       <div className="card p-5">
         <div className="mb-2 flex items-center gap-2">
           <MonitorSmartphone className="size-5 text-primary" />
+          <h3 className="font-bold">分行符號（依 OS）</h3>
+        </div>
+        <p className="mb-2 text-sm text-muted">
+          輸出 TXT 時可選擇分行符號；預設依目前作業系統推斷（Windows→CRLF，macOS／Linux→LF），並可手動覆寫。偏好會記在瀏覽器本機。
+        </p>
+        <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
+          <li>
+            <strong className="text-fg">Windows (CRLF)</strong> —{" "}
+            <code className="font-mono text-xs">\\r\\n</code>
+          </li>
+          <li>
+            <strong className="text-fg">macOS／Linux (LF)</strong> —{" "}
+            <code className="font-mono text-xs">\\n</code>
+          </li>
+          <li>
+            <strong className="text-fg">舊版 Mac (CR)</strong> —{" "}
+            <code className="font-mono text-xs">\\r</code>
+          </li>
+        </ul>
+      </div>
+
+      <div className="card p-5">
+        <div className="mb-2 flex items-center gap-2">
+          <MonitorSmartphone className="size-5 text-primary" />
           <h3 className="font-bold">charset 與 pad</h3>
         </div>
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted">

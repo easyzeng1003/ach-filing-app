@@ -30,6 +30,8 @@ import { toast } from "sonner";
 import { useFormStore, useRefStore } from "@/lib/ach/store";
 import type { FormatSchema, FormFieldDef } from "@/lib/ach/schema";
 import { convertP01ToR01 } from "@/lib/ach/convertR01";
+import { withLineEndingId } from "@/lib/ach/lineEnding";
+import { usePrefsStore } from "@/lib/ach/prefsStore";
 import {
   formatTxTypeLabel,
   headerHasError,
@@ -68,6 +70,7 @@ import {
 } from "./ControlRecords";
 import { ConvertR01Dialog } from "./ConvertR01Dialog";
 import { ImportPreviewDialog } from "./ImportPreviewDialog";
+import { LineEndingSelect } from "./LineEndingSelect";
 import { PartitionToolsDialog } from "./PartitionToolsDialog";
 import { PartitionWorkspaceBar } from "./PartitionWorkspaceBar";
 import {
@@ -358,8 +361,9 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     if (!validateFormData()) return;
     setConverting(true);
     try {
+      const lineEnding = usePrefsStore.getState().lineEnding;
       const result = convertP01ToR01(
-        r01,
+        withLineEndingId(r01, lineEnding),
         header,
         rows,
         txids,
@@ -909,7 +913,8 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           </Stack>
 
           {partitionSession?.formatCode !== schema.code ? (
-            <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
+            <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", alignItems: "center" }}>
+              <LineEndingSelect />
               {schema.code === "ACHP01" ? (
                 <Button
                   variant="outlined"

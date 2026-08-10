@@ -5,6 +5,8 @@
 import { create } from "zustand";
 import { isRowEmpty } from "./engine";
 import { parseAchText } from "./import";
+import { withLineEndingId } from "./lineEnding";
+import { usePrefsStore } from "./prefsStore";
 import {
   mergeAchPartitions,
   partitionAchFile,
@@ -22,6 +24,10 @@ import type {
   HeaderValues,
   Txid,
 } from "./schema";
+
+function schemaForOutput(schema: FormatSchema): FormatSchema {
+  return withLineEndingId(schema, usePrefsStore.getState().lineEnding);
+}
 
 export type PartitionPartState = {
   filename: string;
@@ -188,9 +194,10 @@ export const usePartitionStore = create<PartitionStore>((set, get) => ({
     }
     const active = session.parts[session.activeIndex];
     if (!active) throw new Error("找不到作用中的分割包");
+    const outSchema = schemaForOutput(schema);
     // 在原始明細列上 patch，保留 NOTE／MEMO 等非表單欄位
     const rebuilt = rebuildPartitionPreservingDetails(
-      schema,
+      outSchema,
       active.content,
       header,
       rows,
@@ -210,7 +217,7 @@ export const usePartitionStore = create<PartitionStore>((set, get) => ({
         };
       }
       const patched = patchPartitionControlRecords(
-        schema,
+        outSchema,
         p.content,
         header,
         txids,
@@ -309,10 +316,11 @@ export async function splitFileAndStartEdit(opts: {
     opts.detailCount || 1,
     opts.preferredPartCount,
   );
+  const outSchema = schemaForOutput(opts.schema);
   const partFiles: { filename: string; content: string }[] = [];
   const index = await partitionAchFile(
     opts.file,
-    opts.schema,
+    outSchema,
     opts.txids,
     opts.branches,
     {
@@ -362,7 +370,7 @@ export function mergeSessionToFile(
     parts[p.filename] = p.content;
   }
   return mergeAchPartitions(
-    schema,
+    schemaForOutput(schema),
     { index, parts },
     txids,
     branches,

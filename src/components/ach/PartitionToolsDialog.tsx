@@ -54,7 +54,10 @@ import {
 } from "@/lib/ach/partitionStore";
 import { RETURN_CODES } from "@/lib/ach/convertR01";
 import { IMPORT_LIMITS } from "@/lib/ach/import";
+import { withLineEndingId } from "@/lib/ach/lineEnding";
+import { usePrefsStore } from "@/lib/ach/prefsStore";
 import { prevRocDate, safeDigits } from "@/lib/ach/utils";
+import { LineEndingSelect } from "./LineEndingSelect";
 
 type Mode = "split" | "merge" | "convert";
 
@@ -202,9 +205,13 @@ export function PartitionToolsDialog({
       }
 
       const partFiles: { filename: string; content: string }[] = [];
+      const outSchema = withLineEndingId(
+        schema,
+        usePrefsStore.getState().lineEnding,
+      );
       const index = await partitionAchFile(
         sourceFile,
-        schema,
+        outSchema,
         txids,
         branches,
         {
@@ -261,6 +268,10 @@ export function PartitionToolsDialog({
       if (!target) {
         throw new Error(`找不到格式定義 ${index.formatCode}`);
       }
+      const outTarget = withLineEndingId(
+        target,
+        usePrefsStore.getState().lineEnding,
+      );
 
       const parts = new Map<string, string>();
       for (const f of mergeFiles) {
@@ -273,8 +284,8 @@ export function PartitionToolsDialog({
         const r01 = formats.ACHR01;
         if (!r01) throw new Error("找不到 ACHR01");
         const result = convertMergedP01PartitionsToR01(
-          r01,
-          target,
+          withLineEndingId(r01, usePrefsStore.getState().lineEnding),
+          outTarget,
           { index, parts },
           txids,
           branches,
@@ -299,7 +310,7 @@ export function PartitionToolsDialog({
         );
       } else {
         const merged = mergeAchPartitions(
-          target,
+          outTarget,
           { index, parts },
           txids,
           branches,
@@ -331,10 +342,11 @@ export function PartitionToolsDialog({
     setBusy(true);
     setProgress(null);
     try {
+      const endingId = usePrefsStore.getState().lineEnding;
       const result = await convertLargeP01FileToR01(
         sourceFile,
-        p01,
-        r01,
+        withLineEndingId(p01, endingId),
+        withLineEndingId(r01, endingId),
         txids,
         branches,
         {
@@ -433,6 +445,7 @@ export function PartitionToolsDialog({
 
       <DialogContent dividers>
         <Stack spacing={2.5}>
+          <LineEndingSelect />
           {mode === "split" && (
             <>
               <Alert severity="info" variant="outlined" sx={{ alignItems: "flex-start" }}>
