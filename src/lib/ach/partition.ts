@@ -246,6 +246,26 @@ function detailRowFromLine(line: string, schema: FormatSchema): DetailRow {
   return row;
 }
 
+/** 自 header values 組控制首錄 */
+export function buildHeaderLine(
+  schema: FormatSchema,
+  header: HeaderValues,
+  totalCount: number,
+  totalAmount: number,
+  txids: Txid[],
+  branches: Branch[],
+): string {
+  return buildRecord(schema.records.header.fields, {
+    schema,
+    header,
+    seq: 0,
+    totalCount,
+    totalAmount,
+    txids,
+    branches,
+  });
+}
+
 /** 自 header values 組控制尾錄（重算 TCOUNT／TAMT） */
 export function buildTrailerLine(
   schema: FormatSchema,
@@ -264,6 +284,47 @@ export function buildTrailerLine(
     txids,
     branches,
   });
+}
+
+/**
+ * 只改寫分割包的控制首／尾錄，保留明細列原文。
+ * 用於工作區同步「共用首錄」到其餘包。
+ */
+export function patchPartitionControlRecords(
+  schema: FormatSchema,
+  content: string,
+  header: HeaderValues,
+  txids: Txid[],
+  branches: Branch[],
+): { content: string; detailCount: number; amount: number; headerLine: string } {
+  const ending = endingOf(schema);
+  const details = extractDetailLines(content, schema.recordLength);
+  let amount = 0;
+  for (const line of details) {
+    amount += amountFromDetailLine(line, schema);
+  }
+  const headerLine = buildHeaderLine(
+    schema,
+    header,
+    details.length,
+    amount,
+    txids,
+    branches,
+  );
+  const trailer = buildTrailerLine(
+    schema,
+    header,
+    details.length,
+    amount,
+    txids,
+    branches,
+  );
+  return {
+    content: [headerLine, ...details, trailer].join(ending) + ending,
+    detailCount: details.length,
+    amount,
+    headerLine,
+  };
 }
 
 function buildPartitionContent(
@@ -376,7 +437,12 @@ export function rebuildPartitionPreservingDetails(
   rows: DetailRow[],
   txids: Txid[],
   branches: Branch[],
-): { content: string; detailCount: number; amount: number } {
+): {
+  content: string;
+  detailCount: number;
+  amount: number;
+  headerLine: string;
+} {
   const ending = endingOf(schema);
   const amountKey = schema.features.amountKey;
   const nonEmpty = rows.filter((r) => !isRowEmpty(r, schema));
@@ -426,15 +492,14 @@ export function rebuildPartitionPreservingDetails(
     seq += 1;
   }
 
-  const headerLine = buildRecord(schema.records.header.fields, {
+  const headerLine = buildHeaderLine(
     schema,
     header,
-    seq: 0,
-    totalCount: nonEmpty.length,
+    nonEmpty.length,
     totalAmount,
     txids,
     branches,
-  });
+  );
   const trailer = buildTrailerLine(
     schema,
     header,
@@ -450,6 +515,7 @@ export function rebuildPartitionPreservingDetails(
     content,
     detailCount: nonEmpty.length,
     amount: totalAmount,
+    headerLine,
   };
 }
 
@@ -817,12 +883,16 @@ export function mergeAchPartitions(
     );
   }
 
-  const headerLine =
-    input.index.headerLine ||
-    (() => {
-      throw new Error("索引缺少 headerLine");
-    })();
   const header = { ...input.index.header };
+  // 一律依目前索引 header 重算首錄，避免沿用分割當下的舊 headerLine
+  const headerLine = buildHeaderLine(
+    schema,
+    header,
+    details.length,
+    amount,
+    txids,
+    branches,
+  );
   const trailer = buildTrailerLine(
     schema,
     header,

@@ -7,9 +7,13 @@ import { isRowEmpty } from "./engine";
 import { parseAchText } from "./import";
 import {
   mergeAchPartitions,
+  partitionAchFile,
+  patchPartitionControlRecords,
+  planPartitionsForEdit,
   rebuildPartitionPreservingDetails,
   type PartitionIndex,
   type PartitionEntry,
+  type PartitionProgress,
 } from "./partition";
 import type {
   Branch,
@@ -48,7 +52,7 @@ type PartitionStore = {
   }) => void;
   clearSession: () => void;
   setActiveIndex: (index: number | null) => void;
-  /** 用目前表單內容覆寫作用中分割包 */
+  /** 用目前表單內容覆寫作用中分割包，並同步控制首錄到全部分割包 */
   saveFormToActivePart: (
     schema: FormatSchema,
     header: HeaderValues,
@@ -193,10 +197,54 @@ export const usePartitionStore = create<PartitionStore>((set, get) => ({
       txids,
       branches,
     );
-    get().updatePartContent(session.activeIndex, rebuilt.content, {
-      detailCount: rebuilt.detailCount,
-      amount: rebuilt.amount,
+
+    // 控制首錄為工作區共用：同步寫入索引，並改寫其餘包的 BOF／EOF
+    const parts = session.parts.map((p, i) => {
+      if (i === session.activeIndex) {
+        return {
+          ...p,
+          content: rebuilt.content,
+          detailCount: rebuilt.detailCount,
+          amount: rebuilt.amount,
+          dirty: false,
+        };
+      }
+      const patched = patchPartitionControlRecords(
+        schema,
+        p.content,
+        header,
+        txids,
+        branches,
+      );
+      return {
+        ...p,
+        content: patched.content,
+        detailCount: patched.detailCount,
+        amount: patched.amount,
+        dirty: false,
+      };
     });
+
+    const next: PartitionSession = {
+      ...session,
+      parts,
+      index: {
+        ...session.index,
+        header: { ...header },
+        headerLine: rebuilt.headerLine,
+      },
+    };
+    next.index = syncIndex(next);
+    next.parts = next.parts.map((p, i) => {
+      const e = next.index.partitions[i]!;
+      return {
+        ...p,
+        seqFrom: e.seqFrom,
+        seqTo: e.seqTo,
+      };
+    });
+    set({ session: next });
+
     return {
       detailCount: rebuilt.detailCount,
       amount: rebuilt.amount,
@@ -232,6 +280,72 @@ export function parsePartToForm(
     header,
     rows: result.rows,
     detailCount: result.detailCount,
+  };
+}
+
+/**
+ * 大檔自動分割並進入編輯：依可編輯上限規劃包數，寫入工作區並載入第 1 包。
+ */
+export async function splitFileAndStartEdit(opts: {
+  file: File;
+  schema: FormatSchema;
+  txids: Txid[];
+  branches: Branch[];
+  detailCount: number;
+  preferredPartCount?: number;
+  onProgress?: (p: PartitionProgress) => void;
+}): Promise<{
+  partCount: number;
+  totalDetailCount: number;
+  autoRaised: boolean;
+  first: {
+    header: HeaderValues;
+    rows: DetailRow[];
+    fileName: string;
+    detailCount: number;
+  };
+}> {
+  const plan = planPartitionsForEdit(
+    opts.detailCount || 1,
+    opts.preferredPartCount,
+  );
+  const partFiles: { filename: string; content: string }[] = [];
+  const index = await partitionAchFile(
+    opts.file,
+    opts.schema,
+    opts.txids,
+    opts.branches,
+    {
+      partCount: plan.partCount,
+      onProgress: opts.onProgress,
+      onPartition: (p) => {
+        partFiles.push({ filename: p.filename, content: p.content });
+      },
+    },
+  );
+
+  usePartitionStore.getState().startSession({
+    formatCode: opts.schema.code,
+    sourceFilename: opts.file.name,
+    index,
+    parts: partFiles,
+  });
+
+  const first = partFiles[0];
+  if (!first) throw new Error("分割結果為空");
+  const parsed = parsePartToForm(opts.schema, first.content, first.filename);
+  usePartitionStore.getState().setActiveIndex(0);
+
+  return {
+    partCount: index.partCount,
+    totalDetailCount: index.totalDetailCount,
+    autoRaised: plan.autoRaised,
+    first: {
+      header: parsed.header,
+      rows: parsed.rows,
+      fileName: first.filename,
+      detailCount: parsed.detailCount,
+    },
   };
 }
 

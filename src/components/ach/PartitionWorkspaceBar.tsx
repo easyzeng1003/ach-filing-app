@@ -6,6 +6,7 @@ import {
   Loader2,
   Save,
   Layers,
+  RotateCcw,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -40,6 +41,8 @@ type Props = {
   /** 表單是否有未存回分割的變更（由外層追蹤） */
   formDirty?: boolean;
   onFormClean?: () => void;
+  /** 清除並回到上傳（與合併全部輸出同列） */
+  onClearToUpload?: () => void;
 };
 
 export function PartitionWorkspaceBar({
@@ -51,6 +54,7 @@ export function PartitionWorkspaceBar({
   onLoadPart,
   formDirty = false,
   onFormClean,
+  onClearToUpload,
 }: Props) {
   const session = usePartitionStore((s) => s.session);
   const setActiveIndex = usePartitionStore((s) => s.setActiveIndex);
@@ -96,10 +100,20 @@ export function PartitionWorkspaceBar({
         const ok = await persistActive();
         if (!ok) return;
       }
-      const target = session!.parts[index]!;
+      // 存回後必須讀最新 store（控制首錄已同步到各包）
+      const sess = usePartitionStore.getState().session;
+      if (!sess) return;
+      const target = sess.parts[index]!;
       const parsed = parsePartToForm(schema, target.content, target.filename);
+      // 控制首錄以工作區索引為準（切換包不回溯）
+      const headerForForm = {
+        ...parsed.header,
+        ...sess.index.header,
+        // 明細第一筆 TXID 仍優先（分割可能跨交易代號）
+        ...(parsed.header.txid ? { txid: parsed.header.txid } : {}),
+      };
       onLoadPart({
-        header: parsed.header,
+        header: headerForForm,
         rows: parsed.rows,
         fileName: target.filename,
       });
@@ -280,6 +294,18 @@ export function PartitionWorkspaceBar({
             <Combine className="size-4" />
             合併全部輸出
           </button>
+          {onClearToUpload ? (
+            <button
+              type="button"
+              className="btn btn-ghost text-danger"
+              disabled={busy}
+              onClick={onClearToUpload}
+              title="清除並回到上傳"
+            >
+              <RotateCcw className="size-4" />
+              清除並回到上傳
+            </button>
+          ) : null}
           <button
             type="button"
             className="btn btn-ghost !px-2"

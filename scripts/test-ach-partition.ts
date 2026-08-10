@@ -317,6 +317,44 @@ usePartitionStore.getState().clearSession();
   }
 }
 
+// 控制首錄修改後存回：應同步到其他包與合併輸出（不回溯）
+{
+  usePartitionStore.getState().startSession({
+    formatCode: "ACHP01",
+    sourceFilename: "sample-p01.txt",
+    index: parsed,
+    parts,
+  });
+  usePartitionStore.getState().setActiveIndex(0);
+  const loaded = parsePartToForm(p01, parts[0]!.content, parts[0]!.filename);
+  const editedHeader = { ...loaded.header, date: "01150999" };
+  usePartitionStore.getState().saveFormToActivePart(
+    p01,
+    editedHeader,
+    loaded.rows,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  const after = usePartitionStore.getState().session!;
+  assert.equal(after.index.header.date, "01150999");
+  assert.ok(after.index.headerLine.includes("01150999"));
+  for (const p of after.parts) {
+    const bof = p.content.replace(/\r\n/g, "\n").split("\n")[0]!;
+    assert.ok(bof.includes("01150999"), `${p.filename} 首錄未同步`);
+  }
+  const part1 = parsePartToForm(p01, after.parts[1]!.content, after.parts[1]!.filename);
+  assert.equal(part1.header.date, "01150999");
+  const mergedEdited = mergeSessionToFile(
+    p01,
+    after,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  const mergedBof = mergedEdited.content.replace(/\r\n/g, "\n").split("\n")[0]!;
+  assert.ok(mergedBof.includes("01150999"), "合併輸出首錄未使用新日期");
+  usePartitionStore.getState().clearSession();
+}
+
 console.log(
   "OK partition/merge/convert-large/edit-session: parts=",
   parts.length,
