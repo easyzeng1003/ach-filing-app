@@ -16,18 +16,16 @@ import {
 import {
   FileDownload as FileDownIcon,
   FileUpload as FileUpIcon,
-  Add as PlusIcon,
-  DeleteOutlined as TrashIcon,
   Search as SearchIcon,
-  DeleteSweep as EraserIcon,
   WarningAmber as AlertTriangleIcon,
   CheckCircle as CheckCircleIcon,
   FilterAltOff as FilterXIcon,
   CloudUpload as UploadIcon,
   ArrowForward as ArrowRightIcon,
   SwapHoriz as ArrowRightLeftIcon,
-  MergeType as CombineIcon,
   ContentCut as ScissorsIcon,
+  Edit as EditIcon,
+  RestartAlt as RestartAltIcon,
 } from "@mui/icons-material";
 import { toast } from "sonner";
 import { useFormStore, useRefStore } from "@/lib/ach/store";
@@ -107,9 +105,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     blurHeader,
     updateRow,
     blurRow,
-    addRows,
-    removeRow,
-    clearRows,
     pasteRows,
     loadFromImport,
     isWorkspaceOpen,
@@ -117,6 +112,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     openManualWorkspace,
     closeWorkspace,
   } = useFormStore();
+  const clearPartitionSession = usePartitionStore((s) => s.clearSession);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
@@ -498,7 +494,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       window.setTimeout(resolve, 180);
     });
     setImportResult(null);
-    // 保留 importFile，供「分割來源檔」繼續使用
+    // 保留 importFile，供「編輯」分割邏輯繼續使用
     toast.success(
       `已匯入 ${result.schema.code}（${result.matchedCount.toLocaleString("zh-TW")} 筆明細），可進行檢核與加工`,
     );
@@ -870,6 +866,35 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
               >
                 產生 TXT
               </Button>
+              <Button
+                variant="outlined"
+                color="secondary"
+                startIcon={<EditIcon />}
+                onClick={() => {
+                  if (
+                    partitionSession?.formatCode === schema.code &&
+                    partitionSession.activeIndex != null
+                  ) {
+                    toast.message("已在分割編輯中：請用上方工作區切換／存回各包");
+                    return;
+                  }
+                  if (importFile) {
+                    // 整合分割邏輯：有來源檔 → 分割並進入網頁編輯
+                    setPartitionTools({ mode: "split" });
+                    return;
+                  }
+                  // 無來源檔：合併既有分割包（index + part*.txt）
+                  setPartitionTools({ mode: "merge" });
+                  toast.message("未保留來源檔：可選擇索引與分割檔合併，或重新上傳後再編輯");
+                }}
+                title={
+                  importFile
+                    ? "分割來源檔並在網頁逐包編輯"
+                    : "合併既有分割檔，或請重新上傳來源檔後再編輯"
+                }
+              >
+                編輯
+              </Button>
               {schema.code === "ACHP01" ? (
                 <Button
                   variant="outlined"
@@ -883,23 +908,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                 </Button>
               ) : null}
               <Button
-                variant="text"
-                startIcon={<CombineIcon />}
-                onClick={() => setPartitionTools({ mode: "merge" })}
-                title="依 partition-index.json 合併分割檔"
-              >
-                合併分割檔
-              </Button>
-              {importFile ? (
-                <Button
-                  variant="text"
-                  startIcon={<ScissorsIcon />}
-                  onClick={() => setPartitionTools({ mode: "split" })}
-                >
-                  分割來源檔
-                </Button>
-              ) : null}
-              <Button
                 variant="outlined"
                 startIcon={<FileUpIcon />}
                 onClick={() => fileInputRef.current?.click()}
@@ -908,30 +916,22 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
               </Button>
               {fileInput}
               <Button
-                variant="outlined"
-                startIcon={<PlusIcon />}
-                onClick={() => addRows(schema.code, schema, 10)}
-              >
-                新增 10 列
-              </Button>
-              <Button
                 variant="text"
-                startIcon={<EraserIcon />}
+                color="error"
+                startIcon={<RestartAltIcon />}
                 onClick={() => {
-                  clearRows(schema.code, schema);
-                  toast.message("明細已清空");
-                }}
-              >
-                清空明細
-              </Button>
-              <Button
-                variant="text"
-                onClick={() => {
+                  if (partitionSession?.formatCode === schema.code) {
+                    clearPartitionSession();
+                  }
+                  setPartitionFormDirty(false);
+                  setImportFile(null);
+                  setImportResult(null);
+                  setImportProgress(null);
                   closeWorkspace(schema);
-                  toast.message("已關閉工作區，請重新上傳檔案");
+                  toast.message("已清除所有紀錄，請重新上傳檔案");
                 }}
               >
-                關閉並回到上傳
+                清除並回到上傳
               </Button>
             </Stack>
           </Paper>
@@ -1102,22 +1102,19 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                 <th className="min-w-40">
                   <span className="th-label">錯誤訊息</span>
                   {filterEnabled ? (
-                    <span className="block h-[1.7rem]" aria-hidden />
-                  ) : null}
-                </th>
-                <th className="w-12">
-                  {filterEnabled && filtersActive ? (
-                    <button
-                      type="button"
-                      className="btn btn-ghost h-7 px-1 text-[0.7rem] text-primary-fg"
-                      onClick={clearAllFilters}
-                      title="清除篩選"
-                      aria-label="清除篩選"
-                    >
-                      <FilterXIcon sx={{ fontSize: 16 }} />
-                    </button>
-                  ) : filterEnabled ? (
-                    <span className="block h-[1.7rem]" aria-hidden />
+                    filtersActive ? (
+                      <button
+                        type="button"
+                        className="btn btn-ghost h-7 px-1 text-[0.7rem] text-primary-fg"
+                        onClick={clearAllFilters}
+                        title="清除篩選"
+                        aria-label="清除篩選"
+                      >
+                        <FilterXIcon sx={{ fontSize: 16 }} />
+                      </button>
+                    ) : (
+                      <span className="block h-[1.7rem]" aria-hidden />
+                    )
                   ) : null}
                 </th>
               </tr>
@@ -1126,7 +1123,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
               {filtered.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={schema.form.detail.length + 4}
+                    colSpan={schema.form.detail.length + 3}
                     className="py-10 text-center text-muted"
                   >
                     {filtersActive
@@ -1197,16 +1194,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                       </td>
                       <td className="whitespace-pre-line text-xs font-semibold text-danger">
                         {messages.join("\n")}
-                      </td>
-                      <td>
-                        <button
-                          type="button"
-                          className="btn btn-ghost px-1 text-danger"
-                          onClick={() => removeRow(schema.code, row.id)}
-                          aria-label="刪除列"
-                        >
-                          <TrashIcon sx={{ fontSize: 16 }} />
-                        </button>
                       </td>
                     </tr>
                   );

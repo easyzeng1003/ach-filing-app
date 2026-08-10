@@ -21,11 +21,11 @@ export function HelpPanel() {
           <strong className="text-fg">SC＝代付</strong>。
           於 P01 可<strong className="text-fg">轉檔 R01</strong>
           （TYPE=R、對調提出／提回行與帳號、填入退件理由）。
-          大檔可<strong className="text-fg">分割成 y 包</strong>後在網頁
-          <strong className="text-fg">逐包載入編輯</strong>，存回後
+          大檔請按<strong className="text-fg">編輯</strong>整合分割邏輯：切成多包後在網頁
+          <strong className="text-fg">逐包載入修改</strong>，存回後
           <strong className="text-fg">合併全部輸出</strong>；
           亦可直接「大檔轉 R01」。多檔下載會打包 ZIP 或選一次資料夾。
-          檔案代號與欄位格式皆以 JSON 參數化。
+          「清除並回到上傳」會清空紀錄並回到初始上傳頁。
         </p>
       </div>
 
@@ -37,8 +37,8 @@ export function HelpPanel() {
         <ol className="list-decimal space-y-1 pl-5 text-sm text-muted">
           <li>上傳既有 ACHP01／ACHR01 <code className="font-mono text-xs">.txt</code></li>
           <li>預覽表頭、明細、固定長度欄位與原始列長</li>
-          <li>套用後檢核錯誤、修正資料（小檔）；或分割／大檔轉 R01（大檔）</li>
-          <li>重新產生上傳檔；分割檔可依 index 合併回大檔</li>
+          <li>套用後檢核錯誤、修正資料（小檔）；或按「編輯」分割後逐包修改／大檔轉 R01</li>
+          <li>重新產生 TXT；編輯工作區可合併全部輸出</li>
         </ol>
       </div>
 

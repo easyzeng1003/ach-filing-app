@@ -334,7 +334,7 @@ export function ImportPreviewDialog({
           {result.tooLargeForForm
             ? result.filterActive
               ? "符合筆數仍超過上限，請在明細表頭縮小篩選後再套用"
-              : "請在明細表頭輸入篩選條件並套用，或使用分割大檔／大檔轉 R01"
+              : "請在明細表頭輸入篩選條件並套用，或使用編輯（分割）／大檔轉 R01"
             : result.filterActive
               ? `將套用篩選後的 ${result.matchedCount.toLocaleString("zh-TW")} 筆到「${schema.code}」表單`
               : `套用後會覆寫「${schema.code}」目前的提出資料與明細`}
@@ -347,7 +347,7 @@ export function ImportPreviewDialog({
               disabled={busy || result.detailCount === 0}
               onClick={onPartition}
             >
-              分割大檔
+              編輯（分割）
             </Button>
           ) : null}
           {sourceFile && onLargeConvertR01 && schema.code === "ACHP01" ? (
@@ -565,7 +565,7 @@ function FormPreview({
               </h4>
               <p className="text-xs text-muted">
                 {filterEnabled
-                  ? `在表頭輸入條件後套用篩選（載入上限 ${IMPORT_LIMITS.maxFormDetailRows.toLocaleString("zh-TW")} 筆）；亦可分割大檔`
+                  ? `在表頭輸入條件後套用篩選（載入上限 ${IMPORT_LIMITS.maxFormDetailRows.toLocaleString("zh-TW")} 筆）；亦可按「編輯（分割）」`
                   : "匯入後可於表單繼續編輯"}
               </p>
             </div>
