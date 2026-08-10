@@ -8,7 +8,7 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "代收建檔小程式 — ACH 格式參數化" },
+      { title: "ACH改檔小工具 — ACH 格式參數化" },
       {
         name: "description",
         content:

@@ -140,7 +140,7 @@ chrome.exe
 
 ---
 
-## 與本專案（代收建檔小程式）的關係
+## 與本專案（ACH改檔小工具）的關係
 
 客戶版主路徑仍是 **單一 HTML**（`npm run build:customer`），用系統 Chrome／Edge 即可。  
 此工具提供可選的 **免安裝 Chromium**，方便內網／無管理權限環境開啟本機 HTML。

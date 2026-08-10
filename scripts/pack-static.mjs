@@ -38,7 +38,7 @@ cpSync(dist, stage, { recursive: true });
 
 writeFileSync(
   path.join(stage, "README.txt"),
-  `代收建檔小程式 v${version}
+  `ACH改檔小工具 v${version}
 ========================
 
 純 HTML + JavaScript 靜態版（無需安裝、無 exe）

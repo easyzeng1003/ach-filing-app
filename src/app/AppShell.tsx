@@ -14,7 +14,16 @@ import {
   Paper,
 } from "@mui/material";
 import {
-  AccountBalance as LandmarkIcon,
+  AccountBalance as AccountBalanceIcon,
+  Build as BuildIcon,
+  Construction as ConstructionIcon,
+  Edit as EditIcon,
+  Tune as TuneIcon,
+  Description as DescriptionIcon,
+  Folder as FolderIcon,
+  Handyman as HandymanIcon,
+  Settings as SettingsIcon,
+  SwapHoriz as SwapHorizIcon,
   Code as BracesIcon,
   HelpOutlined as HelpIcon,
   Business as BuildingIcon,
@@ -24,17 +33,34 @@ import {
 import { Toaster } from "sonner";
 import "@/styles.css";
 import { useFormStore, useRefStore } from "@/lib/ach/store";
+import type { BrandingIconPreset } from "@/lib/branding";
 import { FormatPanel } from "@/components/ach/FormatPanel";
 import { SchemaPanel } from "@/components/ach/SchemaPanel";
 import { RefsPanel } from "@/components/ach/RefsPanel";
 import { HelpPanel } from "@/components/ach/HelpPanel";
+import { useBranding } from "@/theme/AppProviders";
 
 const ICONS: Record<string, typeof FileStackIcon> = {
   "file-stack": FileStackIcon,
   shield: ShieldIcon,
 };
 
+const BRAND_ICONS: Record<BrandingIconPreset, typeof AccountBalanceIcon> = {
+  account_balance: AccountBalanceIcon,
+  build: BuildIcon,
+  construction: ConstructionIcon,
+  edit: EditIcon,
+  tune: TuneIcon,
+  description: DescriptionIcon,
+  folder: FolderIcon,
+  handyman: HandymanIcon,
+  settings: SettingsIcon,
+  swap_horiz: SwapHorizIcon,
+};
+
 export function AppShell() {
+  const branding = useBranding();
+  const BrandIcon = BRAND_ICONS[branding.iconPreset] ?? AccountBalanceIcon;
   const {
     loadRefs,
     loaded,
@@ -130,16 +156,30 @@ export function AppShell() {
                 display: "grid",
                 placeItems: "center",
                 bgcolor: "rgba(255,255,255,0.12)",
+                overflow: "hidden",
               }}
             >
-              <LandmarkIcon sx={{ color: "secondary.light" }} />
+              {branding.iconUrl ? (
+                <Box
+                  component="img"
+                  src={branding.iconUrl}
+                  alt=""
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    objectFit: "contain",
+                  }}
+                />
+              ) : (
+                <BrandIcon sx={{ color: "secondary.light" }} />
+              )}
             </Box>
             <Box>
               <Typography variant="h6" component="h1" sx={{ lineHeight: 1.25 }}>
-                代收建檔小程式
+                {branding.name}
               </Typography>
               <Typography variant="body2" sx={{ opacity: 0.85 }}>
-                既有 P01／R01 檔檢核與加工 · Material Design
+                {branding.subtitle}
               </Typography>
             </Box>
           </Stack>

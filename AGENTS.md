@@ -3,18 +3,18 @@
 ## Cursor Cloud specific instructions
 
 ### What this repo is
-`ach-filing-app` (代收建檔小程式) is a **client-only** React 19 + Vite 8 + TypeScript app that generates Taiwan 財金 ACH fixed-length upload files (ACHP01 代收 SD／代付 SC / ACHR01 提回／退件). There is **no backend, database, or auth**. The `better-auth`, `kysely`, `pg`, and `@electric-sql/pglite` dependencies are unused template leftovers (their source lives under gitignored paths) — do not try to run a DB/auth server. All reference data (bank branches, txids, format schemas) is embedded/served from `public/data/` and `src/data/embedded.ts`.
+`ach-filing-app` (ACH改檔小工具) is a **client-only** React 19 + Vite 8 + TypeScript app that generates Taiwan 財金 ACH fixed-length upload files (ACHP01 代收 SD／代付 SC / ACHR01 提回／退件). There is **no backend, database, or auth**. The `better-auth`, `kysely`, `pg`, and `@electric-sql/pglite` dependencies are unused template leftovers (their source lives under gitignored paths) — do not try to run a DB/auth server. All reference data (bank branches, txids, format schemas) is embedded/served from `public/data/` and `src/data/embedded.ts`.
 
 ### Running it (dev)
 - Primary dev server: `npm run dev:web` → http://localhost:8080 (config `vite.static.config.ts`, `strictPort: true`, so 8080 must be free). This is the path the README and `startup.sh` use.
 - Do **not** use `npm run dev` for normal work — that starts the alternate TanStack Start SSR scaffold (`vite.config.ts`), which is not the maintained dev path.
 - `startup.sh` auto-starts `npm run dev:web` if nothing is already listening on 8080.
-- Electron (`npm run electron:dev`) and the customer standalone HTML build (`npm run build:customer` → `release/代收建檔小程式.html`) are packaging modes.
+- Electron (`npm run electron:dev`) and the customer standalone HTML build (`npm run build:customer` → `release/ACH改檔小工具.html`) are packaging modes.
 
 ### Delivery after each change
 - When a feature/fix change set is complete (before summarizing to the user), **always** run `npm run build:customer` and publish the install-free HTML/JS artifacts.
 - Copy outputs to `/opt/cursor/artifacts/customer-release/` (and reference them in the PR body):
-  - `release/代收建檔小程式.html` — single-file, double-click to open
+  - `release/ACH改檔小工具.html` — single-file, double-click to open
   - `release/ACH-Filing-*-standalone.html` — versioned alias of the same file
   - `release/ACH-Filing-*-customer.zip` — zip package
 - `release/` is gitignored; do not commit build outputs into the repo.

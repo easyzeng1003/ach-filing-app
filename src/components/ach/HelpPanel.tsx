@@ -45,6 +45,43 @@ export function HelpPanel() {
       <div className="card p-5">
         <div className="mb-2 flex items-center gap-2">
           <Braces className="size-5 text-primary" />
+          <h3 className="font-bold">品牌／主題參數（URL）</h3>
+        </div>
+        <p className="mb-2 text-sm text-muted">
+          開啟 HTML 時可加 Query 或 Hash 參數覆寫名稱、圖示與顏色（免重新編譯）。
+        </p>
+        <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
+          <li>
+            <code className="font-mono text-xs text-fg">name</code> — 程式名稱（預設 ACH改檔小工具）
+          </li>
+          <li>
+            <code className="font-mono text-xs text-fg">subtitle</code> — 副標
+          </li>
+          <li>
+            <code className="font-mono text-xs text-fg">primary</code> — 主題主色／按鈕色（如{" "}
+            <code className="font-mono text-xs">1566c0</code>）
+          </li>
+          <li>
+            <code className="font-mono text-xs text-fg">header</code> — 頂欄加深色（可省略）
+          </li>
+          <li>
+            <code className="font-mono text-xs text-fg">accent</code> — 強調色／次要色
+          </li>
+          <li>
+            <code className="font-mono text-xs text-fg">icon</code> — 內建代號（
+            <code className="font-mono text-xs">account_balance</code>／
+            <code className="font-mono text-xs">build</code>／
+            <code className="font-mono text-xs">edit</code>…）或圖片 URL
+          </li>
+        </ul>
+        <pre className="mt-3 overflow-x-auto rounded-lg bg-header p-3 font-mono text-[11px] text-header-fg">
+{`ACH改檔小工具.html?name=我的ACH工具&primary=1566c0&accent=ff9800&icon=build`}
+        </pre>
+      </div>
+
+      <div className="card p-5">
+        <div className="mb-2 flex items-center gap-2">
+          <Braces className="size-5 text-primary" />
           <h3 className="font-bold">JSON 參數位置</h3>
         </div>
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
