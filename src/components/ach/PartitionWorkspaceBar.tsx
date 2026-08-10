@@ -7,6 +7,7 @@ import {
   Save,
   Layers,
   RotateCcw,
+  ArrowLeftRight,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -43,6 +44,8 @@ type Props = {
   onFormClean?: () => void;
   /** 清除並回到上傳（與合併全部輸出同列） */
   onClearToUpload?: () => void;
+  /** 轉檔 R01（與合併全部輸出同列；僅 ACHP01） */
+  onConvertR01?: () => void;
 };
 
 export function PartitionWorkspaceBar({
@@ -55,6 +58,7 @@ export function PartitionWorkspaceBar({
   formDirty = false,
   onFormClean,
   onClearToUpload,
+  onConvertR01,
 }: Props) {
   const session = usePartitionStore((s) => s.session);
   const setActiveIndex = usePartitionStore((s) => s.setActiveIndex);
@@ -294,6 +298,18 @@ export function PartitionWorkspaceBar({
             <Combine className="size-4" />
             合併全部輸出
           </button>
+          {onConvertR01 ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={busy}
+              onClick={onConvertR01}
+              title="轉檔 R01"
+            >
+              <ArrowLeftRight className="size-4" />
+              轉檔 R01
+            </button>
+          ) : null}
           {onClearToUpload ? (
             <button
               type="button"
