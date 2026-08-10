@@ -13,9 +13,7 @@
     "authOptions": false,
     "detailFilter": true,
     "exportFormats": [
-      "txt",
-      "html",
-      "js"
+      "txt"
     ]
   },
   "form": {
@@ -229,7 +227,7 @@
             }
           ]
         },
-        "picker": "txid",
+        "picker": null,
         "metaFrom": "txid",
         "ui": {
           "mono": true,
@@ -259,7 +257,7 @@
             }
           ]
         },
-        "picker": "branch",
+        "picker": null,
         "export": {
           "charset": "digit",
           "length": 7,

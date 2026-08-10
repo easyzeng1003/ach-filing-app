@@ -18,14 +18,6 @@
       "description": "ACHP01 提回／退件（TYPE=R）；可由 P01 轉檔產生",
       "schemaFile": "ACHR01.json",
       "icon": "file-stack"
-    },
-    {
-      "code": "ACHP02",
-      "shortCode": "P02",
-      "name": "授權建檔檔",
-      "description": "授權扣款建檔（A/D/O/M）",
-      "schemaFile": "ACHP02.json",
-      "icon": "shield"
     }
   ]
 }

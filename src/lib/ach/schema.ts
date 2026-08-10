@@ -121,8 +121,8 @@ export type FormatSchema = {
     /** 是否啟用明細篩選列（預設 true） */
     detailFilter?: boolean;
     /**
-     * 成品輸出格式清單。預設 ["txt","html","js"]。
-     * 可只開部分，例如 ["txt","html"]。
+     * 成品輸出格式清單。預設 ["txt"]。
+     * 可擴充 ["txt","html","js"]。
      */
     exportFormats?: ExportFormatId[];
   };
