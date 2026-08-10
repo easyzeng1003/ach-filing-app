@@ -157,6 +157,8 @@ export function HelpPanel() {
         <p className="mb-2 text-sm text-muted">
           於主畫面以<strong className="text-fg">下拉選欄位</strong>並輸入排除內容，
           按「排除後輸出」後會顯示原筆數／排除筆數／輸出筆數，並提供檔案下載。
+          若正在<strong className="text-fg">分割工作區</strong>，會合併
+          <strong className="text-fg">全部分割包</strong>後再排除（非僅目前開啟的那一包）。
           條件關係可選全部符合（AND）或任一符合（OR）；亦可載入 JSON 規則。
         </p>
         <pre className="mt-3 overflow-x-auto rounded-lg bg-header p-3 font-mono text-[11px] text-header-fg">

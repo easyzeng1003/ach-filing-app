@@ -716,21 +716,29 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     const lineEnding = usePrefsStore.getState().lineEnding;
     const outSchema = withLineEndingId(schema, lineEnding);
 
-    // 分割工作區：先存回再合併並套用排除
-    if (partitionSession?.formatCode === schema.code) {
-      if (partitionSession.activeIndex != null && partitionFormDirty) {
+    // 一律以最新 store 判斷；有分割工作區則合併「全部分割包」後再排除
+    const sess = usePartitionStore.getState().session;
+    if (sess && sess.formatCode === schema.code) {
+      if (sess.activeIndex != null && partitionFormDirty) {
         usePartitionStore
           .getState()
           .saveFormToActivePart(schema, header, rows, txids, branches);
         setPartitionFormDirty(false);
       }
-      const sess = usePartitionStore.getState().session;
-      if (!sess) throw new Error("分割工作區已結束");
-      const merged = mergeSessionToFile(outSchema, sess, txids, branches, {
+      const latest = usePartitionStore.getState().session;
+      if (!latest || latest.formatCode !== schema.code) {
+        throw new Error("分割工作區已結束");
+      }
+      if (!latest.parts.length) {
+        throw new Error("分割工作區沒有可輸出的包");
+      }
+      const merged = mergeSessionToFile(outSchema, latest, txids, branches, {
         exclude: doc,
       });
       if (merged.detailCount === 0) {
-        throw new Error("排除後沒有可輸出的明細");
+        throw new Error(
+          `全部分割包（${latest.parts.length} 包、共 ${merged.totalBeforeExclude.toLocaleString("zh-TW")} 筆）排除後沒有可輸出的明細`,
+        );
       }
       return {
         filename: merged.filename.replace(/\.merged\.txt$/, ".excluded.txt"),
@@ -739,6 +747,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         excludedCount: merged.excludedCount,
         detailCount: merged.detailCount,
         amount: merged.amount,
+        partCount: latest.parts.length,
       };
     }
 
@@ -769,11 +778,26 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       excludedCount: filtered.excludedCount,
       detailCount: generated.count,
       amount: generated.amount,
+      partCount: null,
     };
   }
 
   const excludePanel = (
-    <ExcludeExportPanel schema={schema} onProcess={handleExcludeExport} />
+    <ExcludeExportPanel
+      schema={schema}
+      partitionScope={
+        partitionSession?.formatCode === schema.code
+          ? {
+              partCount: partitionSession.parts.length,
+              detailCount: partitionSession.parts.reduce(
+                (n, p) => n + p.detailCount,
+                0,
+              ),
+            }
+          : null
+      }
+      onProcess={handleExcludeExport}
+    />
   );
 
   const convertDialog =

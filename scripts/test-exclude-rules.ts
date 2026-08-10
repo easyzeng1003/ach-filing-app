@@ -118,6 +118,19 @@ const merged = mergeAchPartitions(
 assert.equal(merged.totalBeforeExclude, 3);
 assert.equal(merged.excludedCount, 2);
 assert.equal(merged.detailCount, 1);
+assert.equal(parts.length, 2, "應涵蓋多個分割包");
+assert.equal(
+  parts.reduce((n, p) => {
+    const lines = p.content
+      .replace(/\r\n/g, "\n")
+      .replace(/\n$/, "")
+      .split("\n")
+      .filter((l) => !l.startsWith("BOF") && !l.startsWith("EOF"));
+    return n + lines.length;
+  }, 0),
+  merged.totalBeforeExclude,
+  "排除前筆數須等於全部分割包明細合計",
+);
 
 const lineFilter = filterExcludedDetailLines(
   p01,

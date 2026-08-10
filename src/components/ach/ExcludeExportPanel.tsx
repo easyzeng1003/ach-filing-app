@@ -38,12 +38,18 @@ import { describeSaveResult, saveAchFiles } from "@/lib/ach/desktop";
 
 type Props = {
   schema: FormatSchema;
+  /** 分割工作區範圍提示（全包數／總筆數）；無分割時省略 */
+  partitionScope?: { partCount: number; detailCount: number } | null;
   /** 執行排除並產生檔案內容 */
   onProcess: (doc: NonNullable<ReturnType<typeof resolveExcludeDoc>>) => Promise<ExcludeExportResult>;
 };
 
 /** 前端排除：下拉選欄位＋輸入值，處理後顯示筆數並下載 */
-export function ExcludeExportPanel({ schema, onProcess }: Props) {
+export function ExcludeExportPanel({
+  schema,
+  partitionScope = null,
+  onProcess,
+}: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const conditions = useExcludeStore((s) => s.conditions);
@@ -144,10 +150,27 @@ export function ExcludeExportPanel({ schema, onProcess }: Props) {
         <Typography variant="caption" color="text.secondary">
           選擇欄位並輸入要排除的值；處理後下載結果檔
         </Typography>
+        {partitionScope ? (
+          <Chip
+            size="small"
+            color="warning"
+            label={`範圍：全部分割包 ${partitionScope.partCount} 包・共 ${partitionScope.detailCount.toLocaleString("zh-TW")} 筆`}
+          />
+        ) : (
+          <Chip size="small" variant="outlined" label="範圍：目前表單明細" />
+        )}
         {sourceName ? (
           <Chip size="small" color="warning" label={`JSON：${sourceName}`} />
         ) : null}
       </Stack>
+
+      {partitionScope ? (
+        <Alert severity="info" sx={{ mb: 1.5 }}>
+          將先合併<strong>全部分割工作區</strong>（{partitionScope.partCount}{" "}
+          包、共 {partitionScope.detailCount.toLocaleString("zh-TW")}{" "}
+          筆），再依條件排除並輸出單一檔，不會只處理目前開啟的那一包。
+        </Alert>
+      ) : null}
 
       <Stack spacing={1.5}>
         <FormControl size="small" sx={{ maxWidth: 280 }}>
@@ -290,7 +313,11 @@ export function ExcludeExportPanel({ schema, onProcess }: Props) {
               </Button>
             }
           >
-            處理完成：原{" "}
+            處理完成
+            {lastResult.partCount != null
+              ? `（已涵蓋全 ${lastResult.partCount} 包）`
+              : ""}
+            ：原{" "}
             <strong>{lastResult.totalBefore.toLocaleString("zh-TW")}</strong>{" "}
             筆 → 排除{" "}
             <strong>{lastResult.excludedCount.toLocaleString("zh-TW")}</strong>{" "}
