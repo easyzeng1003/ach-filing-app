@@ -15,7 +15,6 @@ import {
   Typography,
 } from "@mui/material";
 import {
-  FileDownload as FileDownIcon,
   FileUpload as FileUpIcon,
   Search as SearchIcon,
   WarningAmber as AlertTriangleIcon,
@@ -25,7 +24,6 @@ import {
   ArrowForward as ArrowRightIcon,
   SwapHoriz as ArrowRightLeftIcon,
   ContentCut as ScissorsIcon,
-  Edit as EditIcon,
   RestartAlt as RestartAltIcon,
 } from "@mui/icons-material";
 import { toast } from "sonner";
@@ -34,7 +32,6 @@ import type { FormatSchema, FormFieldDef } from "@/lib/ach/schema";
 import { convertP01ToR01 } from "@/lib/ach/convertR01";
 import {
   formatTxTypeLabel,
-  generateFromSchema,
   headerHasError,
   isRowEmpty,
   lookupBranch,
@@ -53,10 +50,6 @@ import {
   type FilterOptions,
 } from "@/lib/ach/filter";
 import {
-  buildExportArtifacts,
-  type ExportFormatId,
-} from "@/lib/ach/exportFormats";
-import {
   parseAchFile,
   resolveImportSchemaFromFile,
   IMPORT_LIMITS,
@@ -66,7 +59,6 @@ import {
 import { normalizeSubmitDate } from "@/lib/ach/utils";
 import {
   describeSaveResult,
-  saveAchFile,
   saveAchFiles,
 } from "@/lib/ach/desktop";
 import { CodePicker } from "./CodePicker";
@@ -351,46 +343,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       return false;
     }
     return true;
-  }
-
-  function validateBeforeGenerate(): boolean {
-    return validateFormData();
-  }
-
-  async function handleGenerate(formats: ExportFormatId[] = ["txt"]) {
-    if (!validateBeforeGenerate()) return;
-    const want = formats.length ? formats : (["txt"] as ExportFormatId[]);
-    const result = generateFromSchema(schema, header, rows, txids, branches);
-    const badLen = result.lines.find((l) => l.length !== schema.recordLength);
-    if (badLen) {
-      toast.error(
-        `產生列長度 ${badLen.length} 與定義 ${schema.recordLength} 不符，請檢查 JSON 格式`,
-      );
-      return;
-    }
-    const artifacts = buildExportArtifacts(
-      schema,
-      header,
-      rows,
-      result,
-      txids,
-      branches,
-      want,
-    );
-    const saved = await saveAchFiles(
-      artifacts.map((a) => ({
-        filename: a.filename,
-        content: a.content,
-        mime: a.mime,
-      })),
-    );
-    if (saved.method === "canceled") {
-      toast.message("已取消儲存");
-      return;
-    }
-    toast.success(
-      `已產生 TXT（${result.count} 筆）· ${describeSaveResult(saved)}`,
-    );
   }
 
   async function handleConvertToR01(opts: {
@@ -719,6 +671,14 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         closeWorkspace(schema);
         toast.message("已清除所有紀錄，請重新上傳檔案");
       }}
+      onConvertR01={
+        schema.code === "ACHP01"
+          ? () => {
+              if (!validateFormData()) return;
+              setConvertOpen(true);
+            }
+          : undefined
+      }
       onLoadPart={(payload) => {
         loadFromImport(
           schema,
@@ -948,62 +908,20 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
             </Stack>
           </Stack>
 
-          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
-            <Button
-              variant="contained"
-              startIcon={<FileDownIcon />}
-              onClick={() => void handleGenerate(["txt"])}
-            >
-              產生 TXT
-            </Button>
-            <Button
-              variant="outlined"
-              color="secondary"
-              startIcon={<EditIcon />}
-              onClick={() => {
-                if (
-                  partitionSession?.formatCode === schema.code &&
-                  partitionSession.activeIndex != null
-                ) {
-                  toast.message("已在分割編輯中：請用上方工作區切換／存回各包");
-                  return;
-                }
-                if (importFile) {
-                  setPartitionTools({ mode: "split" });
-                  return;
-                }
-                setPartitionTools({ mode: "merge" });
-                toast.message("未保留來源檔：可選擇索引與分割檔合併，或重新上傳後再編輯");
-              }}
-              title={
-                importFile
-                  ? "分割來源檔並在網頁逐包編輯"
-                  : "合併既有分割檔，或請重新上傳來源檔後再編輯"
-              }
-            >
-              編輯
-            </Button>
-            {schema.code === "ACHP01" ? (
-              <Button
-                variant="outlined"
-                startIcon={<ArrowRightLeftIcon />}
-                onClick={() => {
-                  if (!validateFormData()) return;
-                  setConvertOpen(true);
-                }}
-              >
-                轉檔 R01
-              </Button>
-            ) : null}
-            <Button
-              variant="outlined"
-              startIcon={<FileUpIcon />}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              重新上傳
-            </Button>
-            {fileInput}
-            {partitionSession?.formatCode !== schema.code ? (
+          {partitionSession?.formatCode !== schema.code ? (
+            <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
+              {schema.code === "ACHP01" ? (
+                <Button
+                  variant="outlined"
+                  startIcon={<ArrowRightLeftIcon />}
+                  onClick={() => {
+                    if (!validateFormData()) return;
+                    setConvertOpen(true);
+                  }}
+                >
+                  轉檔 R01
+                </Button>
+              ) : null}
               <Button
                 variant="text"
                 color="error"
@@ -1019,8 +937,8 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
               >
                 清除並回到上傳
               </Button>
-            ) : null}
-          </Stack>
+            </Stack>
+          ) : null}
         </CardContent>
       </Card>
 
