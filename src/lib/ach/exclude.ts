@@ -2,22 +2,25 @@
  * 排除規則（JSON）：符合條件的明細於「輸出」時剔除
  *
  * 語意：
- * - 單一 rule 內多欄位 = AND（欄位 A=B 且 欄位 C=D）
+ * - 單一 rule 內多欄位 = AND（欄位 A 符合且 欄位 C 符合）
  * - rules 陣列 = OR（符合任一規則即排除）
- * - 比對為 trim 後精確相等（金額另去千分位）
+ * - 比對：eq＝精確相等；like＝SQL LIKE（%／_，不分大小寫）
+ * - 金額／數字欄另去千分位後再比
  */
 import { parseRecordFields } from "./import";
-import type {
-  DetailRow,
-  FormatSchema,
-  FormFieldDef,
-  HeaderValues,
-} from "./schema";
+import type { DetailRow, FormatSchema, FormFieldDef } from "./schema";
 
 export const EXCLUDE_RULES_KIND = "ach-exclude-rules";
 
-/** 單一排除規則：form.detail key → 要比對的值 */
-export type ExcludeRule = Record<string, string>;
+export type ExcludeCompareOp = "eq" | "like";
+
+export type ExcludeFieldMatch = {
+  op: ExcludeCompareOp;
+  value: string;
+};
+
+/** 單一排除規則：form.detail key → 字串（視為 eq）或 { op, value } */
+export type ExcludeRule = Record<string, string | ExcludeFieldMatch>;
 
 export type ExcludeRulesDoc = {
   version: number;
@@ -51,6 +54,121 @@ export function normalizeExcludeCell(
   return v;
 }
 
+export function normalizeExcludeMatch(
+  raw: string | ExcludeFieldMatch | { like?: string; eq?: string; op?: string; value?: string } | null | undefined,
+): ExcludeFieldMatch | null {
+  if (raw == null) return null;
+  if (typeof raw === "string") {
+    const value = raw.trim();
+    if (!value) return null;
+    return { op: "eq", value };
+  }
+  if (typeof raw !== "object") return null;
+  const obj = raw as {
+    op?: string;
+    value?: string;
+    like?: string;
+    eq?: string;
+  };
+  if (typeof obj.like === "string" && obj.like.trim() && obj.value == null && obj.op == null) {
+    return { op: "like", value: obj.like.trim() };
+  }
+  if (typeof obj.eq === "string" && obj.eq.trim() && obj.value == null && obj.op == null) {
+    return { op: "eq", value: obj.eq.trim() };
+  }
+  const op: ExcludeCompareOp = obj.op === "like" ? "like" : "eq";
+  const value = String(obj.value ?? "").trim();
+  if (!value) return null;
+  return { op, value };
+}
+
+/**
+ * SQL LIKE：`%`＝任意字串、`_`＝單一字元；`\` 逸出。
+ * 比對不分大小寫。
+ */
+export function matchLikePattern(actual: string, pattern: string): boolean {
+  let i = 0;
+  let re = "^";
+  while (i < pattern.length) {
+    const ch = pattern[i]!;
+    if (ch === "\\") {
+      i += 1;
+      const next = pattern[i] ?? "";
+      re += next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      i += 1;
+      continue;
+    }
+    if (ch === "%") {
+      re += ".*";
+      i += 1;
+      continue;
+    }
+    if (ch === "_") {
+      re += ".";
+      i += 1;
+      continue;
+    }
+    re += ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    i += 1;
+  }
+  re += "$";
+  try {
+    return new RegExp(re, "i").test(actual);
+  } catch {
+    return false;
+  }
+}
+
+export function matchExcludeValue(
+  actualRaw: string,
+  expect: ExcludeFieldMatch,
+  field?: FormFieldDef,
+): boolean {
+  const actual = normalizeExcludeCell(actualRaw, field);
+  const want = normalizeExcludeCell(expect.value, field);
+  if (expect.op === "like") {
+    return matchLikePattern(actual, want);
+  }
+  return actual === want;
+}
+
+function parseRuleObject(item: Record<string, unknown>, index: number): ExcludeRule {
+  const rule: ExcludeRule = {};
+  for (const [k, v] of Object.entries(item)) {
+    if (v == null) continue;
+    if (typeof v === "string") {
+      const s = v.trim();
+      if (!s) continue;
+      rule[k] = s;
+      continue;
+    }
+    if (typeof v === "object" && !Array.isArray(v)) {
+      const obj = v as Record<string, unknown>;
+      // { op, value } 或 { like: "..." } / { eq: "..." }
+      if ("value" in obj || "op" in obj) {
+        const m = normalizeExcludeMatch({
+          op: obj.op === "like" ? "like" : "eq",
+          value: String(obj.value ?? ""),
+        });
+        if (m) rule[k] = m;
+        continue;
+      }
+      if (typeof obj.like === "string" && obj.like.trim()) {
+        rule[k] = { op: "like", value: obj.like.trim() };
+        continue;
+      }
+      if (typeof obj.eq === "string" && obj.eq.trim()) {
+        rule[k] = { op: "eq", value: obj.eq.trim() };
+        continue;
+      }
+    }
+    throw new Error(
+      `rules[${index}].${k} 須為字串或 { "op": "eq"|"like", "value": "..." }`,
+    );
+  }
+  return rule;
+}
+
 export function parseExcludeRules(text: string): ExcludeRulesDoc {
   let raw: unknown;
   try {
@@ -74,13 +192,7 @@ export function parseExcludeRules(text: string): ExcludeRulesDoc {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
       throw new Error(`rules[${i}] 須為物件（欄位 key → 值）`);
     }
-    const rule: ExcludeRule = {};
-    for (const [k, v] of Object.entries(item as Record<string, unknown>)) {
-      if (v == null) continue;
-      const s = String(v).trim();
-      if (!s) continue;
-      rule[k] = s;
-    }
+    const rule = parseRuleObject(item as Record<string, unknown>, i);
     if (Object.keys(rule).length) rules.push(rule);
   }
   if (!rules.length) {
@@ -112,10 +224,11 @@ export function countExcludeRuleFields(doc: ExcludeRulesDoc): number {
   return doc.rules.reduce((n, r) => n + Object.keys(r).length, 0);
 }
 
-/** 前端條件列（下拉欄位＋輸入值） */
+/** 前端條件列（下拉欄位＋運算子＋輸入值） */
 export type ExcludeUiCondition = {
   id: string;
   key: string;
+  op: ExcludeCompareOp;
   value: string;
 };
 
@@ -124,10 +237,12 @@ export type ExcludeMatchMode = "and" | "or";
 export function newExcludeCondition(
   key = "",
   value = "",
+  op: ExcludeCompareOp = "eq",
 ): ExcludeUiCondition {
   return {
     id: `ex-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
     key,
+    op,
     value,
   };
 }
@@ -143,14 +258,24 @@ export function buildExcludeDocFromConditions(
   mode: ExcludeMatchMode = "and",
 ): ExcludeRulesDoc {
   const cleaned = conditions
-    .map((c) => ({ key: c.key.trim(), value: String(c.value ?? "").trim() }))
+    .map((c) => ({
+      key: c.key.trim(),
+      op: (c.op === "like" ? "like" : "eq") as ExcludeCompareOp,
+      value: String(c.value ?? "").trim(),
+    }))
     .filter((c) => c.key && c.value);
   if (!cleaned.length) {
     throw new Error("請至少選擇欄位並輸入排除內容");
   }
+  const toMatch = (c: {
+    op: ExcludeCompareOp;
+    value: string;
+  }): string | ExcludeFieldMatch =>
+    c.op === "eq" ? c.value : { op: c.op, value: c.value };
+
   if (mode === "and") {
     const rule: ExcludeRule = {};
-    for (const c of cleaned) rule[c.key] = c.value;
+    for (const c of cleaned) rule[c.key] = toMatch(c);
     return {
       version: 1,
       kind: EXCLUDE_RULES_KIND,
@@ -162,7 +287,7 @@ export function buildExcludeDocFromConditions(
     version: 1,
     kind: EXCLUDE_RULES_KIND,
     formatCode,
-    rules: cleaned.map((c) => ({ [c.key]: c.value })),
+    rules: cleaned.map((c) => ({ [c.key]: toMatch(c) })),
   };
 }
 
@@ -174,11 +299,11 @@ export function rowMatchesExcludeRule(
 ): boolean {
   const entries = Object.entries(rule);
   if (!entries.length) return false;
-  for (const [key, expect] of entries) {
+  for (const [key, expectRaw] of entries) {
+    const expect = normalizeExcludeMatch(expectRaw);
+    if (!expect) return false;
     const field = formFieldByKey(schema, key);
-    const actual = normalizeExcludeCell(values[key] ?? "", field);
-    const want = normalizeExcludeCell(expect, field);
-    if (actual !== want) return false;
+    if (!matchExcludeValue(values[key] ?? "", expect, field)) return false;
   }
   return true;
 }

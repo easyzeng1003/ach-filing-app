@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import {
   assertExcludeFormat,
   parseExcludeRules,
+  type ExcludeCompareOp,
   type ExcludeMatchMode,
 } from "@/lib/ach/exclude";
 import {
@@ -148,7 +149,7 @@ export function ExcludeExportPanel({
           排除後輸出
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          選擇欄位並輸入要排除的值；處理後下載結果檔
+          選擇欄位、比對方式（等於／LIKE）與排除內容；處理後下載結果檔
         </Typography>
         {partitionScope ? (
           <Chip
@@ -216,10 +217,28 @@ export function ExcludeExportPanel({
                 ))}
               </Select>
             </FormControl>
+            <FormControl size="small" sx={{ minWidth: 110, flex: "0 0 120px" }}>
+              <InputLabel id={`ex-op-${c.id}`}>比對</InputLabel>
+              <Select
+                labelId={`ex-op-${c.id}`}
+                label="比對"
+                value={c.op ?? "eq"}
+                onChange={(e: SelectChangeEvent<ExcludeCompareOp>) =>
+                  updateCondition(c.id, {
+                    op: e.target.value as ExcludeCompareOp,
+                  })
+                }
+              >
+                <MenuItem value="eq">等於</MenuItem>
+                <MenuItem value="like">LIKE</MenuItem>
+              </Select>
+            </FormControl>
             <TextField
               size="small"
-              label="排除內容"
-              placeholder="完全相符的值"
+              label={c.op === "like" ? "樣式（%／_）" : "排除內容"}
+              placeholder={
+                c.op === "like" ? "例：ABC% 或 %1234" : "完全相符的值"
+              }
               value={c.value}
               onChange={(e) =>
                 updateCondition(c.id, { value: e.target.value })
@@ -245,6 +264,10 @@ export function ExcludeExportPanel({
             ) : null}
           </Stack>
         ))}
+
+        <Typography variant="caption" color="text.secondary">
+          「等於」完全相符；「LIKE」支援 %（任意長度）、_（單字元），不區分大小寫。
+        </Typography>
 
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
           <Button

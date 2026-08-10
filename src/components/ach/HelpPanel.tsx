@@ -155,8 +155,12 @@ export function HelpPanel() {
           <h3 className="font-bold">排除後輸出</h3>
         </div>
         <p className="mb-2 text-sm text-muted">
-          於主畫面以<strong className="text-fg">下拉選欄位</strong>並輸入排除內容，
+          於主畫面以<strong className="text-fg">下拉選欄位</strong>、比對方式（
+          <strong className="text-fg">等於</strong>／
+          <strong className="text-fg">LIKE</strong>）並輸入排除內容，
           按「排除後輸出」後會顯示原筆數／排除筆數／輸出筆數，並提供檔案下載。
+          LIKE 支援 <code className="font-mono text-xs">%</code>（任意長度）、
+          <code className="font-mono text-xs">_</code>（單字元），不區分大小寫。
           若正在<strong className="text-fg">分割工作區</strong>，會合併
           <strong className="text-fg">全部分割包</strong>後再排除（非僅目前開啟的那一包）。
           條件關係可選全部符合（AND）或任一符合（OR）；亦可載入 JSON 規則。
@@ -168,7 +172,8 @@ export function HelpPanel() {
   "formatCode": "ACHP01",
   "rules": [
     { "bankCode": "0040000", "amount": "1000" },
-    { "account": "0000001234567890" }
+    { "account": { "op": "like", "value": "%1234567890" } },
+    { "userNo": { "like": "U%" } }
   ]
 }`}
         </pre>

@@ -5,6 +5,8 @@ import { create } from "zustand";
 import {
   buildExcludeDocFromConditions,
   newExcludeCondition,
+  normalizeExcludeMatch,
+  type ExcludeCompareOp,
   type ExcludeMatchMode,
   type ExcludeRulesDoc,
   type ExcludeUiCondition,
@@ -30,10 +32,10 @@ type ExcludeState = {
   lastResult: ExcludeExportResult | null;
   setMatchMode: (mode: ExcludeMatchMode) => void;
   setConditions: (conditions: ExcludeUiCondition[]) => void;
-  addCondition: (key?: string) => void;
+  addCondition: (key?: string, op?: ExcludeCompareOp) => void;
   updateCondition: (
     id: string,
-    patch: Partial<Pick<ExcludeUiCondition, "key" | "value">>,
+    patch: Partial<Pick<ExcludeUiCondition, "key" | "value" | "op">>,
   ) => void;
   removeCondition: (id: string) => void;
   syncDocFromConditions: (formatCode: string) => ExcludeRulesDoc;
@@ -54,6 +56,25 @@ function syncDoc(
   }
 }
 
+function conditionsFromDoc(doc: ExcludeRulesDoc): ExcludeUiCondition[] {
+  const mode: ExcludeMatchMode = doc.rules.length > 1 ? "or" : "and";
+  const conditions: ExcludeUiCondition[] = [];
+  if (mode === "and") {
+    const rule = doc.rules[0] ?? {};
+    for (const [key, raw] of Object.entries(rule)) {
+      const m = normalizeExcludeMatch(raw);
+      if (m) conditions.push(newExcludeCondition(key, m.value, m.op));
+    }
+  } else {
+    for (const rule of doc.rules) {
+      const [key, raw] = Object.entries(rule)[0] ?? ["", ""];
+      const m = normalizeExcludeMatch(raw);
+      if (key && m) conditions.push(newExcludeCondition(key, m.value, m.op));
+    }
+  }
+  return conditions;
+}
+
 export const useExcludeStore = create<ExcludeState>((set, get) => ({
   conditions: [newExcludeCondition()],
   matchMode: "and",
@@ -69,9 +90,9 @@ export const useExcludeStore = create<ExcludeState>((set, get) => ({
       sourceName: null,
     }),
 
-  addCondition: (key = "") =>
+  addCondition: (key = "", op = "eq") =>
     set((s) => ({
-      conditions: [...s.conditions, newExcludeCondition(key)],
+      conditions: [...s.conditions, newExcludeCondition(key, "", op)],
       sourceName: null,
     })),
 
@@ -104,20 +125,8 @@ export const useExcludeStore = create<ExcludeState>((set, get) => ({
   },
 
   setDoc: (doc, sourceName) => {
-    // JSON 載入：展開成條件列（and 取第一條；多 rule 改為 or）
     const mode: ExcludeMatchMode = doc.rules.length > 1 ? "or" : "and";
-    const conditions: ExcludeUiCondition[] = [];
-    if (mode === "and") {
-      const rule = doc.rules[0] ?? {};
-      for (const [key, value] of Object.entries(rule)) {
-        conditions.push(newExcludeCondition(key, value));
-      }
-    } else {
-      for (const rule of doc.rules) {
-        const [key, value] = Object.entries(rule)[0] ?? ["", ""];
-        if (key) conditions.push(newExcludeCondition(key, value));
-      }
-    }
+    const conditions = conditionsFromDoc(doc);
     set({
       doc,
       sourceName: sourceName ?? null,
