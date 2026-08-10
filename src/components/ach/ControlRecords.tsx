@@ -8,24 +8,6 @@ import type {
 } from "@/lib/ach/schema";
 import { resolveSorg } from "@/lib/ach/engine";
 
-/** 控制首錄／尾錄會用到的 form.header key（如 date、ydate） */
-export function controlFormKeys(schema: FormatSchema): Set<string> {
-  const keys = new Set<string>();
-  for (const f of [
-    ...schema.records.header.fields,
-    ...schema.records.trailer.fields,
-  ]) {
-    if (f.source === "header" && f.key) keys.add(f.key);
-  }
-  return keys;
-}
-
-/** 提出／發動者資料：不屬於控制首錄／尾錄的表頭欄位 */
-export function proposerFormFields(schema: FormatSchema): FormFieldDef[] {
-  const used = controlFormKeys(schema);
-  return schema.form.header.filter((f) => !used.has(f.key));
-}
-
 export function formFieldByKey(
   schema: FormatSchema,
   key: string | undefined,
@@ -396,48 +378,3 @@ export function ControlTrailerFields({
   );
 }
 
-/** 提出／發動者資料：與明細相同的橫向 data-table 排版 */
-export function ProposerFieldsTable({
-  schema,
-  header,
-  edit,
-}: {
-  schema: FormatSchema;
-  header: Record<string, string>;
-  edit: EditHandlers;
-}) {
-  const fields = proposerFormFields(schema);
-  if (fields.length === 0) return null;
-
-  const columns = fields.map((field) => ({
-    key: field.key,
-    label: field.label,
-    minWidth: field.ui?.minWidth ?? "7rem",
-    cell: (
-      <CellEditable
-        formField={field}
-        value={header[field.key] ?? ""}
-        error={edit.errors?.[field.key]}
-        selectOptions={edit.selectOptions?.(field)}
-        onChange={(v) => edit.onChange(field.key, v)}
-        onBlur={() => edit.onBlur(field)}
-        onPick={
-          field.picker && edit.onPick
-            ? (mode) => edit.onPick!(mode, field.key)
-            : undefined
-        }
-      />
-    ),
-  }));
-
-  const errorRow = fields.map((f) => edit.errors?.[f.key] ?? null);
-  const metaRow = fields.map((f) => edit.fieldMeta?.(f) ?? null);
-
-  return (
-    <ControlRecordTable
-      columns={columns}
-      errorRow={errorRow}
-      metaRow={metaRow}
-    />
-  );
-}

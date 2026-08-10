@@ -46,6 +46,7 @@ import {
   lookupBranch,
   lookupTxid,
   rowErrorMessages,
+  syncHeaderFromDetails,
   validateDetailRow,
   validateHeader,
 } from "@/lib/ach/engine";
@@ -79,8 +80,6 @@ import { CodePicker } from "./CodePicker";
 import {
   ControlHeaderFields,
   ControlTrailerFields,
-  ProposerFieldsTable,
-  proposerFormFields,
 } from "./ControlRecords";
 import { ConvertR01Dialog } from "./ConvertR01Dialog";
 import { ImportPreviewDialog } from "./ImportPreviewDialog";
@@ -317,8 +316,13 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   }
 
   function validateFormData(): boolean {
-    if (headerHasError(headerErrs)) {
-      toast.error("提出／發動者資料輸入有誤");
+    const synced = syncHeaderFromDetails(header, rows, schema);
+    if (synced.txid !== header.txid) {
+      setHeaderT(schema.code, schema, "txid", synced.txid ?? "");
+    }
+    const syncedHeaderErrs = validateHeader(schema, synced, txids, branches);
+    if (headerHasError(syncedHeaderErrs)) {
+      toast.error("控制首錄／表頭資料輸入有誤");
       return false;
     }
     const bad: number[] = [];
@@ -1037,32 +1041,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         />
       </div>
 
-      {proposerFormFields(schema).length > 0 ? (
-        <div className="card overflow-hidden">
-          <div className="border-b border-border px-4 py-3">
-            <h3 className="font-bold">提出／發動者資料</h3>
-            <p className="text-xs text-muted">
-              寫入明細錄與發送單位推算；非控制首錄本身欄位。
-            </p>
-          </div>
-          <ProposerFieldsTable
-            schema={schema}
-            header={header}
-            edit={{
-              header,
-              errors: headerErrs,
-              onChange: (key, value) =>
-                setHeaderT(schema.code, schema, key, value),
-              onBlur: onHeaderBlur,
-              fieldMeta,
-              selectOptions,
-              onPick: (mode, key) =>
-                setPicker({ mode, target: "header", key }),
-            }}
-          />
-        </div>
-      ) : null}
-
       <div className="card overflow-hidden">
         <div className="border-b border-border px-4 py-3">
           <h3 className="font-bold">控制尾錄</h3>
@@ -1286,13 +1264,14 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                                   : undefined
                               }
                             />
-                            {field.picker === "branch" && (
+                            {(field.picker === "branch" ||
+                              field.picker === "txid") && (
                               <button
                                 type="button"
                                 className="btn btn-ghost px-1 py-0"
                                 onClick={() =>
                                   setPicker({
-                                    mode: "branch",
+                                    mode: field.picker!,
                                     target: "row",
                                     key: field.key,
                                     rowId: row.id,
@@ -1339,8 +1318,11 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         items={txids}
         onClose={() => setPicker(null)}
         onSelect={(code) => {
-          if (picker?.target === "header") {
+          if (!picker) return;
+          if (picker.target === "header") {
             setHeaderT(schema.code, schema, picker.key, code);
+          } else if (picker.rowId) {
+            updateRowT(schema.code, schema, picker.rowId, picker.key, code);
           }
         }}
       />

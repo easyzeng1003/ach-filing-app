@@ -116,6 +116,8 @@ for (const entry of index.formats) {
     admark: "A",
   };
   const detailA = {
+    seq: "1",
+    txid: "704",
     bankCode: "0040037",
     account: "0000009988776655",
     taxId: "A123456789",
@@ -123,6 +125,8 @@ for (const entry of index.formats) {
     amount: "1000",
   };
   const detailB = {
+    seq: "2",
+    txid: "704",
     bankCode: "0040071",
     account: "0000001122334455",
     taxId: "87654321",
@@ -190,8 +194,17 @@ for (const entry of index.formats) {
       `${schema.code} header account`,
     );
   }
-  if (schema.form.header.some((f) => f.key === "txid")) {
+  if (schema.form.detail.some((f) => f.key === "txid")) {
+    assert.equal(fromDetail1.detail.txid, "704", `${schema.code} detail txid`);
+  } else if (schema.form.header.some((f) => f.key === "txid")) {
     assert.equal(recoveredHeader.txid, "704", `${schema.code} txid`);
+  }
+  if (schema.form.detail.some((f) => f.key === "seq")) {
+    assert.equal(
+      String(Number(fromDetail1.detail.seq)),
+      "1",
+      `${schema.code} detail seq`,
+    );
   }
 
   assert.equal(fromDetail1.detail.bankCode, "0040037");
