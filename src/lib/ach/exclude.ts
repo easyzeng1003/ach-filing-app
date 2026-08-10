@@ -112,6 +112,60 @@ export function countExcludeRuleFields(doc: ExcludeRulesDoc): number {
   return doc.rules.reduce((n, r) => n + Object.keys(r).length, 0);
 }
 
+/** 前端條件列（下拉欄位＋輸入值） */
+export type ExcludeUiCondition = {
+  id: string;
+  key: string;
+  value: string;
+};
+
+export type ExcludeMatchMode = "and" | "or";
+
+export function newExcludeCondition(
+  key = "",
+  value = "",
+): ExcludeUiCondition {
+  return {
+    id: `ex-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
+    key,
+    value,
+  };
+}
+
+/**
+ * 由前端條件列組出排除規則文件。
+ * - and：全部條件組成單一 rule（多欄位同時符合才排除）
+ * - or：每一條件各自一條 rule（符合任一即排除）
+ */
+export function buildExcludeDocFromConditions(
+  formatCode: string,
+  conditions: ExcludeUiCondition[],
+  mode: ExcludeMatchMode = "and",
+): ExcludeRulesDoc {
+  const cleaned = conditions
+    .map((c) => ({ key: c.key.trim(), value: String(c.value ?? "").trim() }))
+    .filter((c) => c.key && c.value);
+  if (!cleaned.length) {
+    throw new Error("請至少選擇欄位並輸入排除內容");
+  }
+  if (mode === "and") {
+    const rule: ExcludeRule = {};
+    for (const c of cleaned) rule[c.key] = c.value;
+    return {
+      version: 1,
+      kind: EXCLUDE_RULES_KIND,
+      formatCode,
+      rules: [rule],
+    };
+  }
+  return {
+    version: 1,
+    kind: EXCLUDE_RULES_KIND,
+    formatCode,
+    rules: cleaned.map((c) => ({ [c.key]: c.value })),
+  };
+}
+
 /** 列值是否符合單一規則（AND） */
 export function rowMatchesExcludeRule(
   values: Record<string, string>,

@@ -6,8 +6,10 @@ import { readFileSync } from "node:fs";
 import { EMBEDDED_BRANCHES, EMBEDDED_TXIDS, loadEmbeddedFormats } from "../src/data/embedded";
 import { generateFromSchema } from "../src/lib/ach/engine";
 import {
+  buildExcludeDocFromConditions,
   filterExcludedDetailLines,
   filterExcludedRows,
+  newExcludeCondition,
   parseExcludeRules,
   rowMatchesExcludeRule,
 } from "../src/lib/ach/exclude";
@@ -128,6 +130,17 @@ const lineFilter = filterExcludedDetailLines(
 );
 assert.equal(lineFilter.excludedCount, 2);
 assert.equal(lineFilter.kept.length, 1);
+
+const uiDoc = buildExcludeDocFromConditions(
+  "ACHP01",
+  [
+    newExcludeCondition("bankCode", "0040000"),
+    newExcludeCondition("amount", "1000"),
+  ],
+  "and",
+);
+assert.equal(uiDoc.rules.length, 1);
+assert.equal(uiDoc.rules[0]!.bankCode, "0040000");
 
 console.log(
   "OK exclude-rules: excluded=",
