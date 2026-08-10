@@ -8,13 +8,11 @@ import {
   Layers,
   RotateCcw,
   ArrowLeftRight,
-  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Branch, DetailRow, FormatSchema, HeaderValues, Txid } from "@/lib/ach/schema";
 import {
   describeSaveResult,
-  saveAchFile,
   saveAchFiles,
 } from "@/lib/ach/desktop";
 import {
@@ -63,7 +61,6 @@ export function PartitionWorkspaceBar({
   const session = usePartitionStore((s) => s.session);
   const setActiveIndex = usePartitionStore((s) => s.setActiveIndex);
   const saveFormToActivePart = usePartitionStore((s) => s.saveFormToActivePart);
-  const clearSession = usePartitionStore((s) => s.clearSession);
   const [busy, setBusy] = useState(false);
 
   if (!session || session.formatCode !== schema.code) return null;
@@ -171,36 +168,6 @@ export function PartitionWorkspaceBar({
     }
   }
 
-  async function handleDownloadActive() {
-    if (active == null || !part) return;
-    setBusy(true);
-    try {
-      if (dirty) {
-        const ok = await persistActive();
-        if (!ok) return;
-      }
-      const p = usePartitionStore.getState().session?.parts[active];
-      if (!p) return;
-      await saveAchFile(p.filename, p.content);
-      toast.success(`已下載 ${p.filename}`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "下載失敗");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function handleClose() {
-    if (dirty) {
-      const leave = window.confirm(
-        "尚有未存回分割的變更，確定結束分割工作區？未存回的修改將遺失。",
-      );
-      if (!leave) return;
-    }
-    clearSession();
-    toast.message("已結束分割工作區");
-  }
-
   return (
     <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5">
       <div className="flex flex-wrap items-center gap-2">
@@ -283,14 +250,6 @@ export function PartitionWorkspaceBar({
           </button>
           <button
             type="button"
-            className="btn btn-secondary"
-            disabled={busy || active == null}
-            onClick={() => void handleDownloadActive()}
-          >
-            下載此包
-          </button>
-          <button
-            type="button"
             className="btn btn-primary"
             disabled={busy}
             onClick={() => void handleMergeExport()}
@@ -322,15 +281,6 @@ export function PartitionWorkspaceBar({
               清除並回到上傳
             </button>
           ) : null}
-          <button
-            type="button"
-            className="btn btn-ghost !px-2"
-            disabled={busy}
-            onClick={handleClose}
-            title="結束分割工作區"
-          >
-            <X className="size-4" />
-          </button>
         </div>
       </div>
     </div>
