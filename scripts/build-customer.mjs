@@ -105,7 +105,7 @@ if (!html.includes('id="root"') && !html.includes("id='root'")) {
 
 mkdirSync(releaseDir, { recursive: true });
 
-const singleName = "代收建檔小程式.html";
+const singleName = "ACH改檔小工具.html";
 const singlePath = path.join(releaseDir, singleName);
 writeFileSync(singlePath, html, "utf8");
 console.log(
@@ -133,14 +133,14 @@ cpSync(asciiSingle, path.join(stage, path.basename(asciiSingle)));
 writeFileSync(
   path.join(stage, "使用說明.txt"),
   [
-    "代收建檔小程式 v" + version + "（客戶版・免安裝）",
+    "ACH改檔小工具 v" + version + "（客戶版・免安裝）",
     "====================================",
     "",
     "【怎麼用 — 最簡單】",
     "1. 解壓縮 zip（若需要）",
     "2. 用 Chrome 或 Edge **雙擊**開啟：",
     "",
-    "     代收建檔小程式.html",
+    "     ACH改檔小工具.html",
     "",
     "3. 填寫資料 → 產生 TXT 上傳檔（或 HTML 報表 / JS 資料）",
     "",
@@ -157,6 +157,11 @@ writeFileSync(
     "· 表單暫存在瀏覽器本機，清除網站資料會清空",
     "· TXT 為財金 ACH 固定長度上傳檔",
     "",
+    "【品牌／主題參數（選用）】",
+    "以網址參數覆寫名稱、圖示、顏色，例如：",
+    "  ACH改檔小工具.html?name=我的ACH工具&primary=1566c0&accent=ff9800&icon=build",
+    "  name／subtitle／primary／header／accent／icon",
+    "",
     "版本：" + version,
     "",
   ].join("\n"),
@@ -169,7 +174,7 @@ cpSync(dist, multiDir, { recursive: true });
 cpSync(singlePath, path.join(multiDir, singleName));
 writeFileSync(
   path.join(multiDir, "說明.txt"),
-  "此資料夾可上傳到公司網站。一般客戶請直接開上一層「代收建檔小程式.html」。\n",
+  "此資料夾可上傳到公司網站。一般客戶請直接開上一層「ACH改檔小工具.html」。\n",
   "utf8",
 );
 

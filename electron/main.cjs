@@ -73,7 +73,7 @@ async function createWindow() {
     height: 860,
     minWidth: 960,
     minHeight: 640,
-    title: "代收建檔小程式",
+    title: "ACH改檔小工具",
     backgroundColor: "#f4f1ea",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),

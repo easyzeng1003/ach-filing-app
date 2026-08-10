@@ -177,7 +177,7 @@
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #004d40;
+  background: var(--color-header);
 }
 
 .btn-secondary {
@@ -238,12 +238,12 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #00695c;
-  color: #ffffff;
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
   font-weight: 600;
   text-align: left;
   padding: 0.55rem 0.5rem;
-  border-bottom: 1px solid #004d40;
+  border-bottom: 1px solid var(--color-header);
   white-space: nowrap;
   vertical-align: bottom;
 }

@@ -221,7 +221,7 @@ function buildHtmlReport(
     '<div class="card"><h2>固定長度輸出列（原始）</h2>\n<table><thead><tr><th>#</th><th>內容</th><th>長度</th></tr></thead><tbody>\n' +
     rawLines +
     "\n</tbody></table></div>\n\n" +
-    "<footer>代收建檔小程式 · JSON 參數化輸出 · HTML 成品</footer>\n</body>\n</html>\n"
+    "<footer>ACH改檔小工具 · JSON 參數化輸出 · HTML 成品</footer>\n</body>\n</html>\n"
   );
 }
 
@@ -273,7 +273,7 @@ function buildJsModule(
     " " +
     schema.name +
     "\n" +
-    " * 由代收建檔小程式自動產生\n" +
+    " * 由ACH改檔小工具自動產生\n" +
     " * @generated\n" +
     " */\n" +
     "export const achExport = " +
