@@ -620,12 +620,6 @@ function FormPreview({
                     <span className="block h-[1.7rem]" aria-hidden />
                   ) : null}
                 </th>
-                <th style={{ minWidth: "5.5rem" }}>
-                  <span className="th-label">交易序號</span>
-                  {filterEnabled ? (
-                    <span className="block h-[1.7rem]" aria-hidden />
-                  ) : null}
-                </th>
                 <th style={{ minWidth: "4.5rem" }}>
                   <span className="th-label">交易類別</span>
                   {filterEnabled ? (
@@ -687,7 +681,7 @@ function FormPreview({
               {result.previewRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={schema.form.detail.length + 4}
+                    colSpan={schema.form.detail.length + 3}
                     className="py-8 text-center text-muted"
                   >
                     {result.tooLargeForForm && !result.filterActive
@@ -699,7 +693,6 @@ function FormPreview({
                 result.previewRows.map((row, i) => (
                   <tr key={row.id}>
                     <td className="text-center text-faint">{i + 1}</td>
-                    <td className="font-mono">{row.seq || ""}</td>
                     <td className="font-mono">
                       {row.txType ? formatTxTypeLabel(row.txType) : ""}
                     </td>

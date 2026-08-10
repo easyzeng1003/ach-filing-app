@@ -231,6 +231,67 @@
     ],
     "detail": [
       {
+        "key": "seq",
+        "label": "序號",
+        "placeholder": "000001",
+        "inputType": "text",
+        "length": 6,
+        "charset": "digit",
+        "required": false,
+        "pad": {
+          "side": "left",
+          "char": "0",
+          "onBlur": true
+        },
+        "validation": {
+          "rules": [
+            {
+              "type": "maxLength",
+              "length": 6,
+              "message": "序號長度不符"
+            }
+          ]
+        },
+        "picker": null,
+        "ui": {
+          "mono": true,
+          "minWidth": "5.5rem"
+        },
+        "filterable": true
+      },
+      {
+        "key": "txid",
+        "label": "交易代號（代收類）",
+        "placeholder": "704",
+        "inputType": "text",
+        "length": 3,
+        "charset": "digit",
+        "required": false,
+        "pad": {
+          "side": "none"
+        },
+        "validation": {
+          "rules": [
+            {
+              "type": "requiredIfAny",
+              "message": "交易代號未輸入"
+            },
+            {
+              "type": "txid",
+              "minValue": 500,
+              "message": "交易代號錯誤"
+            }
+          ]
+        },
+        "picker": "txid",
+        "metaFrom": "txid",
+        "ui": {
+          "mono": true,
+          "minWidth": "5rem"
+        },
+        "filterable": true
+      },
+      {
         "key": "bankCode",
         "label": "收受者銀行代號",
         "inputType": "text",
@@ -440,18 +501,19 @@
       "fields": [
         {
           "id": "SEQ",
-          "source": "derived",
-          "fn": "seq",
+          "source": "detail",
           "length": 6,
           "charset": "digit",
           "pad": {
             "side": "left",
             "char": "0"
-          }
+          },
+          "key": "seq",
+          "label": "交易序號"
         },
         {
           "id": "TIX",
-          "source": "header",
+          "source": "detail",
           "key": "txid",
           "length": 3,
           "charset": "digit",

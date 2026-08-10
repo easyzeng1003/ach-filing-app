@@ -234,7 +234,7 @@ function detailRowFromFields(
       const v = fieldText(f);
       if (v) row.type = v;
     }
-    if (f.id === "TXID") {
+    if (f.id === "TXID" || f.id === "TIX" || f.key === "txid") {
       const v = fieldText(f);
       if (v) row.txid = v;
     }
@@ -474,10 +474,19 @@ function finalizeHeader(acc: ParseAcc): HeaderValues {
     Object.assign(header, collectKeyedValues(acc.headerLine.fields, "header"));
   }
   if (acc.detailSamples[0]) {
-    const fromDetail = collectKeyedValues(
+    const fromDetailHeader = collectKeyedValues(
       acc.detailSamples[0].fields,
       "header",
     );
+    const fromDetailBody = collectKeyedValues(
+      acc.detailSamples[0].fields,
+      "detail",
+    );
+    // 交易代號已改為 detail.source；其餘提出欄仍為 header.source
+    const fromDetail = {
+      ...fromDetailHeader,
+      ...(fromDetailBody.txid ? { txid: fromDetailBody.txid } : {}),
+    };
     for (const [k, v] of Object.entries(fromDetail)) {
       if (!v) continue;
       // 交易代號等：分割／匯入後一律以明細第一筆為主
