@@ -61,13 +61,13 @@ writeFileSync(
 ----
 - index.html     主畫面
 - assets/        JS、CSS
-- data/          交易代號、銀行代碼、格式 JSON（ACHP01/P02）
+- data/          交易代號、銀行代碼、格式 JSON（ACHP01/R01）
 
 功能
 ----
-- P01 代收交易 / P02 授權建檔（JSON 參數化可擴充）
+- P01 代收／代付 / R01 提回／退件（JSON 參數化可擴充）
 - 明細篩選
-- 成品輸出：TXT（固定長度）、HTML 報表、JS 資料模組
+- 成品輸出：TXT（固定長度）
 
 版本：${version}
 `,

@@ -43,16 +43,17 @@ export const EXPORT_FORMAT_META: Record<
   },
 };
 
-/** 從 schema.features.exportFormats 讀取；預設三種全開 */
+/** 從 schema.features.exportFormats 讀取；預設僅 TXT */
 export function enabledExportFormats(schema: FormatSchema): ExportFormatId[] {
   const raw = schema.features.exportFormats;
   if (!raw || !Array.isArray(raw) || raw.length === 0) {
-    return ["txt", "html", "js"];
+    return ["txt"];
   }
   const allowed: ExportFormatId[] = ["txt", "html", "js"];
-  return raw.filter((x): x is ExportFormatId =>
+  const list = raw.filter((x): x is ExportFormatId =>
     allowed.includes(x as ExportFormatId),
   );
+  return list.length ? list : ["txt"];
 }
 
 function baseName(filename: string): string {

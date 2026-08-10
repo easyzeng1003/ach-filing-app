@@ -139,7 +139,7 @@ export function AppShell() {
                 代收建檔小程式
               </Typography>
               <Typography variant="body2" sx={{ opacity: 0.85 }}>
-                既有 P01／P02 檔檢核與加工 · Material Design
+                既有 P01／R01 檔檢核與加工 · Material Design
               </Typography>
             </Box>
           </Stack>
