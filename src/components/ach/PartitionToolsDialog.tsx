@@ -56,8 +56,10 @@ import { RETURN_CODES } from "@/lib/ach/convertR01";
 import { IMPORT_LIMITS } from "@/lib/ach/import";
 import { withLineEndingId } from "@/lib/ach/lineEnding";
 import { usePrefsStore } from "@/lib/ach/prefsStore";
+import { useExcludeStore } from "@/lib/ach/excludeStore";
 import { prevRocDate, safeDigits } from "@/lib/ach/utils";
 import { LineEndingSelect } from "./LineEndingSelect";
+import { ExcludeRulesControl } from "./ExcludeRulesControl";
 
 type Mode = "split" | "merge" | "convert";
 
@@ -314,10 +316,15 @@ export function PartitionToolsDialog({
           { index, parts },
           txids,
           branches,
+          { exclude: useExcludeStore.getState().doc },
         );
         await saveAchFile(merged.filename, merged.content);
+        const excludeNote =
+          merged.excludedCount > 0
+            ? `（已排除 ${merged.excludedCount.toLocaleString("zh-TW")} 筆）`
+            : "";
         toast.success(
-          `已合併 ${merged.filename}（${merged.detailCount.toLocaleString("zh-TW")} 筆）`,
+          `已合併 ${merged.filename}（${merged.detailCount.toLocaleString("zh-TW")} 筆${excludeNote}）`,
         );
       }
       onClose();
@@ -446,6 +453,7 @@ export function PartitionToolsDialog({
       <DialogContent dividers>
         <Stack spacing={2.5}>
           <LineEndingSelect />
+          <ExcludeRulesControl formatCode={schema.code} />
           {mode === "split" && (
             <>
               <Alert severity="info" variant="outlined" sx={{ alignItems: "flex-start" }}>

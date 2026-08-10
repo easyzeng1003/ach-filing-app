@@ -30,6 +30,8 @@ import { toast } from "sonner";
 import { useFormStore, useRefStore } from "@/lib/ach/store";
 import type { FormatSchema, FormFieldDef } from "@/lib/ach/schema";
 import { convertP01ToR01 } from "@/lib/ach/convertR01";
+import { filterExcludedRows } from "@/lib/ach/exclude";
+import { useExcludeStore } from "@/lib/ach/excludeStore";
 import { withLineEndingId } from "@/lib/ach/lineEnding";
 import { usePrefsStore } from "@/lib/ach/prefsStore";
 import {
@@ -69,6 +71,7 @@ import {
   ControlTrailerFields,
 } from "./ControlRecords";
 import { ConvertR01Dialog } from "./ConvertR01Dialog";
+import { ExcludeRulesControl } from "./ExcludeRulesControl";
 import { ImportPreviewDialog } from "./ImportPreviewDialog";
 import { LineEndingSelect } from "./LineEndingSelect";
 import { PartitionToolsDialog } from "./PartitionToolsDialog";
@@ -362,10 +365,16 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     setConverting(true);
     try {
       const lineEnding = usePrefsStore.getState().lineEnding;
+      const exclude = useExcludeStore.getState().doc;
+      const filtered = filterExcludedRows(schema, rows, exclude);
+      if (filtered.kept.length === 0) {
+        toast.error("排除後沒有可轉檔的明細");
+        return;
+      }
       const result = convertP01ToR01(
         withLineEndingId(r01, lineEnding),
         header,
-        rows,
+        filtered.kept,
         txids,
         branches,
         opts,
@@ -381,8 +390,12 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         toast.message("已取消儲存");
         return;
       }
+      const excludeNote =
+        filtered.excludedCount > 0
+          ? `（已排除 ${filtered.excludedCount.toLocaleString("zh-TW")} 筆）`
+          : "";
       toast.success(
-        `已轉檔（${result.detailCount} 筆，RCODE=${result.rcode}）· ${describeSaveResult(saved)}`,
+        `已轉檔（${result.detailCount} 筆${excludeNote}，RCODE=${result.rcode}）· ${describeSaveResult(saved)}`,
       );
       setConvertOpen(false);
     } catch (e) {
@@ -915,6 +928,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           {partitionSession?.formatCode !== schema.code ? (
             <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", alignItems: "center" }}>
               <LineEndingSelect />
+              <ExcludeRulesControl formatCode={schema.code} />
               {schema.code === "ACHP01" ? (
                 <Button
                   variant="outlined"

@@ -129,6 +129,10 @@ rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 cpSync(singlePath, path.join(stage, singleName));
 cpSync(asciiSingle, path.join(stage, path.basename(asciiSingle)));
+cpSync(
+  path.join(root, "public/data/exclude-rules.example.json"),
+  path.join(stage, "exclude-rules.example.json"),
+);
 
 writeFileSync(
   path.join(stage, "使用說明.txt"),
@@ -161,6 +165,11 @@ writeFileSync(
     "以網址參數覆寫名稱、圖示、顏色，例如：",
     "  ACH改檔小工具.html?name=我的ACH工具&primary=1566c0&accent=ff9800&icon=build",
     "  name／subtitle／primary／header／accent／icon",
+    "",
+    "【排除後輸出（選用）】",
+    "1. 參考同目錄 exclude-rules.example.json 編寫規則",
+    "2. 在程式中「載入排除規則」後再「排除後合併輸出」或轉檔",
+    "3. 單一規則多欄位＝全部符合才排除；多條規則＝符合任一即排除",
     "",
     "版本：" + version,
     "",
