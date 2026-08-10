@@ -11,6 +11,7 @@ import {
   LinearProgress,
   Paper,
   Stack,
+  TablePagination,
   Typography,
 } from "@mui/material";
 import {
@@ -84,6 +85,10 @@ type Props = {
   onSelectFormat?: (code: string) => void;
 };
 
+const DETAIL_PAGE_SIZES = [50, 100, 200, 500] as const;
+type DetailPageSize = (typeof DETAIL_PAGE_SIZES)[number];
+const DEFAULT_DETAIL_PAGE_SIZE: DetailPageSize = 50;
+
 const hiddenFileInputStyle: CSSProperties = {
   position: "absolute",
   width: 1,
@@ -150,10 +155,16 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     onlyErrors: false,
     global: "",
   });
+  const [detailPage, setDetailPage] = useState(0);
+  const [detailPageSize, setDetailPageSize] = useState<DetailPageSize>(
+    DEFAULT_DETAIL_PAGE_SIZE,
+  );
 
   useEffect(() => {
     setFilters(emptyDetailFilters(schema));
     setFilterOpts({ hideEmpty: false, onlyErrors: false, global: "" });
+    setDetailPage(0);
+    setDetailPageSize(DEFAULT_DETAIL_PAGE_SIZE);
   }, [schema.code, schema]);
 
   useEffect(() => {
@@ -245,6 +256,32 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   }, [rows, schema, filters, filterOpts, rowErrs, filterEnabled]);
 
   const filtersActive = filterEnabled && hasActiveFilters(filters, filterOpts);
+
+  // 篩選條件變更時回到第一頁
+  useEffect(() => {
+    setDetailPage(0);
+  }, [filters, filterOpts.hideEmpty, filterOpts.onlyErrors, filterOpts.global]);
+
+  const detailPageCount = Math.max(
+    1,
+    Math.ceil(filtered.length / detailPageSize) || 1,
+  );
+  const safeDetailPage = Math.min(detailPage, detailPageCount - 1);
+
+  useEffect(() => {
+    if (detailPage !== safeDetailPage) setDetailPage(safeDetailPage);
+  }, [detailPage, safeDetailPage]);
+
+  const pagedDetails = useMemo(() => {
+    const start = safeDetailPage * detailPageSize;
+    return filtered.slice(start, start + detailPageSize);
+  }, [filtered, safeDetailPage, detailPageSize]);
+  const pageFrom =
+    filtered.length === 0 ? 0 : safeDetailPage * detailPageSize + 1;
+  const pageTo = Math.min(
+    filtered.length,
+    (safeDetailPage + 1) * detailPageSize,
+  );
 
   function setFilterKey(key: string, value: string) {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -1001,11 +1038,17 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                 {filterEnabled && " · 篩選僅影響畫面，產檔仍含全部明細"}
               </p>
             </div>
-            {filterEnabled && (
+            <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", alignItems: "center" }}>
               <span className="stat-pill text-xs">
-                顯示 {filtered.length} / {rows.length} 列
+                {filtered.length === 0
+                  ? `0 / ${rows.length} 列`
+                  : `第 ${pageFrom}–${pageTo} 列 · 共 ${filtered.length}${
+                      filterEnabled && filtered.length !== rows.length
+                        ? ` / ${rows.length}`
+                        : ""
+                    } 列`}
               </span>
-            )}
+            </Stack>
           </div>
 
           {filterEnabled && (
@@ -1120,7 +1163,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {pagedDetails.length === 0 ? (
                 <tr>
                   <td
                     colSpan={schema.form.detail.length + 3}
@@ -1132,7 +1175,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                   </td>
                 </tr>
               ) : (
-                filtered.map(({ row, index: idx }) => {
+                pagedDetails.map(({ row, index: idx }) => {
                   const errs = rowErrs[idx] ?? {};
                   const messages = rowErrorMessages(errs);
                   const hasErr = messages.length > 0;
@@ -1202,6 +1245,32 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
             </tbody>
           </table>
         </div>
+        <TablePagination
+          component="div"
+          rowsPerPageOptions={[...DETAIL_PAGE_SIZES]}
+          count={filtered.length}
+          rowsPerPage={detailPageSize}
+          page={safeDetailPage}
+          onPageChange={(_, next) => setDetailPage(next)}
+          onRowsPerPageChange={(e) => {
+            const next = Number(e.target.value) as DetailPageSize;
+            setDetailPageSize(
+              DETAIL_PAGE_SIZES.includes(next)
+                ? next
+                : DEFAULT_DETAIL_PAGE_SIZE,
+            );
+            setDetailPage(0);
+          }}
+          labelRowsPerPage="每頁筆數"
+          labelDisplayedRows={({ from, to, count }) =>
+            count === 0 ? "0 筆" : `${from}–${to}／共 ${count} 筆`
+          }
+          sx={{
+            borderTop: 1,
+            borderColor: "divider",
+            ".MuiTablePagination-toolbar": { flexWrap: "wrap", gap: 0.5 },
+          }}
+        />
       </div>
 
       <CodePicker
