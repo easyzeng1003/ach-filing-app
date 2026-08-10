@@ -49,7 +49,7 @@ import {
   type PartitionProgress,
 } from "@/lib/ach/partition";
 import {
-  parsePartToForm,
+  splitFileAndStartEdit,
   usePartitionStore,
 } from "@/lib/ach/partitionStore";
 import { RETURN_CODES } from "@/lib/ach/convertR01";
@@ -94,8 +94,6 @@ export function PartitionToolsDialog({
   const mergeInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<PartitionProgress | null>(null);
-  const startSession = usePartitionStore((s) => s.startSession);
-  const setActiveIndex = usePartitionStore((s) => s.setActiveIndex);
 
   const suggested = useMemo(() => {
     try {
@@ -153,6 +151,54 @@ export function PartitionToolsDialog({
         }
         y = plan.partCount;
         setPartCount(y);
+
+        const result = await splitFileAndStartEdit({
+          file: sourceFile,
+          schema,
+          txids,
+          branches,
+          detailCount: detailCount || 1,
+          preferredPartCount: y,
+          onProgress: setProgress,
+        });
+
+        if (alsoDownload) {
+          const sess = usePartitionStore.getState().session;
+          if (sess) {
+            const downloadList = [
+              ...sess.parts.map((p) => ({
+                filename: p.filename,
+                content: p.content,
+              })),
+              {
+                filename: partitionIndexFilename(sourceFile.name),
+                content: stringifyPartitionIndex(sess.index),
+                mime: "application/json;charset=utf-8",
+              },
+            ];
+            const base =
+              sourceFile.name.replace(/\.[^.]+$/, "") || schema.code;
+            const saved = await saveAchFiles(downloadList, {
+              zipName: `${base}.parts.zip`,
+            });
+            if (saved.method !== "canceled") {
+              toast.success(
+                `已下載分割包 · ${describeSaveResult(saved)}`,
+              );
+            }
+          }
+        }
+
+        onOpenPartitionEdit?.({
+          header: result.first.header,
+          rows: result.first.rows,
+          fileName: result.first.fileName,
+        });
+        toast.success(
+          `已分割 ${result.partCount} 包（共 ${result.totalDetailCount.toLocaleString("zh-TW")} 筆），已載入第 1 包供編輯`,
+        );
+        onClose();
+        return;
       }
 
       const partFiles: { filename: string; content: string }[] = [];
@@ -170,53 +216,24 @@ export function PartitionToolsDialog({
         },
       );
 
-      if (alsoDownload || !openForEdit) {
-        const downloadList = [
-          ...partFiles,
-          {
-            filename: partitionIndexFilename(sourceFile.name),
-            content: stringifyPartitionIndex(index),
-            mime: "application/json;charset=utf-8",
-          },
-        ];
-        const base =
-          sourceFile.name.replace(/\.[^.]+$/, "") || schema.code;
-        const saved = await saveAchFiles(downloadList, {
-          zipName: `${base}.parts.zip`,
-        });
-        if (saved.method === "canceled" && !openForEdit) {
-          toast.message("已取消儲存");
-          return;
-        }
-        if (saved.method !== "canceled") {
-          toast.success(
-            `已下載分割包 · ${describeSaveResult(saved)}`,
-          );
-        }
+      const downloadList = [
+        ...partFiles,
+        {
+          filename: partitionIndexFilename(sourceFile.name),
+          content: stringifyPartitionIndex(index),
+          mime: "application/json;charset=utf-8",
+        },
+      ];
+      const base =
+        sourceFile.name.replace(/\.[^.]+$/, "") || schema.code;
+      const saved = await saveAchFiles(downloadList, {
+        zipName: `${base}.parts.zip`,
+      });
+      if (saved.method === "canceled") {
+        toast.message("已取消儲存");
+        return;
       }
-
-      if (openForEdit) {
-        startSession({
-          formatCode: schema.code,
-          sourceFilename: sourceFile.name,
-          index,
-          parts: partFiles,
-        });
-        const first = partFiles[0];
-        if (!first) throw new Error("分割結果為空");
-        const parsed = parsePartToForm(schema, first.content, first.filename);
-        setActiveIndex(0);
-        onOpenPartitionEdit?.({
-          header: parsed.header,
-          rows: parsed.rows,
-          fileName: first.filename,
-        });
-        toast.success(
-          `已分割 ${index.partCount} 包（共 ${index.totalDetailCount.toLocaleString("zh-TW")} 筆），已載入第 1 包供編輯`,
-        );
-      } else if (!alsoDownload) {
-        toast.message("已分割（未勾選下載）");
-      }
+      toast.success(`已下載分割包 · ${describeSaveResult(saved)}`);
       onClose();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "分割失敗");

@@ -59,6 +59,7 @@ import {
 import {
   parseAchFile,
   resolveImportSchemaFromFile,
+  IMPORT_LIMITS,
   type ImportProgress,
   type ImportResult,
 } from "@/lib/ach/import";
@@ -77,7 +78,11 @@ import { ConvertR01Dialog } from "./ConvertR01Dialog";
 import { ImportPreviewDialog } from "./ImportPreviewDialog";
 import { PartitionToolsDialog } from "./PartitionToolsDialog";
 import { PartitionWorkspaceBar } from "./PartitionWorkspaceBar";
-import { usePartitionStore } from "@/lib/ach/partitionStore";
+import {
+  splitFileAndStartEdit,
+  usePartitionStore,
+} from "@/lib/ach/partitionStore";
+import type { PartitionProgress } from "@/lib/ach/partition";
 
 type Props = {
   schema: FormatSchema;
@@ -456,12 +461,57 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         setImportFile(null);
         return;
       }
-      setImportResult(result);
+
+      // >5000 筆：不開預覽，自動分割後進入編輯
       if (result.tooLargeForForm) {
+        if (target.code !== schema.code) {
+          onSelectFormat?.(target.code);
+        }
         toast.message(
-          `檔案 ${result.detailCount.toLocaleString("zh-TW")} 筆：請於明細表頭篩選後載入符合結果`,
+          `檔案 ${result.detailCount.toLocaleString("zh-TW")} 筆超過可編輯上限（${IMPORT_LIMITS.maxFormDetailRows.toLocaleString("zh-TW")}），自動分割後進入編輯`,
         );
+        setImportProgress({
+          bytesRead: file.size,
+          totalBytes: file.size,
+          linesRead: result.detailCount,
+          detailCount: result.detailCount,
+          matchedCount: 0,
+        });
+        const split = await splitFileAndStartEdit({
+          file,
+          schema: target,
+          txids,
+          branches,
+          detailCount: result.detailCount,
+          onProgress: (p: PartitionProgress) => {
+            setImportProgress({
+              bytesRead: p.bytesRead,
+              totalBytes: p.totalBytes || file.size,
+              linesRead: p.linesRead,
+              detailCount: p.detailCount,
+              matchedCount: p.matchedCount,
+            });
+          },
+        });
+        if (split.autoRaised) {
+          toast.message(
+            `已自動調整為 ${split.partCount} 包（每包 ≤ ${IMPORT_LIMITS.maxFormDetailRows.toLocaleString("zh-TW")} 筆）`,
+          );
+        }
+        loadFromImport(
+          target,
+          { header: split.first.header, rows: split.first.rows },
+          { fileName: split.first.fileName },
+        );
+        setPartitionFormDirty(false);
+        setImportResult(null);
+        toast.success(
+          `已分割 ${split.partCount} 包（共 ${split.totalDetailCount.toLocaleString("zh-TW")} 筆），已載入第 1 包供編輯`,
+        );
+        return;
       }
+
+      setImportResult(result);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "無法讀取檔案");
       setImportFile(null);
@@ -585,7 +635,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         <Paper sx={{ width: "100%", maxWidth: 360, p: 3, textAlign: "center" }}>
           <CircularProgress color="primary" sx={{ mb: 2 }} />
           <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 700 }}>
-            串流讀取檔案中…
+            串流讀取／分割檔案中…
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             已讀 {importProgress.totalBytes > 0 ? `${progressPct}%` : "…"}
@@ -658,6 +708,17 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       branches={branches}
       formDirty={partitionFormDirty}
       onFormClean={() => setPartitionFormDirty(false)}
+      onClearToUpload={() => {
+        if (partitionSession?.formatCode === schema.code) {
+          clearPartitionSession();
+        }
+        setPartitionFormDirty(false);
+        setImportFile(null);
+        setImportResult(null);
+        setImportProgress(null);
+        closeWorkspace(schema);
+        toast.message("已清除所有紀錄，請重新上傳檔案");
+      }}
       onLoadPart={(payload) => {
         loadFromImport(
           schema,
@@ -887,79 +948,67 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
             </Stack>
           </Stack>
 
-          <Paper variant="outlined" sx={{ p: 2, bgcolor: "grey.50" }}>
-            <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", alignItems: "center",  mb: 1.5 }} useFlexGap>
-              <FileDownIcon fontSize="small" color="primary" />
-              <Typography variant="subtitle2">檢核後產出</Typography>
-              <Typography variant="caption" color="text.secondary">
-                修正資料後重新產生 TXT 固定長度檔
-              </Typography>
-            </Stack>
-            <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
-              <Button
-                variant="contained"
-                startIcon={<FileDownIcon />}
-                onClick={() => void handleGenerate(["txt"])}
-              >
-                產生 TXT
-              </Button>
-              <Button
-                variant="outlined"
-                color="secondary"
-                startIcon={<EditIcon />}
-                onClick={() => {
-                  if (
-                    partitionSession?.formatCode === schema.code &&
-                    partitionSession.activeIndex != null
-                  ) {
-                    toast.message("已在分割編輯中：請用上方工作區切換／存回各包");
-                    return;
-                  }
-                  if (importFile) {
-                    // 整合分割邏輯：有來源檔 → 分割並進入網頁編輯
-                    setPartitionTools({ mode: "split" });
-                    return;
-                  }
-                  // 無來源檔：合併既有分割包（index + part*.txt）
-                  setPartitionTools({ mode: "merge" });
-                  toast.message("未保留來源檔：可選擇索引與分割檔合併，或重新上傳後再編輯");
-                }}
-                title={
-                  importFile
-                    ? "分割來源檔並在網頁逐包編輯"
-                    : "合併既有分割檔，或請重新上傳來源檔後再編輯"
+          <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
+            <Button
+              variant="contained"
+              startIcon={<FileDownIcon />}
+              onClick={() => void handleGenerate(["txt"])}
+            >
+              產生 TXT
+            </Button>
+            <Button
+              variant="outlined"
+              color="secondary"
+              startIcon={<EditIcon />}
+              onClick={() => {
+                if (
+                  partitionSession?.formatCode === schema.code &&
+                  partitionSession.activeIndex != null
+                ) {
+                  toast.message("已在分割編輯中：請用上方工作區切換／存回各包");
+                  return;
                 }
-              >
-                編輯
-              </Button>
-              {schema.code === "ACHP01" ? (
-                <Button
-                  variant="outlined"
-                  startIcon={<ArrowRightLeftIcon />}
-                  onClick={() => {
-                    if (!validateFormData()) return;
-                    setConvertOpen(true);
-                  }}
-                >
-                  轉檔 R01
-                </Button>
-              ) : null}
+                if (importFile) {
+                  setPartitionTools({ mode: "split" });
+                  return;
+                }
+                setPartitionTools({ mode: "merge" });
+                toast.message("未保留來源檔：可選擇索引與分割檔合併，或重新上傳後再編輯");
+              }}
+              title={
+                importFile
+                  ? "分割來源檔並在網頁逐包編輯"
+                  : "合併既有分割檔，或請重新上傳來源檔後再編輯"
+              }
+            >
+              編輯
+            </Button>
+            {schema.code === "ACHP01" ? (
               <Button
                 variant="outlined"
-                startIcon={<FileUpIcon />}
-                onClick={() => fileInputRef.current?.click()}
+                startIcon={<ArrowRightLeftIcon />}
+                onClick={() => {
+                  if (!validateFormData()) return;
+                  setConvertOpen(true);
+                }}
               >
-                重新上傳
+                轉檔 R01
               </Button>
-              {fileInput}
+            ) : null}
+            <Button
+              variant="outlined"
+              startIcon={<FileUpIcon />}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              重新上傳
+            </Button>
+            {fileInput}
+            {partitionSession?.formatCode !== schema.code ? (
               <Button
                 variant="text"
                 color="error"
                 startIcon={<RestartAltIcon />}
                 onClick={() => {
-                  if (partitionSession?.formatCode === schema.code) {
-                    clearPartitionSession();
-                  }
                   setPartitionFormDirty(false);
                   setImportFile(null);
                   setImportResult(null);
@@ -970,8 +1019,8 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
               >
                 清除並回到上傳
               </Button>
-            </Stack>
-          </Paper>
+            ) : null}
+          </Stack>
         </CardContent>
       </Card>
 
