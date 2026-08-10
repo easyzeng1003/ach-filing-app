@@ -123,9 +123,9 @@ export function PartitionToolsDialog({
 
   const title =
     mode === "split"
-      ? "分割大檔＋建立索引"
+      ? "編輯・分割來源檔"
       : mode === "merge"
-        ? "合併分割檔"
+        ? "編輯・合併分割檔"
         : "大檔轉 R01（分塊→合併）";
 
   const TitleIcon =
@@ -396,9 +396,9 @@ export function PartitionToolsDialog({
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               {mode === "split" &&
-                "將 x 筆切成 y 包；預設在網頁逐包載入編輯（每包 ≤ 可編輯上限），也可另存 ZIP。"}
+                "編輯大檔：將明細切成多包後在網頁逐包修改（每包 ≤ 可編輯上限），再合併輸出；也可另存 ZIP。"}
               {mode === "merge" &&
-                "選擇索引 JSON 與全部 part*.txt，合併回單一 ACH 大檔（可順便轉 R01）。"}
+                "編輯完成後：選擇索引 JSON 與全部 part*.txt，合併回單一 ACH 大檔（可順便轉 R01）。"}
               {mode === "convert" &&
                 "不經表單：串流分塊轉 ACHR01；多檔結果打包 ZIP 或寫入同一資料夾。"}
             </Typography>
