@@ -25,9 +25,8 @@ import {
   sessionIndex,
   usePartitionStore,
 } from "@/lib/ach/partitionStore";
-import { useExcludeStore } from "@/lib/ach/excludeStore";
+import { resolveExcludeDoc } from "@/lib/ach/excludeStore";
 import { LineEndingSelect } from "./LineEndingSelect";
-import { ExcludeRulesControl } from "./ExcludeRulesControl";
 
 type Props = {
   schema: FormatSchema;
@@ -64,7 +63,6 @@ export function PartitionWorkspaceBar({
   const session = usePartitionStore((s) => s.session);
   const setActiveIndex = usePartitionStore((s) => s.setActiveIndex);
   const saveFormToActivePart = usePartitionStore((s) => s.saveFormToActivePart);
-  const excludeDoc = useExcludeStore((s) => s.doc);
   const [busy, setBusy] = useState(false);
 
   if (!session || session.formatCode !== schema.code) return null;
@@ -143,7 +141,7 @@ export function PartitionWorkspaceBar({
       }
       const sess = usePartitionStore.getState().session;
       if (!sess) return;
-      const exclude = useExcludeStore.getState().doc;
+      const exclude = resolveExcludeDoc(schema.code);
       const merged = mergeSessionToFile(schema, sess, txids, branches, {
         exclude,
       });
@@ -260,7 +258,6 @@ export function PartitionWorkspaceBar({
             存回此包
           </button>
           <LineEndingSelect compact />
-          <ExcludeRulesControl formatCode={schema.code} compact />
           <button
             type="button"
             className="btn btn-primary"
@@ -268,7 +265,7 @@ export function PartitionWorkspaceBar({
             onClick={() => void handleMergeExport()}
           >
             <Combine className="size-4" />
-            {excludeDoc ? "排除後合併輸出" : "合併全部輸出"}
+            合併全部輸出
           </button>
           {onConvertR01 ? (
             <button

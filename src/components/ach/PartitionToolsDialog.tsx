@@ -56,10 +56,9 @@ import { RETURN_CODES } from "@/lib/ach/convertR01";
 import { IMPORT_LIMITS } from "@/lib/ach/import";
 import { withLineEndingId } from "@/lib/ach/lineEnding";
 import { usePrefsStore } from "@/lib/ach/prefsStore";
-import { useExcludeStore } from "@/lib/ach/excludeStore";
+import { resolveExcludeDoc } from "@/lib/ach/excludeStore";
 import { prevRocDate, safeDigits } from "@/lib/ach/utils";
 import { LineEndingSelect } from "./LineEndingSelect";
-import { ExcludeRulesControl } from "./ExcludeRulesControl";
 
 type Mode = "split" | "merge" | "convert";
 
@@ -316,7 +315,7 @@ export function PartitionToolsDialog({
           { index, parts },
           txids,
           branches,
-          { exclude: useExcludeStore.getState().doc },
+          { exclude: resolveExcludeDoc(outTarget.code) },
         );
         await saveAchFile(merged.filename, merged.content);
         const excludeNote =
@@ -453,7 +452,9 @@ export function PartitionToolsDialog({
       <DialogContent dividers>
         <Stack spacing={2.5}>
           <LineEndingSelect />
-          <ExcludeRulesControl formatCode={schema.code} />
+          <Typography variant="caption" color="text.secondary">
+            排除條件請於主畫面「排除後輸出」設定；合併時會一併套用。
+          </Typography>
           {mode === "split" && (
             <>
               <Alert severity="info" variant="outlined" sx={{ alignItems: "flex-start" }}>

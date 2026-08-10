@@ -30,12 +30,16 @@ import { toast } from "sonner";
 import { useFormStore, useRefStore } from "@/lib/ach/store";
 import type { FormatSchema, FormFieldDef } from "@/lib/ach/schema";
 import { convertP01ToR01 } from "@/lib/ach/convertR01";
-import { filterExcludedRows } from "@/lib/ach/exclude";
-import { useExcludeStore } from "@/lib/ach/excludeStore";
+import {
+  filterExcludedRows,
+  type ExcludeRulesDoc,
+} from "@/lib/ach/exclude";
+import { resolveExcludeDoc } from "@/lib/ach/excludeStore";
 import { withLineEndingId } from "@/lib/ach/lineEnding";
 import { usePrefsStore } from "@/lib/ach/prefsStore";
 import {
   formatTxTypeLabel,
+  generateFromSchema,
   headerHasError,
   isRowEmpty,
   lookupBranch,
@@ -71,12 +75,13 @@ import {
   ControlTrailerFields,
 } from "./ControlRecords";
 import { ConvertR01Dialog } from "./ConvertR01Dialog";
-import { ExcludeRulesControl } from "./ExcludeRulesControl";
+import { ExcludeExportPanel } from "./ExcludeExportPanel";
 import { ImportPreviewDialog } from "./ImportPreviewDialog";
 import { LineEndingSelect } from "./LineEndingSelect";
 import { PartitionToolsDialog } from "./PartitionToolsDialog";
 import { PartitionWorkspaceBar } from "./PartitionWorkspaceBar";
 import {
+  mergeSessionToFile,
   splitFileAndStartEdit,
   usePartitionStore,
 } from "@/lib/ach/partitionStore";
@@ -365,7 +370,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     setConverting(true);
     try {
       const lineEnding = usePrefsStore.getState().lineEnding;
-      const exclude = useExcludeStore.getState().doc;
+      const exclude = resolveExcludeDoc(schema.code);
       const filtered = filterExcludedRows(schema, rows, exclude);
       if (filtered.kept.length === 0) {
         toast.error("排除後沒有可轉檔的明細");
@@ -707,6 +712,70 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     />
   );
 
+  async function handleExcludeExport(doc: ExcludeRulesDoc) {
+    const lineEnding = usePrefsStore.getState().lineEnding;
+    const outSchema = withLineEndingId(schema, lineEnding);
+
+    // 分割工作區：先存回再合併並套用排除
+    if (partitionSession?.formatCode === schema.code) {
+      if (partitionSession.activeIndex != null && partitionFormDirty) {
+        usePartitionStore
+          .getState()
+          .saveFormToActivePart(schema, header, rows, txids, branches);
+        setPartitionFormDirty(false);
+      }
+      const sess = usePartitionStore.getState().session;
+      if (!sess) throw new Error("分割工作區已結束");
+      const merged = mergeSessionToFile(outSchema, sess, txids, branches, {
+        exclude: doc,
+      });
+      if (merged.detailCount === 0) {
+        throw new Error("排除後沒有可輸出的明細");
+      }
+      return {
+        filename: merged.filename.replace(/\.merged\.txt$/, ".excluded.txt"),
+        content: merged.content,
+        totalBefore: merged.totalBeforeExclude,
+        excludedCount: merged.excludedCount,
+        detailCount: merged.detailCount,
+        amount: merged.amount,
+      };
+    }
+
+    // 一般表單：篩選列後產生 TXT
+    const filtered = filterExcludedRows(schema, rows, doc);
+    if (filtered.kept.length === 0) {
+      throw new Error("排除後沒有可輸出的明細");
+    }
+    const generated = generateFromSchema(
+      outSchema,
+      header,
+      filtered.kept,
+      txids,
+      branches,
+    );
+    const badLen = generated.lines.find(
+      (l) => l.length !== schema.recordLength,
+    );
+    if (badLen) {
+      throw new Error(
+        `產生列長度 ${badLen.length} 與定義 ${schema.recordLength} 不符`,
+      );
+    }
+    return {
+      filename: generated.filename.replace(/\.txt$/, ".excluded.txt"),
+      content: generated.content,
+      totalBefore: filtered.totalBefore,
+      excludedCount: filtered.excludedCount,
+      detailCount: generated.count,
+      amount: generated.amount,
+    };
+  }
+
+  const excludePanel = (
+    <ExcludeExportPanel schema={schema} onProcess={handleExcludeExport} />
+  );
+
   const convertDialog =
     schema.code === "ACHP01" ? (
       <ConvertR01Dialog
@@ -928,7 +997,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           {partitionSession?.formatCode !== schema.code ? (
             <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", alignItems: "center" }}>
               <LineEndingSelect />
-              <ExcludeRulesControl formatCode={schema.code} />
               {schema.code === "ACHP01" ? (
                 <Button
                   variant="outlined"
@@ -960,6 +1028,8 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           ) : null}
         </CardContent>
       </Card>
+
+      {excludePanel}
 
       <div className="card overflow-hidden">
         <div className="border-b border-border px-4 py-3">

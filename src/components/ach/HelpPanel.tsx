@@ -155,9 +155,9 @@ export function HelpPanel() {
           <h3 className="font-bold">排除後輸出</h3>
         </div>
         <p className="mb-2 text-sm text-muted">
-          載入排除規則 JSON 後，合併／轉檔輸出會剔除符合條件的明細（編輯中的分割包不受影響）。
-          單一規則內多欄位為 <strong className="text-fg">AND</strong>；多條規則為{" "}
-          <strong className="text-fg">OR</strong>。
+          於主畫面以<strong className="text-fg">下拉選欄位</strong>並輸入排除內容，
+          按「排除後輸出」後會顯示原筆數／排除筆數／輸出筆數，並提供檔案下載。
+          條件關係可選全部符合（AND）或任一符合（OR）；亦可載入 JSON 規則。
         </p>
         <pre className="mt-3 overflow-x-auto rounded-lg bg-header p-3 font-mono text-[11px] text-header-fg">
 {`{
@@ -170,10 +170,6 @@ export function HelpPanel() {
   ]
 }`}
         </pre>
-        <p className="mt-2 text-xs text-muted">
-          範例檔：<code className="font-mono text-xs">public/data/exclude-rules.example.json</code>
-          ；欄位 key 請用表單明細鍵（如 bankCode／account／amount／userNo／txid）。
-        </p>
       </div>
 
       <div className="card p-5">
