@@ -5,8 +5,78 @@ import { assertRecordLengths } from "@/lib/ach/engine";
 import { EXPORT_FORMAT_META, enabledExportFormats } from "@/lib/ach/exportFormats";
 import type { FormatSchema, RecordFieldDef } from "@/lib/ach/schema";
 
-function FieldTable({ title, fields }: { title: string; fields: RecordFieldDef[] }) {
+/** 客戶靜態版（dev:web / build:customer） */
+function isCustomerBuild(): boolean {
+  return import.meta.env.VITE_ACH_CUSTOMER === "true";
+}
+
+function fieldDescription(f: RecordFieldDef): string {
+  if (f.label) return f.label;
+  if (f.source === "literal") return `固定「${f.value ?? ""}」`;
+  if (f.source === "filler") return `填 ${JSON.stringify(f.fill ?? " ")}`;
+  if (f.transform) return `transform:${f.transform}`;
+  return f.id;
+}
+
+/** 1-based 起迄位置（含端點），例如 1-9、10-17 */
+function fieldPositions(fields: RecordFieldDef[]): { start: number; end: number }[] {
+  let cursor = 1;
+  return fields.map((f) => {
+    const start = cursor;
+    const end = cursor + f.length - 1;
+    cursor = end + 1;
+    return { start, end };
+  });
+}
+
+function FieldTable({
+  title,
+  fields,
+  customer,
+}: {
+  title: string;
+  fields: RecordFieldDef[];
+  customer: boolean;
+}) {
   const total = fields.reduce((s, f) => s + f.length, 0);
+  const positions = fieldPositions(fields);
+
+  if (customer) {
+    return (
+      <div className="overflow-hidden rounded-lg border border-border">
+        <div className="flex items-center justify-between bg-surface-2 px-3 py-2">
+          <h4 className="text-sm font-bold">{title}</h4>
+          <span className="font-mono text-xs text-muted">Σ {total}</span>
+        </div>
+        <div className="max-h-72 overflow-auto">
+          <table className="data-table text-xs">
+            <thead>
+              <tr>
+                <th>位置</th>
+                <th>長度</th>
+                <th>說明</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fields.map((f, i) => {
+                const pos = positions[i]!;
+                return (
+                  <tr key={`${f.id}-${i}`}>
+                    <td className="font-mono whitespace-nowrap">
+                      {pos.start}-{pos.end}
+                    </td>
+                    <td className="font-mono">{f.length}</td>
+                    <td>{fieldDescription(f)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="overflow-hidden rounded-lg border border-border">
       <div className="flex items-center justify-between bg-surface-2 px-3 py-2">
@@ -46,17 +116,7 @@ function FieldTable({ title, fields }: { title: string; fields: RecordFieldDef[]
                   {f.pad?.side ?? (f.source === "filler" ? "fill" : "—")}
                   {f.pad?.char ? `(${JSON.stringify(f.pad.char)})` : ""}
                 </td>
-                <td className="text-muted">
-                  {f.label
-                    ? f.label
-                    : f.source === "literal"
-                      ? `固定「${f.value}」`
-                      : f.source === "filler"
-                        ? `填 ${JSON.stringify(f.fill ?? " ")}`
-                        : f.transform
-                          ? `transform:${f.transform}`
-                          : ""}
-                </td>
+                <td className="text-muted">{fieldDescription(f)}</td>
               </tr>
             ))}
           </tbody>
@@ -117,6 +177,7 @@ function FormFieldTable({ schema }: { schema: FormatSchema }) {
 }
 
 export function SchemaPanel() {
+  const customer = isCustomerBuild();
   const { formats, formatList } = useRefStore();
   const list = formatList();
   const [code, setCode] = useState(list[0]?.code ?? "ACHP01");
@@ -147,11 +208,22 @@ export function SchemaPanel() {
           <div className="flex items-center gap-2">
             <Braces className="size-5 text-primary" />
             <div>
-              <h2 className="text-lg font-bold">格式參數（JSON）</h2>
+              <h2 className="text-lg font-bold">
+                {customer ? "格式參數" : "格式參數（JSON）"}
+              </h2>
               <p className="text-sm text-muted">
-                檔案代號、欄位、長度、英數字檢核、明細篩選、成品輸出格式皆由{" "}
-                <code className="font-mono text-xs">public/data/formats/*.json</code>{" "}
-                定義
+                {customer ? (
+                  <>
+                    各錄欄位的起迄位置、長度與說明（列長{" "}
+                    <span className="font-mono">{schema.recordLength}</span>）
+                  </>
+                ) : (
+                  <>
+                    檔案代號、欄位、長度、英數字檢核、明細篩選、成品輸出格式皆由{" "}
+                    <code className="font-mono text-xs">public/data/formats/*.json</code>{" "}
+                    定義
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -168,93 +240,119 @@ export function SchemaPanel() {
           </select>
         </div>
 
-        <div className="mb-4 grid gap-2 sm:grid-cols-4">
+        <div
+          className={`mb-4 grid gap-2 ${customer ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}
+        >
           <div className="rounded-lg bg-surface-2 px-3 py-2">
             <div className="text-xs text-muted">檔案代號</div>
             <div className="font-mono font-bold">{schema.code}</div>
           </div>
           <div className="rounded-lg bg-surface-2 px-3 py-2">
-            <div className="text-xs text-muted">簡稱</div>
-            <div className="font-bold">{schema.shortCode}</div>
-          </div>
-          <div className="rounded-lg bg-surface-2 px-3 py-2">
-            <div className="text-xs text-muted">版次 / 列長</div>
-            <div className="font-mono font-bold">
-              {schema.version} / {schema.recordLength}
+            <div className="text-xs text-muted">{customer ? "名稱" : "簡稱"}</div>
+            <div className="font-bold">
+              {customer ? schema.name : schema.shortCode}
             </div>
           </div>
           <div className="rounded-lg bg-surface-2 px-3 py-2">
-            <div className="text-xs text-muted">長度檢核</div>
-            {lengthCheck.length === 0 ? (
-              <div className="flex items-center gap-1 font-semibold text-ok">
-                <CheckCircle2 className="size-4" /> 首／明／尾一致
+            <div className="text-xs text-muted">
+              {customer ? "列長" : "版次 / 列長"}
+            </div>
+            <div className="font-mono font-bold">
+              {customer ? schema.recordLength : `${schema.version} / ${schema.recordLength}`}
+            </div>
+          </div>
+          {!customer ? (
+            <div className="rounded-lg bg-surface-2 px-3 py-2">
+              <div className="text-xs text-muted">長度檢核</div>
+              {lengthCheck.length === 0 ? (
+                <div className="flex items-center gap-1 font-semibold text-ok">
+                  <CheckCircle2 className="size-4" /> 首／明／尾一致
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 font-semibold text-danger">
+                  <AlertTriangle className="size-4" /> 不一致
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+
+        {!customer ? (
+          <>
+            <div className="mb-4 rounded-lg border border-border bg-surface-2/60 px-3 py-2">
+              <div className="text-xs text-muted">成品輸出 formats.exportFormats</div>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {exportFmts.map((f) => (
+                  <span key={f} className="badge badge-ok font-mono">
+                    {f} · {EXPORT_FORMAT_META[f].label}
+                  </span>
+                ))}
               </div>
-            ) : (
-              <div className="flex items-center gap-1 font-semibold text-danger">
-                <AlertTriangle className="size-4" /> 不一致
+            </div>
+
+            {lengthCheck.length > 0 && (
+              <div className="mb-4 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
+                {lengthCheck.map((e) => (
+                  <div key={e}>{e}</div>
+                ))}
               </div>
             )}
-          </div>
-        </div>
 
-        <div className="mb-4 rounded-lg border border-border bg-surface-2/60 px-3 py-2">
-          <div className="text-xs text-muted">成品輸出 formats.exportFormats</div>
-          <div className="mt-1 flex flex-wrap gap-2">
-            {exportFmts.map((f) => (
-              <span key={f} className="badge badge-ok font-mono">
-                {f} · {EXPORT_FORMAT_META[f].label}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {lengthCheck.length > 0 && (
-          <div className="mb-4 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
-            {lengthCheck.map((e) => (
-              <div key={e}>{e}</div>
-            ))}
-          </div>
-        )}
-
-        <p className="mb-3 text-sm text-muted">
-          明細篩選：{" "}
-          <code className="font-mono text-xs">features.detailFilter</code>＋ 各明細欄{" "}
-          <code className="font-mono text-xs">filterable</code>。 成品：{" "}
-          <code className="font-mono text-xs">features.exportFormats</code> ={" "}
-          <code className="font-mono text-xs">["txt"]</code>。
-        </p>
+            <p className="mb-3 text-sm text-muted">
+              明細篩選：{" "}
+              <code className="font-mono text-xs">features.detailFilter</code>＋ 各明細欄{" "}
+              <code className="font-mono text-xs">filterable</code>。 成品：{" "}
+              <code className="font-mono text-xs">features.exportFormats</code> ={" "}
+              <code className="font-mono text-xs">["txt"]</code>。
+            </p>
+          </>
+        ) : null}
       </div>
 
-      <FormFieldTable schema={schema} />
+      {!customer ? <FormFieldTable schema={schema} /> : null}
 
       <div className="grid gap-4 lg:grid-cols-1">
-        <FieldTable title="控制首錄（header）" fields={schema.records.header.fields} />
-        <FieldTable title="明細錄（detail）" fields={schema.records.detail.fields} />
-        <FieldTable title="控制尾錄（trailer）" fields={schema.records.trailer.fields} />
+        <FieldTable
+          title="控制首錄（header）"
+          fields={schema.records.header.fields}
+          customer={customer}
+        />
+        <FieldTable
+          title="明細錄（detail）"
+          fields={schema.records.detail.fields}
+          customer={customer}
+        />
+        <FieldTable
+          title="控制尾錄（trailer）"
+          fields={schema.records.trailer.fields}
+          customer={customer}
+        />
       </div>
 
-      <div className="card p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-bold">JSON 原始定義（唯讀預覽）</h3>
-          <button
-            type="button"
-            className="btn btn-secondary text-sm"
-            onClick={() => setShowJson((v) => !v)}
-            aria-expanded={showJson}
-          >
-            {showJson ? "隱藏 JSON" : "顯示 JSON"}
-          </button>
+      {!customer ? (
+        <div className="card p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-bold">JSON 原始定義（唯讀預覽）</h3>
+            <button
+              type="button"
+              className="btn btn-secondary text-sm"
+              onClick={() => setShowJson((v) => !v)}
+              aria-expanded={showJson}
+            >
+              {showJson ? "隱藏 JSON" : "顯示 JSON"}
+            </button>
+          </div>
+          {showJson ? (
+            <pre className="mt-2 max-h-96 overflow-auto rounded-lg bg-header p-3 font-mono text-[11px] leading-relaxed text-header-fg">
+              {JSON.stringify(schema, null, 2)}
+            </pre>
+          ) : (
+            <p className="mt-2 text-sm text-muted">
+              預設隱藏，避免佔用畫面；需要對照原始定義時再展開。
+            </p>
+          )}
         </div>
-        {showJson ? (
-          <pre className="mt-2 max-h-96 overflow-auto rounded-lg bg-header p-3 font-mono text-[11px] leading-relaxed text-header-fg">
-            {JSON.stringify(schema, null, 2)}
-          </pre>
-        ) : (
-          <p className="mt-2 text-sm text-muted">
-            預設隱藏，避免佔用畫面；需要對照原始定義時再展開。
-          </p>
-        )}
-      </div>
+      ) : null}
     </div>
   );
 }

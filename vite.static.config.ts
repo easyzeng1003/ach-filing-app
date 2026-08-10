@@ -20,6 +20,10 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
+  // 客戶靜態版：格式參數等 UI 走精簡檢視
+  define: {
+    "import.meta.env.VITE_ACH_CUSTOMER": JSON.stringify("true"),
+  },
   build: {
     outDir: path.resolve(__dirname, "dist-static"),
     emptyOutDir: true,
