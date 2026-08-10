@@ -63,8 +63,15 @@ export function emptyDetailRow(schema: FormatSchema, id: string): DetailRow {
   return row;
 }
 
+/** 序號單獨填寫不視為有效明細（避免空白列被 SEQ 佔住） */
+function detailKeysForContent(schema: FormatSchema): FormFieldDef[] {
+  return schema.form.detail.filter((f) => f.key !== "seq");
+}
+
 export function isRowEmpty(row: DetailRow, schema: FormatSchema): boolean {
-  return schema.form.detail.every((f) => !String(row[f.key] ?? "").trim());
+  return detailKeysForContent(schema).every(
+    (f) => !String(row[f.key] ?? "").trim(),
+  );
 }
 
 function rowHasOtherValues(
@@ -72,9 +79,23 @@ function rowHasOtherValues(
   row: DetailRow,
   exceptKey: string,
 ): boolean {
-  return schema.form.detail.some(
+  return detailKeysForContent(schema).some(
     (f) => f.key !== exceptKey && String(row[f.key] ?? "").trim(),
   );
+}
+
+/** 以明細第一筆交易代號同步表頭（檔名／TXTYPE 後備） */
+export function syncHeaderFromDetails(
+  header: HeaderValues,
+  rows: DetailRow[],
+  schema: FormatSchema,
+): HeaderValues {
+  const first = rows.find((r) => !isRowEmpty(r, schema));
+  if (!first) return header;
+  const txid = String(first.txid ?? "").trim();
+  if (!txid) return header;
+  if (header.txid === txid) return header;
+  return { ...header, txid };
 }
 
 export function runRule(
@@ -107,7 +128,12 @@ export function runRule(
     case "requiredIfTxType": {
       if (v) return null;
       if (!ctx.row) return null;
-      const txType = lookupTxid(ctx.header?.txid ?? "", ctx.txids)?.type ?? "";
+      const txidCode = (
+        ctx.row.txid ??
+        ctx.header?.txid ??
+        ""
+      ).trim();
+      const txType = lookupTxid(txidCode, ctx.txids)?.type ?? "";
       if (!rule.txTypes.includes(txType as "SD" | "SC")) return null;
       if (rowHasOtherValues(ctx.schema, ctx.row, ctx.field.key)) {
         return rule.message ?? `${ctx.field.label}未輸入`;
@@ -294,9 +320,16 @@ function resolveField(def: RecordFieldDef, ctx: BuildCtx): string {
       if (def.fn === "sorg") {
         raw = resolveSorg(ctx.header.bankCode ?? "", ctx.branches);
       } else if (def.fn === "txType") {
-        raw = lookupTxid(ctx.header.txid ?? "", ctx.txids)?.type || "";
+        const txidCode = (
+          ctx.detail?.txid ??
+          ctx.header.txid ??
+          ""
+        ).trim();
+        raw = lookupTxid(txidCode, ctx.txids)?.type || "";
       } else if (def.fn === "seq") {
-        raw = String(ctx.seq);
+        // 舊 schema 後備：明細未改為 detail.seq 時仍可用
+        const fromRow = String(ctx.detail?.seq ?? "").trim();
+        raw = fromRow || String(ctx.seq);
       } else if (def.fn === "totalCount") {
         raw = String(ctx.totalCount);
       } else if (def.fn === "totalAmount") {
@@ -319,7 +352,15 @@ function resolveField(def: RecordFieldDef, ctx: BuildCtx): string {
       });
     }
     case "detail": {
-      const raw = ctx.detail?.[def.key ?? ""] ?? "";
+      let raw = ctx.detail?.[def.key ?? ""] ?? "";
+      // 交易代號：明細未填時回退表頭（手動建檔／舊資料）
+      if (!String(raw).trim() && def.key === "txid") {
+        raw = ctx.header.txid ?? "";
+      }
+      // 序號：明細未填時依列序自動編號
+      if (!String(raw).trim() && def.key === "seq") {
+        raw = String(ctx.seq);
+      }
       // 與原 VBA 對齊：銀行代號/帳號 charset 過濾後 pad.side=none 則不補長
       return formatExportField(raw, {
         length,
@@ -355,6 +396,7 @@ export function generateFromSchema(
 ): GenerateResult {
   const amountKey = schema.features.amountKey;
   const nonEmpty = rows.filter((r) => !isRowEmpty(r, schema));
+  const effectiveHeader = syncHeaderFromDetails(header, nonEmpty, schema);
 
   let totalAmount = 0;
   if (amountKey) {
@@ -365,7 +407,7 @@ export function generateFromSchema(
 
   const baseCtx: Omit<BuildCtx, "seq" | "detail"> = {
     schema,
-    header,
+    header: effectiveHeader,
     totalCount: nonEmpty.length,
     totalAmount,
     txids,
@@ -407,9 +449,9 @@ export function generateFromSchema(
   // filename: {code}_{date}{txid}{taxId}.txt
   const filename = schema.filenamePattern
     .replace("{code}", schema.code)
-    .replace("{date}", header.date ?? "")
-    .replace("{txid}", header.txid ?? "")
-    .replace("{taxId}", header.taxId ?? "")
+    .replace("{date}", effectiveHeader.date ?? "")
+    .replace("{txid}", effectiveHeader.txid ?? "")
+    .replace("{taxId}", effectiveHeader.taxId ?? "")
     .replace("{shortCode}", schema.shortCode);
 
   return {

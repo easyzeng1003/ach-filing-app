@@ -9,13 +9,11 @@ import branchJson from "../../public/data/branch.json";
 import formatIndexJson from "../../public/data/formats/index.json";
 import achp01 from "../../public/data/formats/ACHP01.json";
 import achr01 from "../../public/data/formats/ACHR01.json";
-import achp02 from "../../public/data/formats/ACHP02.json";
 
 /** 編譯期已打包的格式 schema（新增檔案代號時在此登記） */
 const BUNDLED_SCHEMAS: Record<string, FormatSchema> = {
   ACHP01: achp01 as FormatSchema,
   ACHR01: achr01 as FormatSchema,
-  ACHP02: achp02 as FormatSchema,
 };
 
 export const EMBEDDED_TXIDS = txidJson as Txid[];

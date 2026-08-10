@@ -11,8 +11,6 @@ import {
   LinearProgress,
   Paper,
   Stack,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
 } from "@mui/material";
 import {
@@ -25,9 +23,6 @@ import {
   WarningAmber as AlertTriangleIcon,
   CheckCircle as CheckCircleIcon,
   FilterAltOff as FilterXIcon,
-  Code as FileCodeIcon,
-  Description as FileTextIcon,
-  Language as GlobeIcon,
   CloudUpload as UploadIcon,
   ArrowForward as ArrowRightIcon,
   SwapHoriz as ArrowRightLeftIcon,
@@ -46,6 +41,7 @@ import {
   lookupBranch,
   lookupTxid,
   rowErrorMessages,
+  syncHeaderFromDetails,
   validateDetailRow,
   validateHeader,
 } from "@/lib/ach/engine";
@@ -59,8 +55,6 @@ import {
 } from "@/lib/ach/filter";
 import {
   buildExportArtifacts,
-  enabledExportFormats,
-  EXPORT_FORMAT_META,
   type ExportFormatId,
 } from "@/lib/ach/exportFormats";
 import {
@@ -79,8 +73,6 @@ import { CodePicker } from "./CodePicker";
 import {
   ControlHeaderFields,
   ControlTrailerFields,
-  ProposerFieldsTable,
-  proposerFormFields,
 } from "./ControlRecords";
 import { ConvertR01Dialog } from "./ConvertR01Dialog";
 import { ImportPreviewDialog } from "./ImportPreviewDialog";
@@ -92,12 +84,6 @@ type Props = {
   schema: FormatSchema;
   /** 匯入偵測到其他檔案代號時，切換到對應分頁 */
   onSelectFormat?: (code: string) => void;
-};
-
-const FORMAT_ICONS: Record<ExportFormatId, typeof FileTextIcon> = {
-  txt: FileTextIcon,
-  html: GlobeIcon,
-  js: FileCodeIcon,
 };
 
 const hiddenFileInputStyle: CSSProperties = {
@@ -159,10 +145,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   } | null>(null);
 
   const filterEnabled = schema.features.detailFilter !== false;
-  const exportFormats = useMemo(() => enabledExportFormats(schema), [schema]);
-  const [selectedExports, setSelectedExports] = useState<ExportFormatId[]>(
-    () => enabledExportFormats(schema),
-  );
 
   const [filters, setFilters] = useState<DetailFilters>(() =>
     emptyDetailFilters(schema),
@@ -176,7 +158,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   useEffect(() => {
     setFilters(emptyDetailFilters(schema));
     setFilterOpts({ hideEmpty: false, onlyErrors: false, global: "" });
-    setSelectedExports(enabledExportFormats(schema));
   }, [schema.code, schema]);
 
   useEffect(() => {
@@ -278,16 +259,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     setFilterOpts({ hideEmpty: false, onlyErrors: false, global: "" });
   }
 
-  function toggleExport(fmt: ExportFormatId) {
-    setSelectedExports((prev) => {
-      if (prev.includes(fmt)) {
-        if (prev.length === 1) return prev; // 至少保留一種
-        return prev.filter((x) => x !== fmt);
-      }
-      return [...prev, fmt];
-    });
-  }
-
   function fieldMeta(field: FormFieldDef): string {
     const v = header[field.key] ?? "";
     if (field.metaFrom === "txid") {
@@ -317,8 +288,13 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   }
 
   function validateFormData(): boolean {
-    if (headerHasError(headerErrs)) {
-      toast.error("提出／發動者資料輸入有誤");
+    const synced = syncHeaderFromDetails(header, rows, schema);
+    if (synced.txid !== header.txid) {
+      setHeaderT(schema.code, schema, "txid", synced.txid ?? "");
+    }
+    const syncedHeaderErrs = validateHeader(schema, synced, txids, branches);
+    if (headerHasError(syncedHeaderErrs)) {
+      toast.error("控制首錄／表頭資料輸入有誤");
       return false;
     }
     const bad: number[] = [];
@@ -340,17 +316,12 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   }
 
   function validateBeforeGenerate(): boolean {
-    if (!validateFormData()) return false;
-    if (selectedExports.length === 0) {
-      toast.error("請至少選擇一種輸出格式");
-      return false;
-    }
-    return true;
+    return validateFormData();
   }
 
-  async function handleGenerate(formats?: ExportFormatId[]) {
+  async function handleGenerate(formats: ExportFormatId[] = ["txt"]) {
     if (!validateBeforeGenerate()) return;
-    const want = formats?.length ? formats : selectedExports;
+    const want = formats.length ? formats : (["txt"] as ExportFormatId[]);
     const result = generateFromSchema(schema, header, rows, txids, branches);
     const badLen = result.lines.find((l) => l.length !== schema.recordLength);
     if (badLen) {
@@ -380,12 +351,8 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       return;
     }
     toast.success(
-      `已產生（${result.count} 筆）· ${describeSaveResult(saved)}`,
+      `已產生 TXT（${result.count} 筆）· ${describeSaveResult(saved)}`,
     );
-  }
-
-  async function handleGenerateOne(fmt: ExportFormatId) {
-    await handleGenerate([fmt]);
   }
 
   async function handleConvertToR01(opts: {
@@ -683,7 +650,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       />
     ) : null;
 
-  // —— 預設：引導先上傳既有 P01／P02，隱藏新建表單 ——
+  // —— 預設：引導先上傳既有 P01／R01，隱藏新建表單 ——
   if (!workspaceOpen) {
     return (
       <Stack spacing={2}>
@@ -794,7 +761,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                 }}
               >
                 <Typography component="li" variant="caption">
-                  上傳既有 P01／P02（.txt）
+                  上傳既有 P01／R01（.txt）
                 </Typography>
                 <Typography component="li" variant="caption">
                   預覽並確認表頭／明細／列長
@@ -892,43 +859,16 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
               <FileDownIcon fontSize="small" color="primary" />
               <Typography variant="subtitle2">檢核後產出</Typography>
               <Typography variant="caption" color="text.secondary">
-                修正資料後重新產生 TXT／HTML／JS
+                修正資料後重新產生 TXT 固定長度檔
               </Typography>
             </Stack>
-            <ToggleButtonGroup
-              size="small"
-              value={selectedExports}
-              onChange={(_, next: ExportFormatId[]) => {
-                if (next?.length) setSelectedExports(next);
-              }}
-              sx={{ mb: 2, flexWrap: "wrap", gap: 0.5 }}
-            >
-              {exportFormats.map((fmt) => {
-                const meta = EXPORT_FORMAT_META[fmt];
-                const Icon = FORMAT_ICONS[fmt];
-                return (
-                  <ToggleButton
-                    key={fmt}
-                    value={fmt}
-                    title={meta.description}
-                    sx={{ gap: 0.75, textTransform: "none" }}
-                  >
-                    <Icon sx={{ fontSize: 16 }} />
-                    {meta.label}
-                  </ToggleButton>
-                );
-              })}
-            </ToggleButtonGroup>
             <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
               <Button
                 variant="contained"
                 startIcon={<FileDownIcon />}
-                onClick={() => void handleGenerate()}
+                onClick={() => void handleGenerate(["txt"])}
               >
-                產生已選格式
-                {selectedExports.length > 1
-                  ? `（${selectedExports.length}）`
-                  : ""}
+                產生 TXT
               </Button>
               {schema.code === "ACHP01" ? (
                 <Button
@@ -959,20 +899,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                   分割來源檔
                 </Button>
               ) : null}
-              {exportFormats.map((fmt) => {
-                const meta = EXPORT_FORMAT_META[fmt];
-                const Icon = FORMAT_ICONS[fmt];
-                return (
-                  <Button
-                    key={`one-${fmt}`}
-                    variant="outlined"
-                    startIcon={<Icon />}
-                    onClick={() => void handleGenerateOne(fmt)}
-                  >
-                    {meta.ext.toUpperCase()}
-                  </Button>
-                );
-              })}
               <Button
                 variant="outlined"
                 startIcon={<FileUpIcon />}
@@ -1036,32 +962,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           }}
         />
       </div>
-
-      {proposerFormFields(schema).length > 0 ? (
-        <div className="card overflow-hidden">
-          <div className="border-b border-border px-4 py-3">
-            <h3 className="font-bold">提出／發動者資料</h3>
-            <p className="text-xs text-muted">
-              寫入明細錄與發送單位推算；非控制首錄本身欄位。
-            </p>
-          </div>
-          <ProposerFieldsTable
-            schema={schema}
-            header={header}
-            edit={{
-              header,
-              errors: headerErrs,
-              onChange: (key, value) =>
-                setHeaderT(schema.code, schema, key, value),
-              onBlur: onHeaderBlur,
-              fieldMeta,
-              selectOptions,
-              onPick: (mode, key) =>
-                setPicker({ mode, target: "header", key }),
-            }}
-          />
-        </div>
-      ) : null}
 
       <div className="card overflow-hidden">
         <div className="border-b border-border px-4 py-3">
@@ -1286,22 +1186,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                                   : undefined
                               }
                             />
-                            {field.picker === "branch" && (
-                              <button
-                                type="button"
-                                className="btn btn-ghost px-1 py-0"
-                                onClick={() =>
-                                  setPicker({
-                                    mode: "branch",
-                                    target: "row",
-                                    key: field.key,
-                                    rowId: row.id,
-                                  })
-                                }
-                              >
-                                <SearchIcon sx={{ fontSize: 16 }} />
-                              </button>
-                            )}
                           </div>
                         </td>
                       ))}
@@ -1339,8 +1223,11 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         items={txids}
         onClose={() => setPicker(null)}
         onSelect={(code) => {
-          if (picker?.target === "header") {
+          if (!picker) return;
+          if (picker.target === "header") {
             setHeaderT(schema.code, schema, picker.key, code);
+          } else if (picker.rowId) {
+            updateRowT(schema.code, schema, picker.rowId, picker.key, code);
           }
         }}
       />

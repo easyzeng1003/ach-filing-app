@@ -303,7 +303,7 @@ export function SchemaPanel() {
               <code className="font-mono text-xs">features.detailFilter</code>＋ 各明細欄{" "}
               <code className="font-mono text-xs">filterable</code>。 成品：{" "}
               <code className="font-mono text-xs">features.exportFormats</code> ={" "}
-              <code className="font-mono text-xs">["txt","html","js"]</code>。
+              <code className="font-mono text-xs">["txt"]</code>。
             </p>
           </>
         ) : null}

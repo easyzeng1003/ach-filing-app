@@ -691,7 +691,11 @@ export async function partitionAchFile(
       if (!enriched) {
         const fields = parseRecordFields(line, schema.records.detail.fields);
         for (const f of fields) {
-          if (f.source !== "header" || !f.key || !f.value) continue;
+          if (!f.key || !f.value) continue;
+          // 提出帳號／統編仍在 header source；交易代號已改 detail source
+          const fromHeader = f.source === "header";
+          const fromDetailTxid = f.source === "detail" && f.key === "txid";
+          if (!fromHeader && !fromDetailTxid) continue;
           // 交易代號／提出帳號／統編：以全檔明細第一筆為準；其餘僅補空值
           if (
             f.key === "txid" ||

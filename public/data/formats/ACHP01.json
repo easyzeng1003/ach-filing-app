@@ -13,9 +13,7 @@
     "authOptions": false,
     "detailFilter": true,
     "exportFormats": [
-      "txt",
-      "html",
-      "js"
+      "txt"
     ]
   },
   "form": {
@@ -178,6 +176,66 @@
     ],
     "detail": [
       {
+        "key": "seq",
+        "label": "序號",
+        "placeholder": "00000001",
+        "inputType": "text",
+        "length": 8,
+        "charset": "digit",
+        "required": false,
+        "pad": {
+          "side": "left",
+          "char": "0",
+          "onBlur": true
+        },
+        "validation": {
+          "rules": [
+            {
+              "type": "maxLength",
+              "length": 8,
+              "message": "序號長度不符"
+            }
+          ]
+        },
+        "picker": null,
+        "ui": {
+          "mono": true,
+          "minWidth": "5.5rem"
+        },
+        "filterable": true
+      },
+      {
+        "key": "txid",
+        "label": "交易代號",
+        "placeholder": "704",
+        "inputType": "text",
+        "length": 3,
+        "charset": "digit",
+        "required": false,
+        "pad": {
+          "side": "none"
+        },
+        "validation": {
+          "rules": [
+            {
+              "type": "requiredIfAny",
+              "message": "交易代號未輸入"
+            },
+            {
+              "type": "txid",
+              "message": "交易代號錯誤"
+            }
+          ]
+        },
+        "picker": null,
+        "metaFrom": "txid",
+        "ui": {
+          "mono": true,
+          "minWidth": "5rem"
+        },
+        "filterable": true
+      },
+      {
         "key": "bankCode",
         "label": "收受者銀行代號",
         "inputType": "text",
@@ -199,7 +257,7 @@
             }
           ]
         },
-        "picker": "branch",
+        "picker": null,
         "export": {
           "charset": "digit",
           "length": 7,
@@ -472,7 +530,7 @@
         },
         {
           "id": "TXID",
-          "source": "header",
+          "source": "detail",
           "key": "txid",
           "length": 3,
           "charset": "digit",
@@ -484,15 +542,15 @@
         },
         {
           "id": "SEQ",
-          "source": "derived",
-          "fn": "seq",
+          "source": "detail",
           "length": 8,
           "charset": "digit",
           "pad": {
             "side": "left",
             "char": "0"
           },
-          "label": "交易序號"
+          "label": "交易序號",
+          "key": "seq"
         },
         {
           "id": "PBANK",

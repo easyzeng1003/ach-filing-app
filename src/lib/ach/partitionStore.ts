@@ -219,7 +219,7 @@ export function parsePartToForm(
       `此包 ${result.detailCount.toLocaleString("zh-TW")} 筆仍超過可編輯上限，請重新分割為更多包`,
     );
   }
-  // 交易代號：明確以該包明細第一筆 TXID 為準（提出／發動者資料）
+  // 交易代號：明確以該包明細第一筆 TXID 為準
   const header = { ...result.header };
   const firstDetail = result.lines.find((l) => l.kind === "detail");
   const txidField = firstDetail?.fields.find(

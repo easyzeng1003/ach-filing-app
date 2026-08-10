@@ -37,7 +37,7 @@ type FormBundle = {
   rows: DetailRow[];
 };
 
-/** 工作區：預設關閉，引導先上傳既有 P01／P02 檔 */
+/** 工作區：預設關閉，引導先上傳既有 P01／R01 檔 */
 export type WorkspaceMeta = {
   open: boolean;
   source: "import" | "manual" | null;
