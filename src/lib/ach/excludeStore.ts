@@ -17,6 +17,8 @@ export type ExcludeExportResult = {
   excludedCount: number;
   detailCount: number;
   amount: number;
+  /** 分割工作區套用時的包數；一般表單為 null */
+  partCount: number | null;
 };
 
 type ExcludeState = {
