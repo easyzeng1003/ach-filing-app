@@ -9,6 +9,7 @@ import {
   buildExcludeDocFromConditions,
   filterExcludedDetailLines,
   filterExcludedRows,
+  matchLikePattern,
   newExcludeCondition,
   parseExcludeRules,
   rowMatchesExcludeRule,
@@ -42,6 +43,38 @@ assert.equal(
   rowMatchesExcludeRule(
     { bankCode: "0040000", amount: "2000" },
     { bankCode: "0040000", amount: "1000" },
+    p01,
+  ),
+  false,
+);
+
+assert.equal(matchLikePattern("0000001234567890", "%1234567890"), true);
+assert.equal(matchLikePattern("ABCDE", "AB%"), true);
+assert.equal(matchLikePattern("abc", "A_C"), true);
+assert.equal(matchLikePattern("abcd", "A_C"), false);
+assert.equal(matchLikePattern("100%", "100\\%"), true);
+assert.equal(matchLikePattern("1000", "100\\%"), false);
+
+assert.equal(
+  rowMatchesExcludeRule(
+    { account: "0000001234567890" },
+    { account: { op: "like", value: "%7890" } },
+    p01,
+  ),
+  true,
+);
+assert.equal(
+  rowMatchesExcludeRule(
+    { userNo: "U12" },
+    { userNo: { like: "U%" } },
+    p01,
+  ),
+  true,
+);
+assert.equal(
+  rowMatchesExcludeRule(
+    { userNo: "X12" },
+    { userNo: { like: "U%" } },
     p01,
   ),
   false,
@@ -154,6 +187,19 @@ const uiDoc = buildExcludeDocFromConditions(
 );
 assert.equal(uiDoc.rules.length, 1);
 assert.equal(uiDoc.rules[0]!.bankCode, "0040000");
+
+const likeDoc = buildExcludeDocFromConditions(
+  "ACHP01",
+  [newExcludeCondition("account", "%7890", "like")],
+  "or",
+);
+assert.deepEqual(likeDoc.rules[0]!.account, {
+  op: "like",
+  value: "%7890",
+});
+const likeFiltered = filterExcludedRows(p01, rows, likeDoc);
+assert.equal(likeFiltered.excludedCount, 1);
+assert.equal(likeFiltered.kept.length, 2);
 
 console.log(
   "OK exclude-rules: excluded=",
