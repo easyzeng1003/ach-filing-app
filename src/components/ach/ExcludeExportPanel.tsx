@@ -149,7 +149,7 @@ export function ExcludeExportPanel({
           排除後輸出
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          選擇欄位、比對方式（等於／LIKE）與排除內容；處理後下載結果檔
+          選擇欄位、比對方式（等於／包含）與排除內容；處理後下載結果檔
         </Typography>
         {partitionScope ? (
           <Chip
@@ -230,14 +230,14 @@ export function ExcludeExportPanel({
                 }
               >
                 <MenuItem value="eq">等於</MenuItem>
-                <MenuItem value="like">LIKE</MenuItem>
+                <MenuItem value="like">包含</MenuItem>
               </Select>
             </FormControl>
             <TextField
               size="small"
-              label={c.op === "like" ? "樣式（%／_）" : "排除內容"}
+              label={c.op === "like" ? "包含內容" : "排除內容"}
               placeholder={
-                c.op === "like" ? "例：ABC% 或 %1234" : "完全相符的值"
+                c.op === "like" ? "例：1234（欄位含此字串即排除）" : "完全相符的值"
               }
               value={c.value}
               onChange={(e) =>
@@ -266,7 +266,8 @@ export function ExcludeExportPanel({
         ))}
 
         <Typography variant="caption" color="text.secondary">
-          「等於」完全相符；「LIKE」支援 %（任意長度）、_（單字元），不區分大小寫。
+          「等於」完全相符；「包含」只要欄位值含輸入字串即排除（類似
+          includes，不區分大小寫）。
         </Typography>
 
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>

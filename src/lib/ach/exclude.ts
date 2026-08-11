@@ -4,7 +4,7 @@
  * 語意：
  * - 單一 rule 內多欄位 = AND（欄位 A 符合且 欄位 C 符合）
  * - rules 陣列 = OR（符合任一規則即排除）
- * - 比對：eq＝精確相等；like＝SQL LIKE（%／_，不分大小寫）
+ * - 比對：eq＝精確相等；like＝包含（類似 String.includes，不分大小寫）
  * - 金額／數字欄另去千分位後再比
  */
 import { parseRecordFields } from "./import";
@@ -83,40 +83,14 @@ export function normalizeExcludeMatch(
 }
 
 /**
- * SQL LIKE：`%`＝任意字串、`_`＝單一字元；`\` 逸出。
- * 比對不分大小寫。
+ * like／包含：欄位值是否包含關鍵字（類似 String.includes）。
+ * 比對不分大小寫；`%`／`_` 視為一般字元，無萬用字元語意。
  */
-export function matchLikePattern(actual: string, pattern: string): boolean {
-  let i = 0;
-  let re = "^";
-  while (i < pattern.length) {
-    const ch = pattern[i]!;
-    if (ch === "\\") {
-      i += 1;
-      const next = pattern[i] ?? "";
-      re += next.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      i += 1;
-      continue;
-    }
-    if (ch === "%") {
-      re += ".*";
-      i += 1;
-      continue;
-    }
-    if (ch === "_") {
-      re += ".";
-      i += 1;
-      continue;
-    }
-    re += ch.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    i += 1;
-  }
-  re += "$";
-  try {
-    return new RegExp(re, "i").test(actual);
-  } catch {
-    return false;
-  }
+export function matchLikeIncludes(actual: string, needle: string): boolean {
+  if (!needle) return false;
+  return actual.toLocaleLowerCase("en-US").includes(
+    needle.toLocaleLowerCase("en-US"),
+  );
 }
 
 export function matchExcludeValue(
@@ -127,7 +101,7 @@ export function matchExcludeValue(
   const actual = normalizeExcludeCell(actualRaw, field);
   const want = normalizeExcludeCell(expect.value, field);
   if (expect.op === "like") {
-    return matchLikePattern(actual, want);
+    return matchLikeIncludes(actual, want);
   }
   return actual === want;
 }

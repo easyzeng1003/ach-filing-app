@@ -9,7 +9,7 @@ import {
   buildExcludeDocFromConditions,
   filterExcludedDetailLines,
   filterExcludedRows,
-  matchLikePattern,
+  matchLikeIncludes,
   newExcludeCondition,
   parseExcludeRules,
   rowMatchesExcludeRule,
@@ -48,17 +48,18 @@ assert.equal(
   false,
 );
 
-assert.equal(matchLikePattern("0000001234567890", "%1234567890"), true);
-assert.equal(matchLikePattern("ABCDE", "AB%"), true);
-assert.equal(matchLikePattern("abc", "A_C"), true);
-assert.equal(matchLikePattern("abcd", "A_C"), false);
-assert.equal(matchLikePattern("100%", "100\\%"), true);
-assert.equal(matchLikePattern("1000", "100\\%"), false);
+assert.equal(matchLikeIncludes("0000001234567890", "1234567890"), true);
+assert.equal(matchLikeIncludes("ABCDE", "bcd"), true);
+assert.equal(matchLikeIncludes("abc", "A_C"), false);
+assert.equal(matchLikeIncludes("a_c", "A_C"), true);
+assert.equal(matchLikeIncludes("100%", "%"), true);
+assert.equal(matchLikeIncludes("1000", "100%"), false);
+assert.equal(matchLikeIncludes("hello", ""), false);
 
 assert.equal(
   rowMatchesExcludeRule(
     { account: "0000001234567890" },
-    { account: { op: "like", value: "%7890" } },
+    { account: { op: "like", value: "7890" } },
     p01,
   ),
   true,
@@ -66,7 +67,7 @@ assert.equal(
 assert.equal(
   rowMatchesExcludeRule(
     { userNo: "U12" },
-    { userNo: { like: "U%" } },
+    { userNo: { like: "U1" } },
     p01,
   ),
   true,
@@ -74,7 +75,7 @@ assert.equal(
 assert.equal(
   rowMatchesExcludeRule(
     { userNo: "X12" },
-    { userNo: { like: "U%" } },
+    { userNo: { like: "U1" } },
     p01,
   ),
   false,
@@ -190,12 +191,12 @@ assert.equal(uiDoc.rules[0]!.bankCode, "0040000");
 
 const likeDoc = buildExcludeDocFromConditions(
   "ACHP01",
-  [newExcludeCondition("account", "%7890", "like")],
+  [newExcludeCondition("account", "7890", "like")],
   "or",
 );
 assert.deepEqual(likeDoc.rules[0]!.account, {
   op: "like",
-  value: "%7890",
+  value: "7890",
 });
 const likeFiltered = filterExcludedRows(p01, rows, likeDoc);
 assert.equal(likeFiltered.excludedCount, 1);
