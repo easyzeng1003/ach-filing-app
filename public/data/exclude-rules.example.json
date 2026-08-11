@@ -2,14 +2,14 @@
   "version": 1,
   "kind": "ach-exclude-rules",
   "formatCode": "ACHP01",
-  "description": "排除符合條件的明細後再輸出。單一規則內多欄位為 AND；多條規則為 OR。字串＝精確相等；{ \"op\": \"like\", \"value\": \"...\" } 或 { \"like\": \"...\" } 為 SQL LIKE（%／_，不分大小寫）。",
+  "description": "排除符合條件的明細後再輸出。單一規則內多欄位為 AND；多條規則為 OR。字串＝精確相等；{ \"op\": \"like\", \"value\": \"...\" } 或 { \"like\": \"...\" } 為包含比對（類似 String.includes，不分大小寫）。",
   "rules": [
     {
       "bankCode": "0040000",
       "amount": "1000"
     },
     {
-      "account": { "op": "like", "value": "%1234567890" }
+      "account": { "op": "like", "value": "1234567890" }
     },
     {
       "txid": "704",
