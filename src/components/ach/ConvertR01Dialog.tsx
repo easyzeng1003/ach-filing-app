@@ -84,6 +84,7 @@ export function ConvertR01Dialog({
             </Typography>
             <Typography variant="body2" color="text.secondary">
               依財金 ACHP01/ACHR01 規格：TYPE=R、對調提出／提回行與帳號，並填入退件欄位。
+              輸出為整檔（含全部明細），不套用排除／篩選條件。
             </Typography>
           </Stack>
         </Stack>
