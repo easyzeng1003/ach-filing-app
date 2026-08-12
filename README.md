@@ -31,7 +31,6 @@ ACH改檔小工具.html?name=我的ACH工具&primary=1566c0&accent=ff9800&icon=b
 | 參數 | 說明 |
 |------|------|
 | `name` | 程式名稱 |
-| `subtitle` | 副標 |
 | `primary` | 主題主色／按鈕色（`#RRGGBB` 或 `RRGGBB`） |
 | `header` | 頂欄加深色（可省略） |
 | `accent` | 強調色 |

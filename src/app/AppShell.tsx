@@ -178,9 +178,6 @@ export function AppShell() {
               <Typography variant="h6" component="h1" sx={{ lineHeight: 1.25 }}>
                 {branding.name}
               </Typography>
-              <Typography variant="body2" sx={{ opacity: 0.85 }}>
-                {branding.subtitle}
-              </Typography>
             </Box>
           </Stack>
 
