@@ -1,0 +1,71 @@
+name: Release
+
+# 合併 PR 到 main 後：建置客戶版並發佈 GitHub Release + 建立 v{version} tag。
+# 版本取自 package.json；若該版本的 Release 已存在則略過（不重複發佈）。
+# 要發新版時，於 PR 內把 package.json 的 "version" 往上調即可。
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Read version from package.json
+        id: ver
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Check if release already exists
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "v${{ steps.ver.outputs.version }}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Release v${{ steps.ver.outputs.version }} already exists — skipping."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Release v${{ steps.ver.outputs.version }} not found — will build and publish."
+          fi
+
+      - name: Install dependencies
+        if: steps.check.outputs.exists == 'false'
+        run: npm ci
+
+      - name: Build customer release
+        if: steps.check.outputs.exists == 'false'
+        run: npm run build:customer
+
+      - name: Publish GitHub Release and tag
+        if: steps.check.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          gh release create "v${VERSION}" \
+            "release/ACH改檔小工具.html" \
+            "release/ACH-Filing-${VERSION}-standalone.html" \
+            "release/ACH-Filing-${VERSION}-customer.zip" \
+            --title "v${VERSION}" \
+            --target "${GITHUB_SHA}" \
+            --generate-notes
