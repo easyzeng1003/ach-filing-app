@@ -55,9 +55,6 @@ export function HelpPanel() {
             <code className="font-mono text-xs text-fg">name</code> — 程式名稱（預設 ACH改檔小工具）
           </li>
           <li>
-            <code className="font-mono text-xs text-fg">subtitle</code> — 副標
-          </li>
-          <li>
             <code className="font-mono text-xs text-fg">primary</code> — 主題主色／按鈕色（如{" "}
             <code className="font-mono text-xs">1566c0</code>）
           </li>

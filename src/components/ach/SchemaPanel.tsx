@@ -211,20 +211,6 @@ export function SchemaPanel() {
               <h2 className="text-lg font-bold">
                 {customer ? "格式參數" : "格式參數（JSON）"}
               </h2>
-              <p className="text-sm text-muted">
-                {customer ? (
-                  <>
-                    各錄欄位的起迄位置、長度與說明（列長{" "}
-                    <span className="font-mono">{schema.recordLength}</span>）
-                  </>
-                ) : (
-                  <>
-                    檔案代號、欄位、長度、英數字檢核、明細篩選、成品輸出格式皆由{" "}
-                    <code className="font-mono text-xs">public/data/formats/*.json</code>{" "}
-                    定義
-                  </>
-                )}
-              </p>
             </div>
           </div>
           <select

@@ -46,9 +46,6 @@ export function RefsPanel() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
         <div>
           <h2 className="text-lg font-bold">代碼與檔案代號</h2>
-          <p className="text-sm text-muted">
-            交易 {txids.length} · 銀行 {branches.length} · 格式 {formats.length}
-          </p>
         </div>
         <button
           type="button"

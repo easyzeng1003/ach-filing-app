@@ -164,7 +164,7 @@ writeFileSync(
     "【品牌／主題參數（選用）】",
     "以網址參數覆寫名稱、圖示、顏色，例如：",
     "  ACH改檔小工具.html?name=我的ACH工具&primary=1566c0&accent=ff9800&icon=build",
-    "  name／subtitle／primary／header／accent／icon",
+    "  name／primary／header／accent／icon",
     "",
     "【排除後輸出（選用）】",
     "1. 參考同目錄 exclude-rules.example.json 編寫規則",

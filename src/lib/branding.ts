@@ -7,7 +7,6 @@
  *
  * 參數：
  * - name      程式名稱（預設：ACH改檔小工具）
- * - subtitle  副標
  * - primary   主題主色／按鈕色（#RRGGBB 或 RRGGBB）
  * - header    頂欄加深色（省略則由 primary 推算）
  * - accent    強調色／次要按鈕（預設橘）
@@ -15,7 +14,6 @@
  */
 
 export const DEFAULT_APP_NAME = "ACH改檔小工具";
-export const DEFAULT_APP_SUBTITLE = "既有 P01／R01 檔檢核與加工";
 
 export const DEFAULT_BRANDING_COLORS = {
   primary: "#00695c",
@@ -44,7 +42,6 @@ export type BrandingIconPreset = (typeof BRANDING_ICON_PRESETS)[number];
 
 export type BrandingConfig = {
   name: string;
-  subtitle: string;
   primary: string;
   header: string;
   accent: string;
@@ -162,9 +159,6 @@ export function resolveBranding(
 
   const name = (p.get("name") ?? p.get("title") ?? DEFAULT_APP_NAME).trim() ||
     DEFAULT_APP_NAME;
-  const subtitle =
-    (p.get("subtitle") ?? p.get("tagline") ?? DEFAULT_APP_SUBTITLE).trim() ||
-    DEFAULT_APP_SUBTITLE;
 
   const { iconPreset, iconUrl } = resolveIcon(
     p.get("icon") ?? p.get("logo") ?? p.get("iconUrl"),
@@ -172,7 +166,6 @@ export function resolveBranding(
 
   return {
     name,
-    subtitle,
     primary,
     header,
     accent,

@@ -893,14 +893,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
               <Typography variant="h6" gutterBottom>
                 請先上傳既有 ACH 檔
               </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                選擇或拖放 <Box component="code" sx={{ fontFamily: "monospace" }}>.txt</Box>{" "}
-                固定長度上傳檔（BOF 列 CDATA 為{" "}
-                <Box component="span" sx={{ fontFamily: "monospace", fontWeight: 700 }}>
-                  {schema.code}
-                </Box>{" "}
-                或其他已支援代號）。
-              </Typography>
               <Button
                 variant="contained"
                 size="large"
@@ -990,12 +982,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
               <Typography variant="h6" component="h2">
                 {schema.shortCode} {schema.name}・檢核與加工
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                {workspace.fileName
-                  ? `來源檔：${workspace.fileName} · 檢核欄位後可重新產生上傳檔`
-                  : schema.description ||
-                    "檢核表頭／明細後產生固定長度上傳檔"}
-              </Typography>
             </Box>
             <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
               <Chip color="primary" variant="outlined" label={`總筆數 ${stats.count}`} />
@@ -1058,9 +1044,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       <div className="card overflow-hidden">
         <div className="border-b border-border px-4 py-3">
           <h3 className="font-bold">控制首錄</h3>
-          <p className="text-xs text-muted">
-            對照財金控制首錄欄位名稱與值（不含長度／起迄）；可編輯處理日期等來源欄。
-          </p>
         </div>
         <ControlHeaderFields
           schema={schema}
@@ -1083,9 +1066,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       <div className="card overflow-hidden">
         <div className="border-b border-border px-4 py-3">
           <h3 className="font-bold">控制尾錄</h3>
-          <p className="text-xs text-muted">
-            對照財金控制尾錄；總筆數／總金額依明細自動計算，前一營業日於提回檔可編輯。
-          </p>
         </div>
         <ControlTrailerFields
           schema={schema}
@@ -1112,11 +1092,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <h3 className="font-bold">明細資料（檢核）</h3>
-              <p className="text-xs text-muted">
-                依匯入內容檢核；可修正後重新產生。亦可從 Excel 貼上（Tab 分隔：
-                {schema.form.detail.map((f) => f.label).join("、")}）
-                {filterEnabled && " · 篩選僅影響畫面，產檔仍含全部明細"}
-              </p>
             </div>
             <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", alignItems: "center" }}>
               <span className="stat-pill text-xs">

@@ -148,9 +148,6 @@ export function ExcludeExportPanel({
         <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
           排除後輸出
         </Typography>
-        <Typography variant="caption" color="text.secondary">
-          選擇欄位、比對方式（等於／包含）與排除內容；處理後下載結果檔
-        </Typography>
         {partitionScope ? (
           <Chip
             size="small"
