@@ -155,12 +155,14 @@ export function HelpPanel() {
           於主畫面以<strong className="text-fg">下拉選欄位</strong>、比對方式（
           <strong className="text-fg">等於</strong>／
           <strong className="text-fg">包含</strong>）並輸入排除內容，
-          按「排除後輸出」後會顯示原筆數／排除筆數／輸出筆數，並提供檔案下載。
+          按「排除後輸出 P01」後會顯示原筆數／排除筆數／輸出筆數，並提供檔案下載。
+          「輸出 R01（整檔）」則<strong className="text-fg">一律轉出完整明細</strong>
+          ，不套用排除條件（即使已設定篩選／排除）。
           「包含」只要欄位值含輸入字串即排除（類似{" "}
           <code className="font-mono text-xs">String.includes</code>
           ，不區分大小寫；JSON 運算子仍為{" "}
           <code className="font-mono text-xs">like</code>）。
-          若正在<strong className="text-fg">分割工作區</strong>，會合併
+          若正在<strong className="text-fg">分割工作區</strong>，排除後輸出 P01 會合併
           <strong className="text-fg">全部分割包</strong>後再排除（非僅目前開啟的那一包）。
           條件關係可選全部符合（AND）或任一符合（OR）；亦可載入 JSON 規則。
         </p>

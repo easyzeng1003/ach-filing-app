@@ -44,11 +44,14 @@ type Props = {
   partitionScope?: { partCount: number; detailCount: number } | null;
   /** 執行排除並輸出 P01 檔內容 */
   onProcess: (doc: NonNullable<ReturnType<typeof resolveExcludeDoc>>) => Promise<ExcludeExportResult>;
-  /** 排除後輸出 R01（開啟 P01→R01 轉檔對話框並套用目前排除條件）；不提供時隱藏 R01 按鈕 */
+  /**
+   * 輸出 R01（整檔）：開啟 P01→R01 轉檔對話框；不套用排除條件。
+   * 不提供時隱藏 R01 按鈕。
+   */
   onExportR01?: () => void;
 };
 
-/** 前端排除：下拉選欄位＋輸入值，處理後顯示筆數並下載（可輸出 P01 或轉 R01） */
+/** 前端排除：下拉選欄位＋輸入值；P01 可排除後輸出，R01 一律整檔轉檔 */
 export function ExcludeExportPanel({
   schema,
   partitionScope = null,
@@ -173,6 +176,10 @@ export function ExcludeExportPanel({
           筆），再依條件排除並輸出單一檔，不會只處理目前開啟的那一包。
         </Alert>
       ) : null}
+
+      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+        「排除後輸出 P01」套用下方條件；「輸出 R01（整檔）」一律轉出完整明細，不套用排除。
+      </Typography>
 
       <Stack spacing={1.5}>
         <FormControl size="small" sx={{ maxWidth: 280 }}>
@@ -319,8 +326,9 @@ export function ExcludeExportPanel({
               disabled={busy}
               startIcon={<SwapHorizIcon />}
               onClick={onExportR01}
+              title="R01 一律整檔輸出，不套用排除條件"
             >
-              排除後輸出 R01
+              輸出 R01（整檔）
             </Button>
           ) : null}
           <Button

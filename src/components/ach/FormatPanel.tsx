@@ -371,17 +371,12 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     if (!validateFormData()) return;
     setConverting(true);
     try {
+      // R01 必須整檔輸出：不套用排除／篩選條件（排除僅用於「排除後輸出 P01」）
       const lineEnding = usePrefsStore.getState().lineEnding;
-      const exclude = resolveExcludeDoc(schema.code);
-      const filtered = filterExcludedRows(schema, rows, exclude);
-      if (filtered.kept.length === 0) {
-        toast.error("排除後沒有可轉檔的明細");
-        return;
-      }
       const result = convertP01ToR01(
         withLineEndingId(r01, lineEnding),
         header,
-        filtered.kept,
+        rows,
         txids,
         branches,
         opts,
@@ -397,12 +392,8 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         toast.message("已取消儲存");
         return;
       }
-      const excludeNote =
-        filtered.excludedCount > 0
-          ? `（已排除 ${filtered.excludedCount.toLocaleString("zh-TW")} 筆）`
-          : "";
       toast.success(
-        `已轉檔（${result.detailCount} 筆${excludeNote}，RCODE=${result.rcode}）· ${describeSaveResult(saved)}`,
+        `已轉檔（${result.detailCount} 筆整檔，RCODE=${result.rcode}）· ${describeSaveResult(saved)}`,
       );
       setConvertOpen(false);
     } catch (e) {

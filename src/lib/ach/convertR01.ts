@@ -109,6 +109,7 @@ function padSeq8(seq: number | string): string {
 /**
  * 將 ACHP01 表單資料轉成 ACHR01 提回／退件檔。
  * 若明細含多個收受行（退件行），依退件行分組各產出一個檔。
+ * 呼叫端應傳入完整明細（整檔）；排除／篩選僅適用於 P01「排除後輸出」，不應在此過濾。
  */
 export function convertP01ToR01(
   r01Schema: FormatSchema,
