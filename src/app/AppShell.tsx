@@ -12,6 +12,7 @@ import {
   Toolbar,
   Typography,
   Paper,
+  Tooltip,
 } from "@mui/material";
 import {
   AccountBalance as AccountBalanceIcon,
@@ -29,10 +30,12 @@ import {
   Business as BuildingIcon,
   Description as FileStackIcon,
   Security as ShieldIcon,
+  CheckCircle as CheckCircleIcon,
 } from "@mui/icons-material";
 import { Toaster } from "sonner";
 import "@/styles.css";
 import { useFormStore, useRefStore } from "@/lib/ach/store";
+import { useExcludeStore } from "@/lib/ach/excludeStore";
 import type { BrandingIconPreset } from "@/lib/branding";
 import { FormatPanel } from "@/components/ach/FormatPanel";
 import { SchemaPanel } from "@/components/ach/SchemaPanel";
@@ -72,6 +75,7 @@ export function AppShell() {
     formats,
   } = useRefStore();
   const { activeCode, setActiveCode, ensureForm } = useFormStore();
+  const exportResult = useExcludeStore((s) => s.lastResult);
   const list = formatList();
   const [tab, setTab] = useState("");
 
@@ -200,6 +204,30 @@ export function AppShell() {
             )}
             {loadError && (
               <Chip size="small" color="error" label={loadError} />
+            )}
+            {exportResult && (
+              <Tooltip
+                title={`排除 ${exportResult.excludedCount.toLocaleString("zh-TW")} 筆 → 輸出 ${exportResult.detailCount.toLocaleString("zh-TW")} 筆${
+                  exportResult.amount
+                    ? `（金額合計 ${exportResult.amount.toLocaleString("zh-TW")}）`
+                    : ""
+                } · ${exportResult.filename}`}
+              >
+                <Chip
+                  size="small"
+                  color="success"
+                  variant="filled"
+                  icon={<CheckCircleIcon fontSize="small" />}
+                  label={`已輸出 ${exportResult.detailCount.toLocaleString("zh-TW")} 筆 · ${exportResult.filename}`}
+                  sx={{
+                    maxWidth: 360,
+                    "& .MuiChip-label": {
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    },
+                  }}
+                />
+              </Tooltip>
             )}
           </Stack>
         </Toolbar>
