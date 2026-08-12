@@ -84,7 +84,11 @@ export function AppShell() {
     const initial =
       list.find((f) => f.code === activeCode)?.code ?? list[0]!.code;
     setTab((t) =>
-      t && (t === "refs" || t === "schema" || t === "help" || formats[t])
+      t &&
+      (t === "refs" ||
+        t === "schema" ||
+        t === "help" ||
+        list.some((f) => f.code === t))
         ? t
         : initial,
     );
@@ -114,7 +118,7 @@ export function AppShell() {
 
   function selectTab(id: string) {
     setTab(id);
-    if (formats[id]) setActiveCode(id);
+    if (list.some((f) => f.code === id)) setActiveCode(id);
   }
 
   const activeSchema = formats[tab];

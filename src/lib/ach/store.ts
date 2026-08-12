@@ -18,6 +18,17 @@ import {
   loadEmbeddedFormats,
 } from "@/data/embedded";
 
+/**
+ * 不提供獨立工作區的檔案代號：schema 仍載入（供 P01→R01 轉檔使用），
+ * 但不出現在主分頁／格式選單／匯入偵測，亦即「僅提供 P01 轉成 R01」。
+ */
+const HIDDEN_STANDALONE_FORMATS = new Set(["ACHR01"]);
+
+/** 是否為「不提供獨立工作區」的檔案代號（例如 R01 僅能由 P01 轉檔產生）。 */
+export function isHiddenStandaloneFormat(code: string): boolean {
+  return HIDDEN_STANDALONE_FORMATS.has(code);
+}
+
 type RefState = {
   txids: Txid[];
   branches: Branch[];
@@ -40,7 +51,7 @@ type FormBundle = {
 /** 工作區：預設關閉，引導先上傳既有 P01／R01 檔 */
 export type WorkspaceMeta = {
   open: boolean;
-  source: "import" | "manual" | null;
+  source: "import" | null;
   fileName?: string;
 };
 
@@ -52,7 +63,6 @@ type FormState = {
   ensureForm: (schema: FormatSchema) => void;
   isWorkspaceOpen: (code: string) => boolean;
   getWorkspace: (code: string) => WorkspaceMeta;
-  openManualWorkspace: (schema: FormatSchema) => void;
   closeWorkspace: (schema: FormatSchema) => void;
   setHeader: (code: string, schema: FormatSchema, key: string, value: string) => void;
   blurHeader: (code: string, schema: FormatSchema, key: string) => void;
@@ -134,7 +144,10 @@ export const useRefStore = create<RefState>((set, get) => ({
     await get().loadRefs();
   },
   getFormat: (code) => get().formats[code],
-  formatList: () => get().formatIndex?.formats ?? [],
+  formatList: () =>
+    (get().formatIndex?.formats ?? []).filter(
+      (f) => !isHiddenStandaloneFormat(f.code),
+    ),
 }));
 
 export const useFormStore = create<FormState>()(
@@ -153,15 +166,6 @@ export const useFormStore = create<FormState>()(
       },
       isWorkspaceOpen: (code) => !!get().workspaces[code]?.open,
       getWorkspace: (code) => get().workspaces[code] ?? CLOSED_WORKSPACE,
-      openManualWorkspace: (schema) => {
-        get().ensureForm(schema);
-        set((s) => ({
-          workspaces: {
-            ...s.workspaces,
-            [schema.code]: { open: true, source: "manual" },
-          },
-        }));
-      },
       closeWorkspace: (schema) => {
         set((s) => ({
           forms: {

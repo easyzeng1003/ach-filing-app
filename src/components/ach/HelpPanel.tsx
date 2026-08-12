@@ -12,10 +12,10 @@ export function HelpPanel() {
           <h2 className="text-lg font-bold">關於本程式</h2>
         </div>
         <p className="text-sm leading-relaxed text-muted">
-          以既有財金 ACH <strong className="text-fg">P01 代收／代付</strong>／
-          <strong className="text-fg">R01 提回／退件</strong>固定長度檔為主，進行
-          <strong className="text-fg">檢核與加工</strong>。
-          開啟後請先上傳檔案；表單新建為進階選項。
+          以財金 ACH <strong className="text-fg">P01 代收／代付</strong>
+          固定長度檔為主，進行<strong className="text-fg">檢核與加工</strong>；
+          <strong className="text-fg">R01 提回／退件</strong>僅由 P01 轉檔產生。
+          開啟後請先上傳既有 P01 檔。
           ACHP01 明細<strong className="text-fg">交易類別</strong>依交易代號帶入：
           <strong className="text-fg">SD＝代收</strong>、
           <strong className="text-fg">SC＝代付</strong>。
@@ -128,8 +128,8 @@ export function HelpPanel() {
         </div>
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted">
           <li>
-            預設畫面會<strong className="text-fg">引導先上傳</strong>既有 ACH 固定長度{" "}
-            <code className="font-mono text-xs">.txt</code>；新建空白表單收在「進階」
+            預設畫面會<strong className="text-fg">引導先上傳</strong>既有 P01 固定長度{" "}
+            <code className="font-mono text-xs">.txt</code>
           </li>
           <li>
             依 BOF 列 CDATA（檔案代號）自動對應 JSON 格式，並以
