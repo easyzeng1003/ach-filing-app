@@ -20,6 +20,7 @@ import {
   Download as DownloadIcon,
   FilterAlt as FilterIcon,
   FilterAltOff as ClearIcon,
+  SwapHoriz as SwapHorizIcon,
   UploadFile as UploadIcon,
 } from "@mui/icons-material";
 import { toast } from "sonner";
@@ -41,15 +42,18 @@ type Props = {
   schema: FormatSchema;
   /** 分割工作區範圍提示（全包數／總筆數）；無分割時省略 */
   partitionScope?: { partCount: number; detailCount: number } | null;
-  /** 執行排除並產生檔案內容 */
+  /** 執行排除並輸出 P01 檔內容 */
   onProcess: (doc: NonNullable<ReturnType<typeof resolveExcludeDoc>>) => Promise<ExcludeExportResult>;
+  /** 排除後輸出 R01（開啟 P01→R01 轉檔對話框並套用目前排除條件）；不提供時隱藏 R01 按鈕 */
+  onExportR01?: () => void;
 };
 
-/** 前端排除：下拉選欄位＋輸入值，處理後顯示筆數並下載 */
+/** 前端排除：下拉選欄位＋輸入值，處理後顯示筆數並下載（可輸出 P01 或轉 R01） */
 export function ExcludeExportPanel({
   schema,
   partitionScope = null,
   onProcess,
+  onExportR01,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -308,6 +312,17 @@ export function ExcludeExportPanel({
             清除
           </Button>
           <Box sx={{ flex: 1 }} />
+          {onExportR01 ? (
+            <Button
+              variant="outlined"
+              color="primary"
+              disabled={busy}
+              startIcon={<SwapHorizIcon />}
+              onClick={onExportR01}
+            >
+              排除後輸出 R01
+            </Button>
+          ) : null}
           <Button
             variant="contained"
             color="primary"
@@ -315,7 +330,7 @@ export function ExcludeExportPanel({
             startIcon={<FilterIcon />}
             onClick={() => void handleProcess()}
           >
-            {busy ? "處理中…" : "排除後輸出"}
+            {busy ? "處理中…" : "排除後輸出 P01"}
           </Button>
         </Stack>
 
