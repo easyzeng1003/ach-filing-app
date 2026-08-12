@@ -22,7 +22,6 @@ import {
   FilterAltOff as FilterXIcon,
   CloudUpload as UploadIcon,
   ArrowForward as ArrowRightIcon,
-  SwapHoriz as ArrowRightLeftIcon,
   ContentCut as ScissorsIcon,
   RestartAlt as RestartAltIcon,
 } from "@mui/icons-material";
@@ -808,6 +807,15 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           : null
       }
       onProcess={handleExcludeExport}
+      onExportR01={
+        schema.code === "ACHP01" &&
+        partitionSession?.formatCode !== schema.code
+          ? () => {
+              if (!validateFormData()) return;
+              setConvertOpen(true);
+            }
+          : undefined
+      }
     />
   );
 
@@ -1002,18 +1010,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           {partitionSession?.formatCode !== schema.code ? (
             <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", alignItems: "center" }}>
               <LineEndingSelect />
-              {schema.code === "ACHP01" ? (
-                <Button
-                  variant="outlined"
-                  startIcon={<ArrowRightLeftIcon />}
-                  onClick={() => {
-                    if (!validateFormData()) return;
-                    setConvertOpen(true);
-                  }}
-                >
-                  轉檔 R01
-                </Button>
-              ) : null}
               <Button
                 variant="text"
                 color="error"
