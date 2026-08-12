@@ -37,6 +37,7 @@ import {
   filterExcludedRows,
   type ExcludeRulesDoc,
 } from "@/lib/ach/exclude";
+import { resolveExcludeDoc, useExcludeStore } from "@/lib/ach/excludeStore";
 import { withLineEndingId } from "@/lib/ach/lineEnding";
 import { usePrefsStore } from "@/lib/ach/prefsStore";
 import {
@@ -251,6 +252,16 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     return { count, amount, errRows };
   }, [rows, rowErrs, schema]);
 
+  const excludeConditions = useExcludeStore((s) => s.conditions);
+  const excludeMatchMode = useExcludeStore((s) => s.matchMode);
+
+  /** 轉檔 R01 對話框顯示筆數：已套用排除規則後的有效明細 */
+  const convertR01DetailCount = useMemo(() => {
+    const exclude = resolveExcludeDoc(schema.code);
+    const kept = filterExcludedRows(schema, rows, exclude).kept;
+    return kept.filter((r) => !isRowEmpty(r, schema)).length;
+  }, [schema, rows, excludeConditions, excludeMatchMode]);
+
   const filtered = useMemo(() => {
     if (!filterEnabled) {
       return rows.map((row, index) => ({ row, index }));
@@ -370,12 +381,18 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     if (!validateFormData()) return;
     setConverting(true);
     try {
-      // R01 必須整檔輸出：不套用排除／篩選條件（排除僅用於「排除後輸出 P01」）
+      // R01 與 P01 相同：先套用目前排除／篩選規則，再轉檔
       const lineEnding = usePrefsStore.getState().lineEnding;
+      const exclude = resolveExcludeDoc(schema.code);
+      const filtered = filterExcludedRows(schema, rows, exclude);
+      if (filtered.kept.length === 0) {
+        toast.error("排除後沒有可轉檔的明細");
+        return;
+      }
       const result = convertP01ToR01(
         withLineEndingId(r01, lineEnding),
         header,
-        rows,
+        filtered.kept,
         txids,
         branches,
         opts,
@@ -391,8 +408,12 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         toast.message("已取消儲存");
         return;
       }
+      const excludeNote =
+        filtered.excludedCount > 0
+          ? `（已排除 ${filtered.excludedCount.toLocaleString("zh-TW")} 筆）`
+          : "";
       toast.success(
-        `已轉檔（${result.detailCount} 筆整檔，RCODE=${result.rcode}）· ${describeSaveResult(saved)}`,
+        `已轉檔（${result.detailCount} 筆${excludeNote}，RCODE=${result.rcode}）· ${describeSaveResult(saved)}`,
       );
       setConvertOpen(false);
     } catch (e) {
@@ -813,7 +834,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     schema.code === "ACHP01" ? (
       <ConvertR01Dialog
         open={convertOpen}
-        detailCount={stats.count}
+        detailCount={convertR01DetailCount}
         tdate={String(header.date ?? "")}
         busy={converting}
         onClose={() => {

@@ -1,5 +1,5 @@
 /**
- * R01 整檔：即使有排除條件，轉檔仍應使用完整明細（不套用 filterExcludedRows）。
+ * 排除後輸出 R01：轉檔前須套用 filterExcludedRows，筆數應少於整檔。
  */
 import assert from "node:assert/strict";
 import {
@@ -67,14 +67,8 @@ const filtered = filterExcludedRows(p01, rows, doc);
 assert.equal(filtered.excludedCount, 1);
 assert.equal(filtered.kept.length, 2);
 
-// 模擬修正後的 handleConvertToR01：一律整檔
-const full = convertP01ToR01(r01, header, rows, EMBEDDED_TXIDS, EMBEDDED_BRANCHES, {
-  rcode: "04",
-});
-assert.equal(full.detailCount, 3);
-
-// 舊行為（套用排除）會變少筆 —— 用來對照
-const oldBehavior = convertP01ToR01(
+// 模擬 handleConvertToR01：先排除再轉檔
+const converted = convertP01ToR01(
   r01,
   header,
   filtered.kept,
@@ -82,11 +76,14 @@ const oldBehavior = convertP01ToR01(
   EMBEDDED_BRANCHES,
   { rcode: "04" },
 );
-assert.equal(oldBehavior.detailCount, 2);
+assert.equal(converted.detailCount, 2);
+assert.notEqual(converted.detailCount, rows.length);
 
 console.log(
-  "OK r01-full-file: full=",
-  full.detailCount,
-  "after-exclude-would-be=",
-  oldBehavior.detailCount,
+  "OK r01-exclude: before=",
+  rows.length,
+  "excluded=",
+  filtered.excludedCount,
+  "r01=",
+  converted.detailCount,
 );
