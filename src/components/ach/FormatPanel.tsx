@@ -27,7 +27,11 @@ import {
   RestartAlt as RestartAltIcon,
 } from "@mui/icons-material";
 import { toast } from "sonner";
-import { useFormStore, useRefStore } from "@/lib/ach/store";
+import {
+  isHiddenStandaloneFormat,
+  useFormStore,
+  useRefStore,
+} from "@/lib/ach/store";
 import type { FormatSchema, FormFieldDef } from "@/lib/ach/schema";
 import { convertP01ToR01 } from "@/lib/ach/convertR01";
 import {
@@ -122,7 +126,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     loadFromImport,
     isWorkspaceOpen,
     getWorkspace,
-    openManualWorkspace,
     closeWorkspace,
   } = useFormStore();
   const clearPartitionSession = usePartitionStore((s) => s.clearSession);
@@ -420,8 +423,16 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       matchedCount: 0,
     });
     try {
-      const target =
-        (await resolveImportSchemaFromFile(file, formats, schema)) ?? schema;
+      const detected = await resolveImportSchemaFromFile(file, formats, schema);
+      if (detected && isHiddenStandaloneFormat(detected.code)) {
+        toast.error(
+          `本工具僅支援 ${schema.code}；${detected.code} 檔請改由 P01「轉檔 R01」產生`,
+        );
+        setImportFile(null);
+        setImportProgress(null);
+        return;
+      }
+      const target = detected ?? schema;
       const result = await parseAchFile(file, target, {
         filename: file.name,
         onProgress: setImportProgress,
@@ -927,19 +938,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                 </Typography>
               </Stack>
             </Paper>
-
-            <Box sx={{ mt: 3, textAlign: "center" }}>
-              <Button
-                variant="text"
-                size="small"
-                onClick={() => {
-                  openManualWorkspace(schema);
-                  toast.message("已開啟空白表單（進階／新建）");
-                }}
-              >
-                進階：不匯入，手動新建空白表單
-              </Button>
-            </Box>
           </CardContent>
         </Card>
 
@@ -971,9 +969,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                 <Chip size="small" variant="outlined" label={`列長 ${schema.recordLength}`} />
                 {workspace.source === "import" && (
                   <Chip size="small" color="success" icon={<FileUpIcon />} label="已匯入" />
-                )}
-                {workspace.source === "manual" && (
-                  <Chip size="small" color="warning" label="手動新建" />
                 )}
                 {partitionSession?.formatCode === schema.code && (
                   <Chip size="small" color="warning" icon={<ScissorsIcon />} label="分割編輯" />
