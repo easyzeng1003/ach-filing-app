@@ -466,22 +466,23 @@ export const useFormStore = create<FormState>()(
       name: "ach-filing-forms-v2",
       storage: createDebouncedJSONStorage(FORM_PERSIST_DEBOUNCE_MS),
       partialize: (s) => {
-        // 大量明細勿寫入 localStorage（易超額／卡住）；僅保留提出資料與工作區狀態
+        // 大量明細勿寫入 localStorage（易超額／卡住）。
+        // 超過上限時不殘留「假 15 列＋已開啟」編輯畫面，強制回到上傳。
         const MAX_PERSIST_ROWS = 200;
         const forms: FormState["forms"] = {};
+        const workspaces: FormState["workspaces"] = { ...s.workspaces };
         for (const [code, form] of Object.entries(s.forms)) {
-          forms[code] =
-            form.rows.length > MAX_PERSIST_ROWS
-              ? {
-                  header: form.header,
-                  rows: form.rows.slice(0, 15),
-                }
-              : form;
+          if (form.rows.length > MAX_PERSIST_ROWS) {
+            forms[code] = { header: form.header, rows: [] };
+            workspaces[code] = { ...CLOSED_WORKSPACE };
+          } else {
+            forms[code] = form;
+          }
         }
         return {
           activeCode: s.activeCode,
           forms,
-          workspaces: s.workspaces,
+          workspaces,
         };
       },
     },

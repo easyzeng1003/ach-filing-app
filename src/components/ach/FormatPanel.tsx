@@ -172,6 +172,32 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   const [detailPageSize, setDetailPageSize] = useState<DetailPageSize>(
     DEFAULT_DETAIL_PAGE_SIZE,
   );
+  const clearExclude = useExcludeStore((s) => s.clear);
+
+  /** 清除／重新匯入時重設編輯區暫存 UI，避免與初次進入畫面落差 */
+  function resetEditSessionUi() {
+    setFilters(emptyDetailFilters(schema));
+    setFilterOpts({ hideEmpty: false, onlyErrors: false, global: "" });
+    setDetailPage(0);
+    setDetailPageSize(DEFAULT_DETAIL_PAGE_SIZE);
+    setAgentBank("");
+    setConvertOpen(false);
+    setConverting(false);
+    setPartitionFormDirty(false);
+    clearExclude();
+  }
+
+  function returnToUpload(message = "已清除所有紀錄，請重新上傳檔案") {
+    if (partitionSession?.formatCode === schema.code) {
+      clearPartitionSession();
+    }
+    resetEditSessionUi();
+    setImportFile(null);
+    setImportResult(null);
+    setImportProgress(null);
+    closeWorkspace(schema);
+    toast.message(message);
+  }
 
   useEffect(() => {
     setFilters(emptyDetailFilters(schema));
@@ -478,6 +504,11 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   }
 
   async function handleImportFile(file: File) {
+    // 新上傳：清掉上一輪編輯暫存（篩選／排除條件／代表行等）與分割工作區
+    if (partitionSession?.formatCode === schema.code) {
+      clearPartitionSession();
+    }
+    resetEditSessionUi();
     setImportFile(file);
     setImportProgress({
       bytesRead: 0,
@@ -619,6 +650,11 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       toast.error("筆數仍超過上限，請再縮小表頭篩選條件");
       return;
     }
+    // 套用匯入＝進入乾淨編輯畫面（與初次上傳一致）
+    if (usePartitionStore.getState().session?.formatCode === result.schema.code) {
+      clearPartitionSession();
+    }
+    resetEditSessionUi();
     const sourceHeaderLine = result.lines.find((l) => l.kind === "header")?.raw;
     const sourceTrailerLine = result.lines.find((l) => l.kind === "trailer")?.raw;
     loadFromImport(
@@ -774,15 +810,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       formDirty={partitionFormDirty}
       onFormClean={() => setPartitionFormDirty(false)}
       onClearToUpload={() => {
-        if (partitionSession?.formatCode === schema.code) {
-          clearPartitionSession();
-        }
-        setPartitionFormDirty(false);
-        setImportFile(null);
-        setImportResult(null);
-        setImportProgress(null);
-        closeWorkspace(schema);
-        toast.message("已清除所有紀錄，請重新上傳檔案");
+        returnToUpload();
       }}
       onLoadPart={(payload) => {
         const sess = usePartitionStore.getState().session;
@@ -796,6 +824,10 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           },
         );
         setPartitionFormDirty(false);
+        // 切換包時重設明細篩選／分頁，避免上一包條件殘留
+        setFilters(emptyDetailFilters(schema));
+        setFilterOpts({ hideEmpty: false, onlyErrors: false, global: "" });
+        setDetailPage(0);
       }}
     />
   );
@@ -1164,14 +1196,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                 variant="text"
                 color="error"
                 startIcon={<RestartAltIcon />}
-                onClick={() => {
-                  setPartitionFormDirty(false);
-                  setImportFile(null);
-                  setImportResult(null);
-                  setImportProgress(null);
-                  closeWorkspace(schema);
-                  toast.message("已清除所有紀錄，請重新上傳檔案");
-                }}
+                onClick={() => returnToUpload()}
               >
                 清除並回到上傳
               </Button>
