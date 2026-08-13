@@ -155,9 +155,8 @@ export function HelpPanel() {
           於主畫面以<strong className="text-fg">下拉選欄位</strong>、比對方式（
           <strong className="text-fg">等於</strong>／
           <strong className="text-fg">包含</strong>）並輸入排除內容，
-          按「排除後輸出 P01」後會顯示原筆數／排除筆數／輸出筆數，並提供檔案下載。
-          「輸出 R01（整檔）」則<strong className="text-fg">一律轉出完整明細</strong>
-          ，不套用排除條件（即使已設定篩選／排除）。
+          按「排除後輸出 P01」或「排除後輸出 R01」後會先套用相同排除條件。
+          P01 直接下載結果檔並顯示原筆數／排除筆數／輸出筆數；R01 再開啟轉檔對話框填入退件理由後產生。
           「包含」只要欄位值含輸入字串即排除（類似{" "}
           <code className="font-mono text-xs">String.includes</code>
           ，不區分大小寫；JSON 運算子仍為{" "}
