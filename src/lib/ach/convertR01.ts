@@ -1,16 +1,17 @@
 /**
- * ACHP01（提出）→ ACHR01（提回／退件）轉換
+ * ACHP01（提出）⇄ ACHR01（提回／退件）轉換
  *
  * 依據財金《ACHP01-ACH入扣帳資料提出提回檔檔案規格》：
  * - 提出／提回共用 250 bytes／錄
- * - Header/Trailer CDATA：ACHP01 → ACHR01
- * - Detail TYPE：N → R
+ * - Header/Trailer CDATA：ACHP01 ⇄ ACHR01
+ * - Detail TYPE：N ⇄ R
  * - 退件時對調：PBANK/PCLNO ← 原 RBANK/RCLNO；RBANK/RCLNO ← 原 PBANK/PCLNO
- * - 退件必填：RCODE、PDATE、PSEQ、PSCHD
+ * - 退件必填：RCODE、PDATE、PSEQ、PSCHD（轉回 P01 時清空為 filler）
  * - Trailer YDATE：ACHR01 置放前一營業日（ACHP01 空白）
  *
  * 輸出：單一整檔（不依收受行分檔）；
- * BOF／EOF：SORG 固定 9990250；RORG＝收受行代表行代號。
+ * P01→R01 BOF／EOF：SORG 固定 9990250；RORG＝收受行代表行代號。
+ * R01→P01 BOF／EOF：SORG 由提出行代號衍生；RORG 固定 9990250。
  */
 
 import { generateFromSchema, resolveSorg } from "./engine";
@@ -262,4 +263,165 @@ export function convertP01ToR01(
 function isP01DetailEmpty(row: DetailRow): boolean {
   const keys = ["bankCode", "account", "taxId", "userNo", "amount"] as const;
   return keys.every((k) => !String(row[k] ?? "").trim());
+}
+
+function isR01DetailEmpty(row: DetailRow): boolean {
+  const keys = [
+    "bankCode",
+    "account",
+    "origBankCode",
+    "origAccount",
+    "amount",
+  ] as const;
+  return keys.every((k) => !String(row[k] ?? "").trim());
+}
+
+export type ConvertR01ToP01Options = {
+  /**
+   * 覆寫處理日期（8 碼民國年月日）。
+   * 未指定時使用提回檔處理日期。
+   */
+  date?: string;
+};
+
+export type ConvertedP01File = {
+  content: string;
+  filename: string;
+  count: number;
+  amount: number;
+  /** 提出行（原 R01 RBANK／origBankCode） */
+  presenterBank: string;
+  lines: string[];
+};
+
+export type ConvertR01ToP01Result = {
+  files: ConvertedP01File[];
+  detailCount: number;
+};
+
+/**
+ * 將 ACHR01 提回／退件表單資料轉回 ACHP01 提出檔。
+ * - TYPE R→N；CDATA ACHR01→ACHP01
+ * - 對調：P01 PBANK/PCLNO ← R01 RBANK/RCLNO；P01 RBANK/RCLNO ← R01 PBANK/PCLNO
+ * - 清除 RCODE／PDATE／PSEQ／PSCHD／YDATE
+ * - 一律輸出單一整檔
+ */
+export function convertR01ToP01(
+  p01Schema: FormatSchema,
+  r01Header: HeaderValues,
+  r01Rows: DetailRow[],
+  txids: Txid[],
+  branches: Branch[],
+  options: ConvertR01ToP01Options = {},
+): ConvertR01ToP01Result {
+  if (p01Schema.code !== "ACHP01") {
+    throw new Error("轉檔目標格式須為 ACHP01");
+  }
+
+  const tdate = requireRoc8(
+    options.date?.trim()
+      ? options.date
+      : String(r01Header.date ?? ""),
+    "處理日期（TDATE）",
+  );
+
+  const nonEmpty = r01Rows.filter((r) => !isR01DetailEmpty(r));
+  if (nonEmpty.length === 0) {
+    throw new Error("沒有明細列可轉檔");
+  }
+
+  const first = nonEmpty[0]!;
+  const presenterBank = safeDigits(String(first.origBankCode ?? ""));
+  const presenterAccount = safeDigits(String(first.origAccount ?? ""));
+  if (presenterBank.length !== 7) {
+    throw new Error("原提示行銀行代號（RBANK）須為 7 碼");
+  }
+  if (!presenterAccount) {
+    throw new Error("原發動者帳號（RCLNO）未輸入");
+  }
+
+  let seq = 0;
+  const rows: DetailRow[] = [];
+  for (const row of nonEmpty) {
+    seq += 1;
+    const rowPresenter = safeDigits(String(row.origBankCode ?? ""));
+    const rowPresenterAcct = safeDigits(String(row.origAccount ?? ""));
+    if (rowPresenter !== presenterBank || rowPresenterAcct !== presenterAccount) {
+      throw new Error(
+        `第 ${seq} 筆原提示行／帳號與首筆不一致（須同一提出單位）`,
+      );
+    }
+    const recvBank = safeDigits(String(row.bankCode ?? ""));
+    const recvAccount = safeDigits(String(row.account ?? ""));
+    if (recvBank.length !== 7) {
+      throw new Error(`第 ${seq} 筆退件行銀行代號須為 7 碼`);
+    }
+    if (!recvAccount) {
+      throw new Error(`第 ${seq} 筆原收受者帳號未輸入`);
+    }
+    const txid =
+      String(row.txid ?? "").trim() || String(r01Header.txid ?? "").trim();
+    rows.push({
+      id: row.id,
+      bankCode: recvBank,
+      account:
+        recvAccount.length < 16 ? recvAccount.padStart(16, "0") : recvAccount,
+      taxId: String(row.taxId ?? ""),
+      userNo: String(row.userNo ?? ""),
+      amount: String(row.amount ?? ""),
+      ...(txid ? { txid } : {}),
+    });
+  }
+
+  const headerTxid =
+    String(r01Header.txid ?? "").trim() ||
+    String(rows[0]?.txid ?? "").trim();
+
+  const header: HeaderValues = {
+    date: tdate,
+    txid: headerTxid,
+    bankCode: presenterBank,
+    account:
+      presenterAccount.length < 16
+        ? presenterAccount.padStart(16, "0")
+        : presenterAccount,
+    taxId: String(r01Header.taxId ?? ""),
+  };
+
+  const generated = generateFromSchema(
+    p01Schema,
+    header,
+    rows,
+    txids,
+    branches,
+  );
+
+  const bad = generated.lines.find((l) => l.length !== p01Schema.recordLength);
+  if (bad) {
+    throw new Error(
+      `提出列長度 ${bad.length} 與定義 ${p01Schema.recordLength} 不符`,
+    );
+  }
+
+  const detailLine = generated.lines[1] ?? "";
+  if (detailLine[0] !== "N") {
+    throw new Error("提出明細 TYPE 應為 N");
+  }
+  if (!generated.lines[0]?.includes("ACHP01")) {
+    throw new Error("提出首錄 CDATA 應為 ACHP01");
+  }
+
+  return {
+    files: [
+      {
+        content: generated.content,
+        filename: generated.filename,
+        count: generated.count,
+        amount: generated.amount,
+        presenterBank,
+        lines: generated.lines,
+      },
+    ],
+    detailCount: nonEmpty.length,
+  };
 }

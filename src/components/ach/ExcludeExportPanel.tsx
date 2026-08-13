@@ -59,6 +59,11 @@ type Props = {
    * 不提供時隱藏 R01 按鈕。
    */
   onExportR01?: () => void;
+  /**
+   * 篩選／排除後輸出 P01：將目前 R01 轉回 ACHP01 並套用條件。
+   * 不提供時隱藏轉回 P01 按鈕。
+   */
+  onExportP01?: () => void;
 };
 
 /** 前端條件：篩選（僅保留符合）／排除（剔除符合）；可無條件整檔輸出 */
@@ -72,6 +77,7 @@ export function ExcludeExportPanel({
   onAgentBankChange,
   onProcess,
   onExportR01,
+  onExportP01,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const conditions = useExcludeStore((s) => s.conditions);
@@ -107,10 +113,14 @@ export function ExcludeExportPanel({
         : null;
   const agentBankDigits = safeDigits(agentBank).slice(0, 7);
   // P01 面板無 agentBank schema 欄；僅檢核七碼。完整分行檢核於轉檔時執行。
+  // 轉回 P01（onExportP01）不需代表行；輸出／轉出 R01 才必填。
+  const agentBankRequired = schema.code === "ACHR01" || Boolean(onExportR01);
   const agentBankError = !showAgentBank
     ? null
     : !agentBankDigits
-      ? "未輸入代表行代號"
+      ? agentBankRequired
+        ? "未輸入代表行代號"
+        : null
       : agentBankDigits.length !== 7
         ? "代表行代號須為七碼"
         : null;
@@ -126,6 +136,9 @@ export function ExcludeExportPanel({
   const r01Label = hasActiveConditions
     ? `${actionVerb}後輸出 R01`
     : "輸出 R01";
+  const convertToP01Label = hasActiveConditions
+    ? `${actionVerb}後轉回 P01`
+    : "轉回 P01";
   const primaryExportLabel =
     schema.code === "ACHR01"
       ? hasActiveConditions
@@ -427,6 +440,24 @@ export function ExcludeExportPanel({
             清除條件
           </Button>
           <Box sx={{ flex: 1 }} />
+          {onExportP01 ? (
+            <Button
+              variant="outlined"
+              color="primary"
+              disabled={busy}
+              startIcon={<SwapHorizIcon />}
+              onClick={() => {
+                if (processDateError) {
+                  toast.error(processDateError);
+                  return;
+                }
+                onExportP01();
+              }}
+              title={convertToP01Label}
+            >
+              {convertToP01Label}
+            </Button>
+          ) : null}
           {onExportR01 ? (
             <Button
               variant="outlined"

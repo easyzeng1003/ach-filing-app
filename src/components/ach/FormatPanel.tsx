@@ -30,7 +30,7 @@ import {
   useRefStore,
 } from "@/lib/ach/store";
 import type { FormatSchema } from "@/lib/ach/schema";
-import { convertP01ToR01 } from "@/lib/ach/convertR01";
+import { convertP01ToR01, convertR01ToP01 } from "@/lib/ach/convertR01";
 import {
   filterExcludedRows,
   resolveExcludeAction,
@@ -499,6 +499,78 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     }
   }
 
+  async function handleConvertToP01() {
+    const p01 = formats.ACHP01;
+    if (!p01) {
+      toast.error("找不到 ACHP01 格式定義");
+      return;
+    }
+    setConverting(true);
+    try {
+      let sourceHeader = header;
+      let sourceRows = rows;
+      const sess = usePartitionStore.getState().session;
+      if (sess && sess.formatCode === schema.code) {
+        if (sess.activeIndex != null && partitionFormDirty) {
+          usePartitionStore
+            .getState()
+            .saveFormToActivePart(schema, header, rows, txids, branches);
+          setPartitionFormDirty(false);
+        }
+        const latest = usePartitionStore.getState().session;
+        if (!latest || latest.formatCode !== schema.code) {
+          throw new Error("分割工作區已結束");
+        }
+        const collected = collectSessionRows(schema, latest);
+        sourceHeader = collected.header;
+        sourceRows = collected.rows;
+      } else if (!validateFormData()) {
+        return;
+      }
+
+      const lineEnding = usePrefsStore.getState().lineEnding;
+      const exclude = resolveExcludeDoc(schema.code);
+      const action = resolveExcludeAction(exclude);
+      const actionVerb = action === "filter" ? "篩選" : "排除";
+      const filtered = filterExcludedRows(schema, sourceRows, exclude);
+      if (filtered.kept.length === 0) {
+        toast.error(`${actionVerb}後沒有可轉檔的明細`);
+        return;
+      }
+      const processDate = String(header.date ?? sourceHeader.date ?? "");
+      const result = convertR01ToP01(
+        withLineEndingId(p01, lineEnding),
+        { ...sourceHeader, date: processDate || sourceHeader.date },
+        filtered.kept,
+        txids,
+        branches,
+        { date: processDate || undefined },
+      );
+      const saved = await saveAchFiles(
+        result.files.map((f) => ({
+          filename: f.filename,
+          content: f.content,
+          mime: "text/plain;charset=utf-8",
+        })),
+      );
+      if (saved.method === "canceled") {
+        toast.message("已取消儲存");
+        return;
+      }
+      const excludeNote =
+        filtered.excludedCount > 0
+          ? `（已${actionVerb}未輸出 ${filtered.excludedCount.toLocaleString("zh-TW")} 筆）`
+          : "";
+      toast.success(
+        `已轉回 P01（${result.detailCount} 筆${excludeNote}）· ${describeSaveResult(saved)}`,
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "轉檔失敗");
+    } finally {
+      setConverting(false);
+    }
+  }
+
   async function handleImportFile(file: File) {
     // 新上傳：清掉上一輪編輯暫存（篩選／排除條件／代表行等）與分割工作區
     if (partitionSession?.formatCode === schema.code) {
@@ -751,6 +823,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       onFilterScan={handleImportFilterScan}
       onPartition={() => setPartitionTools({ mode: "split" })}
       onLargeConvertR01={() => setPartitionTools({ mode: "convert" })}
+      onLargeConvertP01={() => setPartitionTools({ mode: "convert" })}
     />
   );
 
@@ -1012,6 +1085,13 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
             }
           : undefined
       }
+      onExportP01={
+        schema.code === "ACHR01"
+          ? () => {
+              void handleConvertToP01();
+            }
+          : undefined
+      }
     />
   );
 
@@ -1138,7 +1218,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                   預覽並確認表頭／明細／列長
                 </Typography>
                 <Typography component="li" variant="caption">
-                  檢核錯誤、修正後重新產生上傳檔（P01 亦可轉檔 R01）
+                  檢核錯誤、修正後重新產生上傳檔（P01⇄R01 可互相轉檔）
                 </Typography>
               </Stack>
             </Paper>

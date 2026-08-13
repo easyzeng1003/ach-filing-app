@@ -73,6 +73,8 @@ type Props = {
   onPartition?: () => void;
   /** 大檔：串流轉 R01 後合併輸出 */
   onLargeConvertR01?: () => void;
+  /** 大檔：串流轉回 P01 後合併輸出 */
+  onLargeConvertP01?: () => void;
 };
 
 type PreviewTab = "fields" | "form" | "raw";
@@ -97,6 +99,7 @@ export function ImportPreviewDialog({
   onFilterScan,
   onPartition,
   onLargeConvertR01,
+  onLargeConvertP01,
 }: Props) {
   /** 預設以表單欄位（可編輯對應）為準 */
   const [tab, setTab] = useState<PreviewTab>("form");
@@ -335,6 +338,16 @@ export function ImportPreviewDialog({
               onClick={onLargeConvertR01}
             >
               大檔轉 R01
+            </Button>
+          ) : null}
+          {sourceFile && onLargeConvertP01 && schema.code === "ACHR01" ? (
+            <Button
+              variant="outlined"
+              startIcon={<ArrowRightLeftIcon />}
+              disabled={busy || result.detailCount === 0}
+              onClick={onLargeConvertP01}
+            >
+              大檔轉 P01
             </Button>
           ) : null}
           <Button variant="outlined" onClick={handleClose} disabled={busy}>

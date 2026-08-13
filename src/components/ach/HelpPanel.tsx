@@ -20,11 +20,12 @@ export function HelpPanel() {
           <strong className="text-fg">SD＝代收</strong>、
           <strong className="text-fg">SC＝代付</strong>。
           於 P01 可<strong className="text-fg">轉檔 R01</strong>
-          （TYPE=R、對調提出／提回行與帳號、填入退件理由）。
+          （TYPE=R、對調提出／提回行與帳號、填入退件理由）；
+          於 R01 亦可<strong className="text-fg">轉回 P01</strong>。
           大檔請按<strong className="text-fg">編輯</strong>整合分割邏輯：切成多包後在網頁
           <strong className="text-fg">逐包載入修改</strong>，存回後以
           <strong className="text-fg">篩選／排除後輸出</strong>合併全部分割包；
-          亦可直接「大檔轉 R01」。多檔下載會打包 ZIP 或選一次資料夾。
+          亦可直接「大檔轉 R01／轉回 P01」。多檔下載會打包 ZIP 或選一次資料夾。
           「清除並回到上傳」會清空紀錄並回到初始上傳頁。
         </p>
       </div>
@@ -37,7 +38,7 @@ export function HelpPanel() {
         <ol className="list-decimal space-y-1 pl-5 text-sm text-muted">
           <li>上傳既有 ACHP01／ACHR01 <code className="font-mono text-xs">.txt</code></li>
           <li>預覽表頭、明細、固定長度欄位與原始列長</li>
-          <li>套用後檢核錯誤、修正資料（小檔）；或按「編輯」分割後逐包修改／大檔轉 R01</li>
+          <li>套用後檢核錯誤、修正資料（小檔）；或按「編輯」分割後逐包修改／大檔轉 R01（或轉回 P01）</li>
           <li>重新產生 TXT；分割工作區請以「篩選／排除後輸出」合併輸出</li>
         </ol>
       </div>
@@ -165,7 +166,8 @@ export function HelpPanel() {
           （<strong className="text-fg">SORG／RORG 固定為原檔值</strong>；尾錄總筆數／總金額依實際輸出明細重算；處理日期可覆寫）。
           輸出 R01（ACHR01）時<strong className="text-fg">發送單位 SORG 固定 9990250</strong>，
           <strong className="text-fg">接收單位 RORG＝代表行代號</strong>。
-          P01 直接下載結果檔；R01 再開啟轉檔對話框填入退件理由後產生。
+          P01 直接下載結果檔；輸出 R01 再開啟轉檔對話框填入退件理由後產生。
+          R01 畫面可按「轉回 P01」對調提出／收受行後產生 ACHP01。
           「包含」只要欄位值含輸入字串即命中（類似{" "}
           <code className="font-mono text-xs">String.includes</code>
           ，不區分大小寫；JSON 運算子仍為{" "}
