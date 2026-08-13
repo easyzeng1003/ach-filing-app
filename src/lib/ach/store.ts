@@ -1,5 +1,10 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import {
+  createJSONStorage,
+  persist,
+  type PersistStorage,
+  type StorageValue,
+} from "zustand/middleware";
 import type {
   Branch,
   DetailRow,
@@ -17,6 +22,63 @@ import {
   EMBEDDED_TXIDS,
   loadEmbeddedFormats,
 } from "@/data/embedded";
+
+/** 表單 persist 寫入 debounce；按鍵時避免同步 localStorage 卡住 UI */
+export const FORM_PERSIST_DEBOUNCE_MS = 800;
+
+let formPersistFlush: (() => void) | null = null;
+
+/** 立即把待寫入的表單狀態刷入 localStorage（blur／關閉／匯入後呼叫） */
+export function flushFormPersist(): void {
+  formPersistFlush?.();
+}
+
+function createDebouncedJSONStorage<S>(
+  debounceMs: number,
+): PersistStorage<S> | undefined {
+  const inner = createJSONStorage<S>(() => globalThis.localStorage);
+  if (!inner) return undefined;
+
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let pending: { name: string; value: StorageValue<S> } | null = null;
+
+  const flush = () => {
+    if (timer != null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (!pending) return;
+    const { name, value } = pending;
+    pending = null;
+    void inner.setItem(name, value);
+  };
+
+  formPersistFlush = flush;
+
+  if (typeof window !== "undefined") {
+    window.addEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flush();
+    });
+  }
+
+  return {
+    getItem: (name) => inner.getItem(name),
+    setItem: (name, value) => {
+      pending = { name, value };
+      if (timer != null) clearTimeout(timer);
+      timer = setTimeout(flush, debounceMs);
+    },
+    removeItem: (name) => {
+      if (timer != null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      pending = null;
+      return inner.removeItem(name);
+    },
+  };
+}
 
 /**
  * 不提供獨立工作區的檔案代號：schema 仍載入（供 P01→R01 轉檔使用），
@@ -177,6 +239,7 @@ export const useFormStore = create<FormState>()(
             [schema.code]: CLOSED_WORKSPACE,
           },
         }));
+        flushFormPersist();
       },
       setHeader: (code, schema, key, value) => {
         get().ensureForm(schema);
@@ -201,16 +264,18 @@ export const useFormStore = create<FormState>()(
         const field = schema.form.header.find((f) => f.key === key);
         if (!field) return;
         const next = applyFieldBlur(field, form.header[key] ?? "");
-        if (next === (form.header[key] ?? "")) return;
-        set((s) => {
-          const f = s.forms[code]!;
-          return {
-            forms: {
-              ...s.forms,
-              [code]: { ...f, header: { ...f.header, [key]: next } },
-            },
-          };
-        });
+        if (next !== (form.header[key] ?? "")) {
+          set((s) => {
+            const f = s.forms[code]!;
+            return {
+              forms: {
+                ...s.forms,
+                [code]: { ...f, header: { ...f.header, [key]: next } },
+              },
+            };
+          });
+        }
+        flushFormPersist();
       },
       updateRow: (code, schema, id, key, value) => {
         get().ensureForm(schema);
@@ -218,15 +283,14 @@ export const useFormStore = create<FormState>()(
         const next = field ? sanitizeFieldInput(field, value) : value;
         set((s) => {
           const form = s.forms[code] ?? initBundle(schema);
+          const idx = form.rows.findIndex((r) => r.id === id);
+          if (idx < 0) return s;
+          const rows = form.rows.slice();
+          rows[idx] = { ...rows[idx]!, [key]: next };
           return {
             forms: {
               ...s.forms,
-              [code]: {
-                ...form,
-                rows: form.rows.map((r) =>
-                  r.id === id ? { ...r, [key]: next } : r,
-                ),
-              },
+              [code]: { ...form, rows },
             },
           };
         });
@@ -239,21 +303,22 @@ export const useFormStore = create<FormState>()(
         const row = form.rows.find((r) => r.id === id);
         if (!row) return;
         const next = applyFieldBlur(field, row[key] ?? "");
-        if (next === (row[key] ?? "")) return;
-        set((s) => {
-          const f = s.forms[code]!;
-          return {
-            forms: {
-              ...s.forms,
-              [code]: {
-                ...f,
-                rows: f.rows.map((r) =>
-                  r.id === id ? { ...r, [key]: next } : r,
-                ),
+        if (next !== (row[key] ?? "")) {
+          set((s) => {
+            const f = s.forms[code]!;
+            const idx = f.rows.findIndex((r) => r.id === id);
+            if (idx < 0) return s;
+            const rows = f.rows.slice();
+            rows[idx] = { ...rows[idx]!, [key]: next };
+            return {
+              forms: {
+                ...s.forms,
+                [code]: { ...f, rows },
               },
-            },
-          };
-        });
+            };
+          });
+        }
+        flushFormPersist();
       },
       addRows: (code, schema, n = 10) => {
         get().ensureForm(schema);
@@ -377,12 +442,13 @@ export const useFormStore = create<FormState>()(
             },
           },
         }));
+        flushFormPersist();
       },
       getForm: (code) => get().forms[code],
     }),
     {
       name: "ach-filing-forms-v2",
-      storage: createJSONStorage(() => globalThis.localStorage),
+      storage: createDebouncedJSONStorage(FORM_PERSIST_DEBOUNCE_MS),
       partialize: (s) => {
         // 大量明細勿寫入 localStorage（易超額／卡住）；僅保留提出資料與工作區狀態
         const MAX_PERSIST_ROWS = 200;
