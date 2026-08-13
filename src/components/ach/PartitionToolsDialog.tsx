@@ -323,20 +323,12 @@ export function PartitionToolsDialog({
         <Stack
           direction="row"
           spacing={1}
-          sx={{ alignItems: "flex-start" }}
+          sx={{ alignItems: "center" }}
         >
-          <TitleIcon color="primary" sx={{ mt: 0.25 }} />
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography variant="h6" component="span" sx={{ display: "block" }}>
-              {title}
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              {mode === "split" &&
-                "編輯大檔：將明細切成多包後在網頁逐包修改（每包 ≤ 可編輯上限）；合併／條件輸出請用「篩選／排除後輸出」。"}
-              {mode === "convert" &&
-                "不經表單：串流分塊轉 ACHR01；多檔結果打包 ZIP 或寫入同一資料夾。"}
-            </Typography>
-          </Box>
+          <TitleIcon color="primary" />
+          <Typography variant="h6" component="span" sx={{ display: "block" }}>
+            {title}
+          </Typography>
         </Stack>
         <IconButton
           aria-label="關閉"
@@ -351,9 +343,6 @@ export function PartitionToolsDialog({
       <DialogContent dividers>
         <Stack spacing={2.5}>
           <LineEndingSelect />
-          <Typography variant="caption" color="text.secondary">
-            條件輸出／合併全部分割包請於主畫面「篩選／排除後輸出」處理（首尾錄以來源檔為主）。
-          </Typography>
           {mode === "split" && (
             <>
               <Alert severity="info" variant="outlined" sx={{ alignItems: "flex-start" }}>
@@ -364,7 +353,6 @@ export function PartitionToolsDialog({
                 {detailCount > 0
                   ? ` · ${detailCount.toLocaleString("zh-TW")} 筆`
                   : ""}
-                。分割檔數無上限（至多等於明細筆數）。
               </Alert>
 
               <TextField
@@ -372,11 +360,11 @@ export function PartitionToolsDialog({
                 type="number"
                 fullWidth
                 size="small"
+                placeholder={String(suggested.partCount || 1)}
                 slotProps={{ htmlInput: { min: 1 } }}
                 value={partCount}
                 onChange={(e) => setPartCount(Number(e.target.value) || 1)}
                 disabled={busy}
-                helperText={`建議至少 ${suggested.partCount || 1} 包（每包 ≤ ${IMPORT_LIMITS.maxFormDetailRows.toLocaleString("zh-TW")} 筆才能在網頁編輯）；檔數不設上限`}
               />
 
               <FormControlLabel
@@ -387,17 +375,8 @@ export function PartitionToolsDialog({
                     disabled={busy}
                   />
                 }
-                label={
-                  <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      分割後在網頁編輯
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                      開啟分割工作區，逐包載入表單修改；輸出請用「篩選／排除後輸出」
-                    </Typography>
-                  </Box>
-                }
-                sx={{ alignItems: "flex-start", m: 0 }}
+                label="分割後在網頁編輯"
+                sx={{ m: 0 }}
               />
 
               <FormControlLabel
@@ -408,17 +387,8 @@ export function PartitionToolsDialog({
                     disabled={busy || !openForEdit}
                   />
                 }
-                label={
-                  <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      同時下載 ZIP／資料夾
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                      未勾選「網頁編輯」時會自動下載
-                    </Typography>
-                  </Box>
-                }
-                sx={{ alignItems: "flex-start", m: 0 }}
+                label="同時下載 ZIP／資料夾"
+                sx={{ m: 0 }}
               />
             </>
           )}
@@ -514,6 +484,8 @@ function ConvertFields({
 }) {
   const rDigits = safeDigits(rcode).padStart(2, "0").slice(-2);
   const agentDigits = safeDigits(agentBank).slice(0, 7);
+  const agentBankError =
+    agentDigits.length > 0 && agentDigits.length !== 7 ? "須為七碼" : null;
   return (
     <Stack spacing={2}>
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
@@ -521,9 +493,9 @@ function ConvertFields({
           label="處理日期（TDATE）"
           fullWidth
           size="small"
-          value={safeDigits(tdate).slice(0, 8) || "（來源檔）"}
+          value={safeDigits(tdate).slice(0, 8) || ""}
           disabled
-          helperText="取自來源檔／表單"
+          placeholder="01150804"
           sx={{ "& input": { fontFamily: "monospace" } }}
         />
         <TextField
@@ -535,8 +507,8 @@ function ConvertFields({
           onChange={(e) => onAgentBank(safeDigits(e.target.value).slice(0, 7))}
           disabled={busy}
           placeholder="0040000"
-          error={agentDigits.length > 0 && agentDigits.length !== 7}
-          helperText="七碼；BOF／EOF 接收單位（RORG）；發送單位固定 9990250"
+          error={Boolean(agentBankError)}
+          helperText={agentBankError ?? undefined}
           sx={{ "& input": { fontFamily: "monospace" } }}
         />
       </Stack>

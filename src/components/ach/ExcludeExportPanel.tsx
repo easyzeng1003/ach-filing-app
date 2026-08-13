@@ -226,13 +226,6 @@ export function ExcludeExportPanel({
         </Alert>
       ) : null}
 
-      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
-        可不填條件直接輸出。選「篩選」只留符合、「排除」去掉符合。
-        {schema.code === "ACHR01"
-          ? " ACHR01：發送單位（SORG）固定 9990250；接收單位（RORG）＝代表行代號；處理日期可覆寫。"
-          : " 首尾錄以來源原檔為主（SORG／RORG 固定原檔；處理日期可於此覆寫）。輸出 R01 時請填代表行代號。"}
-      </Typography>
-
       <Stack spacing={1.5}>
         <Stack
           direction={{ xs: "column", sm: "row" }}
@@ -253,11 +246,9 @@ export function ExcludeExportPanel({
               onProcessDateBlur?.();
             }}
             error={Boolean(processDateError)}
+            helperText={processDateError ?? undefined}
             sx={{ maxWidth: 280, flex: "1 1 200px" }}
             slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 8 } }}
-            helperText={
-              processDateError ?? "八碼民國年，不可為過去日期；寫入輸出檔 TDATE"
-            }
           />
           {showAgentBank ? (
             <TextField
@@ -269,12 +260,9 @@ export function ExcludeExportPanel({
                 onAgentBankChange?.(safeDigits(e.target.value).slice(0, 7))
               }
               error={Boolean(agentBankError)}
+              helperText={agentBankError ?? undefined}
               sx={{ maxWidth: 280, flex: "1 1 200px" }}
               slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 7 } }}
-              helperText={
-                agentBankError ??
-                "七碼；輸出 R01 寫入 BOF／EOF 接收單位（RORG）；發送單位固定 9990250"
-              }
             />
           ) : null}
         </Stack>
@@ -406,10 +394,6 @@ export function ExcludeExportPanel({
             ) : null}
           </Stack>
         ))}
-
-        <Typography variant="caption" color="text.secondary">
-          條件可留空＝整檔輸出。「等於」完全相符；「包含」為 includes（不分大小寫）。
-        </Typography>
 
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
           <Button

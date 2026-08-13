@@ -123,7 +123,6 @@ type EditHandlers = {
   errors?: Record<string, string | null | undefined>;
   onChange: (key: string, value: string) => void;
   onBlur: (field: FormFieldDef) => void;
-  fieldMeta?: (field: FormFieldDef) => string;
   selectOptions?: (field: FormFieldDef) => { value: string; label: string }[];
   onPick?: (mode: "txid" | "branch", key: string) => void;
 };
@@ -196,7 +195,6 @@ function CellReadonly({ value }: { value: string }) {
 function ControlRecordTable({
   columns,
   errorRow,
-  metaRow,
 }: {
   columns: {
     key: string;
@@ -205,10 +203,8 @@ function ControlRecordTable({
     cell: ReactNode;
   }[];
   errorRow?: (string | null | undefined)[];
-  metaRow?: (string | null | undefined)[];
 }) {
   const hasError = errorRow?.some(Boolean);
-  const hasMeta = metaRow?.some(Boolean);
   return (
     <div className="scroll-panel border-0 rounded-none">
       <table className="data-table">
@@ -235,15 +231,6 @@ function ControlRecordTable({
                   className="whitespace-pre-line text-xs font-semibold text-danger"
                 >
                   {errorRow?.[i] || ""}
-                </td>
-              ))}
-            </tr>
-          ) : null}
-          {hasMeta && !hasError ? (
-            <tr>
-              {columns.map((c, i) => (
-                <td key={`meta-${c.key}`} className="text-xs text-muted">
-                  {metaRow?.[i] || ""}
                 </td>
               ))}
             </tr>
@@ -302,23 +289,11 @@ export function ControlHeaderFields({
     if (f.source !== "header" || !f.key || !edit) return null;
     return edit.errors?.[f.key] ?? null;
   });
-  const metaRow = fields.map((f) => {
-    if (schema.code === "ACHR01" && f.id === "SORG") return "固定 9990250";
-    if (schema.code === "ACHR01" && f.id === "RORG") return "代表行代號";
-    if (f.fn === "sorg" || f.id === "SORG") return "由銀行代號推算";
-    if (f.fn === "nowHms" || f.id === "TTIME") return "產生時自動填入";
-    if (f.source === "header" && f.key && edit) {
-      const ff = formFieldByKey(schema, f.key);
-      return ff ? edit.fieldMeta?.(ff) ?? null : null;
-    }
-    return null;
-  });
 
   return (
     <ControlRecordTable
       columns={columns}
       errorRow={errorRow}
-      metaRow={metaRow}
     />
   );
 }
@@ -383,25 +358,11 @@ export function ControlTrailerFields({
     if (f.source !== "header" || !f.key || !edit) return null;
     return edit.errors?.[f.key] ?? null;
   });
-  const metaRow = fields.map((f) => {
-    if (f.fn === "totalCount" || f.id === "TCOUNT") return "依明細自動計算";
-    if (f.fn === "totalAmount" || f.id === "TAMT") return "依明細自動計算";
-    if (f.id === "YDATE" && f.source === "filler") return "提出檔空白";
-    if (schema.code === "ACHR01" && f.id === "SORG") return "固定 9990250";
-    if (schema.code === "ACHR01" && f.id === "RORG") return "代表行代號";
-    if (f.fn === "sorg" || f.id === "SORG") return "由銀行代號推算";
-    if (f.source === "header" && f.key && edit) {
-      const ff = formFieldByKey(schema, f.key);
-      return ff ? edit.fieldMeta?.(ff) ?? null : null;
-    }
-    return null;
-  });
 
   return (
     <ControlRecordTable
       columns={columns}
       errorRow={errorRow}
-      metaRow={metaRow}
     />
   );
 }

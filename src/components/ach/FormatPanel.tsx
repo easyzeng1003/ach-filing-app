@@ -30,7 +30,7 @@ import {
   useFormStore,
   useRefStore,
 } from "@/lib/ach/store";
-import type { FormatSchema, FormFieldDef } from "@/lib/ach/schema";
+import type { FormatSchema } from "@/lib/ach/schema";
 import { convertP01ToR01 } from "@/lib/ach/convertR01";
 import {
   filterExcludedRows,
@@ -41,12 +41,10 @@ import { resolveExcludeDoc, useExcludeStore } from "@/lib/ach/excludeStore";
 import { withLineEndingId } from "@/lib/ach/lineEnding";
 import { usePrefsStore } from "@/lib/ach/prefsStore";
 import {
-  formatTxTypeLabel,
   generateFromSchema,
   headerHasError,
   isRowEmpty,
   lookupBranch,
-  lookupTxid,
   rowErrorMessages,
   syncHeaderFromDetails,
   validateDetailRow,
@@ -67,7 +65,6 @@ import {
   type ImportProgress,
   type ImportResult,
 } from "@/lib/ach/import";
-import { normalizeSubmitDate } from "@/lib/ach/utils";
 import {
   describeSaveResult,
   saveAchFiles,
@@ -368,34 +365,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     setFilterOpts({ hideEmpty: false, onlyErrors: false, global: "" });
   }
 
-  function fieldMeta(field: FormFieldDef): string {
-    const v = header[field.key] ?? "";
-    if (field.metaFrom === "txid") {
-      const t = lookupTxid(v, txids);
-      return t ? `${formatTxTypeLabel(t.type)} · ${t.name}` : "";
-    }
-    if (field.metaFrom === "branch") {
-      return lookupBranch(v, branches)?.name ?? "";
-    }
-    if (field.optionsFrom === "authOptions") {
-      return schema.authOptions?.find((o) => o.value === v)?.note ?? "";
-    }
-    return "";
-  }
-
-  function onHeaderBlur(field: FormFieldDef) {
-    if (field.inputType === "rocDate") {
-      const { value, convertedFromAd } = normalizeSubmitDate(
-        header[field.key] ?? "",
-      );
-      if (value !== (header[field.key] ?? "")) {
-        setHeaderT(schema.code, schema, field.key, value);
-      }
-      if (convertedFromAd) toast.message("已將日期西元年轉換為民國年");
-    }
-    blurHeader(schema.code, schema, field.key);
-  }
-
   function validateFormData(): boolean {
     const synced = syncHeaderFromDetails(header, rows, schema);
     if (synced.txid !== header.txid) {
@@ -687,11 +656,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     setImportFile(null);
   }
 
-  const selectOptions = (field: FormFieldDef) => {
-    if (field.optionsFrom === "authOptions") return schema.authOptions ?? [];
-    return [];
-  };
-
   const fileInput = (
     <input
       ref={fileInputRef}
@@ -744,9 +708,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
             value={progressPct}
             sx={{ mb: 1.5, borderRadius: 1 }}
           />
-          <Typography variant="caption" color="text.disabled">
-            大檔採逐列串流，不會一次載入整份到記憶體
-          </Typography>
         </Paper>
       </Backdrop>
     ) : null;
@@ -1024,7 +985,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         <Card>
           <CardHeader
             title={`${schema.shortCode} ${schema.name}・檢核與加工`}
-            subheader="本工具以既有財金 ACH 固定長度檔為主：先上傳檢核，再視需要修正後重新產出。"
             avatar={
               <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: "wrap" }}>
                 <Chip size="small" color="success" label={schema.code} sx={{ fontFamily: "monospace" }} />

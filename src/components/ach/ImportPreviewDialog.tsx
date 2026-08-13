@@ -231,24 +231,10 @@ export function ImportPreviewDialog({
             color="warning"
             label={`V${schema.version.replace(/^V/i, "")}`}
           />
-          <Typography variant="caption" color="text.secondary">
-            列長 {schema.recordLength} · 明細{" "}
-            {result.detailCount.toLocaleString("zh-TW")} 筆
-            {result.filterActive
-              ? ` · 符合 ${result.matchedCount.toLocaleString("zh-TW")}`
-              : ""}
-            {result.fileSize > 0
-              ? ` · ${(result.fileSize / (1024 * 1024)).toFixed(1)} MB`
-              : ""}
-          </Typography>
           {result.filterActive && (
             <Chip size="small" color="success" icon={<FilterIcon />} label="已套用篩選" />
           )}
         </Stack>
-        <Typography variant="caption" color="text.secondary" noWrap title={result.filename} sx={{ display: "block" }}>
-          {result.filename || "未命名檔案"} · {schema.shortCode} {schema.name}
-          {result.detectedCode ? ` · 偵測 ${result.detectedCode}` : ""}
-        </Typography>
         <IconButton
           aria-label="關閉"
           onClick={handleClose}
@@ -327,18 +313,9 @@ export function ImportPreviewDialog({
           py: 2,
           flexWrap: "wrap",
           gap: 1,
-          justifyContent: "space-between",
+          justifyContent: "flex-end",
         }}
       >
-        <Typography variant="caption" color="text.secondary" sx={{ flex: "1 1 200px" }}>
-          {result.tooLargeForForm
-            ? result.filterActive
-              ? "符合筆數仍超過上限，請在明細表頭縮小篩選後再套用"
-              : "請在明細表頭輸入篩選條件並套用，或使用編輯（分割）／大檔轉 R01"
-            : result.filterActive
-              ? `將套用篩選後的 ${result.matchedCount.toLocaleString("zh-TW")} 筆到「${schema.code}」表單`
-              : `套用後會覆寫「${schema.code}」目前的提出資料與明細`}
-        </Typography>
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
           {sourceFile && onPartition ? (
             <Button
@@ -469,10 +446,6 @@ function FieldsPreview({
 
   return (
     <div className="space-y-5">
-      <p className="text-xs text-muted">
-        僅顯示明細錄的固定長度切片。控制首錄／尾錄請改看「表單欄位」（可編輯對應，不含長度定義）。
-      </p>
-
       {detailSamples.length === 0 ? (
         <p className="text-sm text-muted">無明細樣本</p>
       ) : (
@@ -484,12 +457,6 @@ function FieldsPreview({
             defs={schema.records.detail.fields}
           />
         ))
-      )}
-      {detailLines.length > detailSamples.length && (
-        <p className="text-xs text-muted">
-          另有 {detailLines.length - detailSamples.length}{" "}
-          筆明細未全部列出（見「原始列」）
-        </p>
       )}
     </div>
   );
@@ -545,9 +512,6 @@ function FormPreview({
       <section className="overflow-hidden rounded-lg border border-border">
         <div className="border-b border-border px-4 py-3">
           <h4 className="font-bold">控制首錄</h4>
-          <p className="text-xs text-muted">
-            對照財金控制首錄欄位名稱與值（不含長度／起迄）
-          </p>
         </div>
         <ControlHeaderFields
           schema={schema}
@@ -563,11 +527,6 @@ function FormPreview({
               <h4 className="font-bold">
                 {result.filterActive ? "篩選結果（全部符合）" : "明細預覽"}
               </h4>
-              <p className="text-xs text-muted">
-                {filterEnabled
-                  ? `在表頭輸入條件後套用篩選（載入上限 ${IMPORT_LIMITS.maxFormDetailRows.toLocaleString("zh-TW")} 筆）；亦可按「編輯（分割）」`
-                  : "匯入後可於表單繼續編輯"}
-              </p>
             </div>
             <span className="stat-pill text-xs">
               {result.filterActive
@@ -718,9 +677,6 @@ function FormPreview({
       <section className="overflow-hidden rounded-lg border border-border">
         <div className="border-b border-border px-4 py-3">
           <h4 className="font-bold">控制尾錄</h4>
-          <p className="text-xs text-muted">
-            對照財金控制尾錄；總筆數／總金額依明細彙總
-          </p>
         </div>
         <ControlTrailerFields
           schema={schema}
