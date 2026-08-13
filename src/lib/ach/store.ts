@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 import type {
   Branch,
   DetailRow,
@@ -16,19 +17,6 @@ import {
   EMBEDDED_TXIDS,
   loadEmbeddedFormats,
 } from "@/data/embedded";
-
-/** 舊版曾寫入 localStorage；每次開啟頁面清除，避免殘留明細／工作區 */
-const FORM_STORAGE_KEYS = ["ach-filing-forms-v1", "ach-filing-forms-v2"] as const;
-function clearPersistedFormState() {
-  try {
-    for (const key of FORM_STORAGE_KEYS) {
-      localStorage.removeItem(key);
-    }
-  } catch {
-    /* file:// 或隱私模式可能不可用 */
-  }
-}
-clearPersistedFormState();
 
 /**
  * 不提供獨立工作區的檔案代號：schema 仍載入（供 P01→R01 轉檔使用），
@@ -162,7 +150,9 @@ export const useRefStore = create<RefState>((set, get) => ({
     ),
 }));
 
-export const useFormStore = create<FormState>((set, get) => ({
+export const useFormStore = create<FormState>()(
+  persist(
+    (set, get) => ({
       activeCode: "ACHP01",
       forms: {},
       workspaces: {},
@@ -177,7 +167,6 @@ export const useFormStore = create<FormState>((set, get) => ({
       isWorkspaceOpen: (code) => !!get().workspaces[code]?.open,
       getWorkspace: (code) => get().workspaces[code] ?? CLOSED_WORKSPACE,
       closeWorkspace: (schema) => {
-        clearPersistedFormState();
         set((s) => ({
           forms: {
             ...s.forms,
@@ -390,4 +379,29 @@ export const useFormStore = create<FormState>((set, get) => ({
         }));
       },
       getForm: (code) => get().forms[code],
-}));
+    }),
+    {
+      name: "ach-filing-forms-v2",
+      storage: createJSONStorage(() => globalThis.localStorage),
+      partialize: (s) => {
+        // 大量明細勿寫入 localStorage（易超額／卡住）；僅保留提出資料與工作區狀態
+        const MAX_PERSIST_ROWS = 200;
+        const forms: FormState["forms"] = {};
+        for (const [code, form] of Object.entries(s.forms)) {
+          forms[code] =
+            form.rows.length > MAX_PERSIST_ROWS
+              ? {
+                  header: form.header,
+                  rows: form.rows.slice(0, 15),
+                }
+              : form;
+        }
+        return {
+          activeCode: s.activeCode,
+          forms,
+          workspaces: s.workspaces,
+        };
+      },
+    },
+  ),
+);
