@@ -81,12 +81,12 @@ function createDebouncedJSONStorage<S>(
 }
 
 /**
- * 不提供獨立工作區的檔案代號：schema 仍載入（供 P01→R01 轉檔使用），
- * 但不出現在主分頁／格式選單／匯入偵測，亦即「僅提供 P01 轉成 R01」。
+ * 保留給未來「僅轉檔、不提供獨立上傳」的檔案代號。
+ * ACHR01（R01）已支援獨立上傳／檢核／輸出。
  */
-const HIDDEN_STANDALONE_FORMATS = new Set(["ACHR01"]);
+const HIDDEN_STANDALONE_FORMATS = new Set<string>();
 
-/** 是否為「不提供獨立工作區」的檔案代號（例如 R01 僅能由 P01 轉檔產生）。 */
+/** 是否為「不提供獨立工作區」的檔案代號。 */
 export function isHiddenStandaloneFormat(code: string): boolean {
   return HIDDEN_STANDALONE_FORMATS.has(code);
 }

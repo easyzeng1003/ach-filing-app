@@ -26,7 +26,6 @@ import {
 } from "@mui/icons-material";
 import { toast } from "sonner";
 import {
-  isHiddenStandaloneFormat,
   useFormStore,
   useRefStore,
 } from "@/lib/ach/store";
@@ -50,6 +49,7 @@ import {
   validateDetailRow,
   validateHeader,
 } from "@/lib/ach/engine";
+import { safeDigits } from "@/lib/ach/utils";
 import {
   emptyDetailFilters,
   filterDetailRows,
@@ -213,6 +213,33 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   /** 驗證／統計延後，避免每鍵重算卡住輸入 */
   const deferredRows = useDeferredValue(rows);
   const deferredHeader = useDeferredValue(header);
+
+  // 匯入 R01 後，從表頭／來源 BOF 帶入代表行代號
+  useEffect(() => {
+    if (schema.code !== "ACHR01" || !workspaceOpen) return;
+    const fromHeader = safeDigits(header.agentBank ?? "").slice(0, 7);
+    if (fromHeader.length === 7) {
+      setAgentBank(fromHeader);
+      return;
+    }
+    const src = workspace.sourceHeaderLine;
+    if (src?.startsWith("BOF") && src.length === schema.recordLength) {
+      const fromSrc = headerFromLine(src, schema);
+      const rorg = safeDigits(fromSrc.agentBank ?? "").slice(0, 7);
+      if (rorg.length === 7) {
+        setAgentBank(rorg);
+        setHeader(schema.code, schema, "agentBank", rorg);
+      }
+    }
+  }, [
+    schema,
+    workspaceOpen,
+    workspace.fileName,
+    workspace.source,
+    workspace.sourceHeaderLine,
+    header.agentBank,
+    setHeader,
+  ]);
 
   /** 分割工作區編輯時標記未存回 */
   const setHeaderT = (
@@ -488,15 +515,13 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     });
     try {
       const detected = await resolveImportSchemaFromFile(file, formats, schema);
-      if (detected && isHiddenStandaloneFormat(detected.code)) {
-        toast.error(
-          `本工具僅支援 ${schema.code}；${detected.code} 檔請改由 P01「轉檔 R01」產生`,
-        );
+      const target = detected ?? schema;
+      if (target.code !== "ACHP01" && target.code !== "ACHR01") {
+        toast.error(`不支援的檔案代號：${target.code}`);
         setImportFile(null);
         setImportProgress(null);
         return;
       }
-      const target = detected ?? schema;
       const result = await parseAchFile(file, target, {
         filename: file.name,
         onProgress: setImportProgress,
@@ -805,6 +830,10 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         ? ".filtered.txt"
         : ".excluded.txt";
     const processDate = String(header.date ?? "");
+    const exportAgentBank =
+      schema.code === "ACHR01"
+        ? safeDigits(agentBank || header.agentBank || "").slice(0, 7)
+        : "";
 
     // 一律以最新 store 判斷；有分割工作區則合併「全部分割包」後再套用條件
     const sess = usePartitionStore.getState().session;
@@ -825,6 +854,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       const merged = mergeSessionToFile(outSchema, latest, txids, branches, {
         exclude: doc,
         processDate,
+        agentBank: exportAgentBank || null,
       });
       if (merged.detailCount === 0) {
         throw new Error(
@@ -852,9 +882,17 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         hasRules ? `${actionVerb}後沒有可輸出的明細` : "沒有可輸出的明細",
       );
     }
+    const exportHeader =
+      schema.code === "ACHR01"
+        ? {
+            ...header,
+            date: processDate || header.date || "",
+            agentBank: exportAgentBank,
+          }
+        : header;
     const generated = generateFromSchema(
       outSchema,
-      header,
+      exportHeader,
       filtered.kept,
       txids,
       branches,
@@ -903,12 +941,22 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     const ctrlHeader: typeof header = {
       ...(fromSource ?? header),
       date: processDate || fromSource?.date || header.date || "",
+      ...(schema.code === "ACHR01"
+        ? {
+            agentBank:
+              exportAgentBank ||
+              fromSource?.agentBank ||
+              header.agentBank ||
+              "",
+          }
+        : {}),
     };
     const { headerLine, trailerLine } = buildExportControlLines(outSchema, {
       sourceHeaderLine: sourceHeader,
       sourceTrailerLine: sourceTrailer,
       header: ctrlHeader,
       processDate,
+      agentBank: schema.code === "ACHR01" ? exportAgentBank : null,
       detailCount: detailLines.length,
       totalAmount: generated.amount,
       txids,
@@ -949,7 +997,12 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       }
       onProcessDateBlur={() => blurHeader(schema.code, schema, "date")}
       agentBank={agentBank}
-      onAgentBankChange={setAgentBank}
+      onAgentBankChange={(value) => {
+        setAgentBank(value);
+        if (schema.code === "ACHR01") {
+          setHeaderT(schema.code, schema, "agentBank", value);
+        }
+      }}
       onProcess={handleExcludeExport}
       onExportR01={
         schema.code === "ACHP01"
@@ -1053,7 +1106,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                 <UploadIcon fontSize="large" color="primary" />
               </Box>
               <Typography variant="h6" gutterBottom>
-                請先上傳既有 ACH 檔
+                請先上傳既有 ACH 檔（P01／R01）
               </Typography>
               <Button
                 variant="contained"
@@ -1079,13 +1132,13 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                 }}
               >
                 <Typography component="li" variant="caption">
-                  上傳既有 P01／R01（.txt）
+                  上傳既有 ACHP01（提出）或 ACHR01（提回／退件）.txt
                 </Typography>
                 <Typography component="li" variant="caption">
                   預覽並確認表頭／明細／列長
                 </Typography>
                 <Typography component="li" variant="caption">
-                  檢核錯誤、修正後重新產生上傳檔
+                  檢核錯誤、修正後重新產生上傳檔（P01 亦可轉檔 R01）
                 </Typography>
               </Stack>
             </Paper>
