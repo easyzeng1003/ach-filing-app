@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState, useDeferredValue, startTransition, memo, type CSSProperties } from "react";
 import {
   Backdrop,
   Box,
@@ -185,6 +185,9 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   const form = getForm(schema.code) ?? { header: {}, rows: [] };
   const header = form.header;
   const rows = form.rows;
+  /** 驗證／統計延後，避免每鍵重算卡住輸入 */
+  const deferredRows = useDeferredValue(rows);
+  const deferredHeader = useDeferredValue(header);
 
   /** 分割工作區編輯時標記未存回 */
   const setHeaderT = (
@@ -193,11 +196,13 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     key: string,
     value: string,
   ) => {
-    setHeader(code, sch, key, value);
-    if (partitionSession?.formatCode === code) {
-      setPartitionFormDirty(true);
-      markPartitionDirty();
-    }
+    startTransition(() => {
+      setHeader(code, sch, key, value);
+      if (partitionSession?.formatCode === code) {
+        setPartitionFormDirty(true);
+        markPartitionDirty();
+      }
+    });
   };
   const updateRowT = (
     code: string,
@@ -206,42 +211,44 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     key: string,
     value: string,
   ) => {
-    updateRow(code, sch, id, key, value);
-    if (partitionSession?.formatCode === code) {
-      setPartitionFormDirty(true);
-      markPartitionDirty();
-    }
+    startTransition(() => {
+      updateRow(code, sch, id, key, value);
+      if (partitionSession?.formatCode === code) {
+        setPartitionFormDirty(true);
+        markPartitionDirty();
+      }
+    });
   };
 
   const headerErrs = useMemo(
-    () => validateHeader(schema, header, txids, branches),
-    [schema, header, txids, branches],
+    () => validateHeader(schema, deferredHeader, txids, branches),
+    [schema, deferredHeader, txids, branches],
   );
 
   const rowErrs = useMemo(() => {
     // 大量列時避免一次驗證全部造成主執行緒卡死／記憶體暴衝
     const MAX_FULL_VALIDATE = 800;
-    if (rows.length <= MAX_FULL_VALIDATE) {
-      return rows.map((r) =>
-        validateDetailRow(schema, r, txids, branches, header),
+    if (deferredRows.length <= MAX_FULL_VALIDATE) {
+      return deferredRows.map((r) =>
+        validateDetailRow(schema, r, txids, branches, deferredHeader),
       );
     }
-    return rows.map((r) => {
+    return deferredRows.map((r) => {
       if (isRowEmpty(r, schema)) {
         const empty: Record<string, string | null> = {};
         for (const f of schema.form.detail) empty[f.key] = null;
         return empty;
       }
-      return validateDetailRow(schema, r, txids, branches, header);
+      return validateDetailRow(schema, r, txids, branches, deferredHeader);
     });
-  }, [schema, rows, txids, branches, header]);
+  }, [schema, deferredRows, txids, branches, deferredHeader]);
 
   const stats = useMemo(() => {
     let count = 0;
     let amount = 0;
     let errRows = 0;
     const amountKey = schema.features.amountKey;
-    rows.forEach((r, i) => {
+    deferredRows.forEach((r, i) => {
       if (isRowEmpty(r, schema)) return;
       const msgs = rowErrorMessages(rowErrs[i] ?? {});
       if (msgs.length) errRows += 1;
@@ -251,14 +258,15 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       }
     });
     return { count, amount, errRows };
-  }, [rows, rowErrs, schema]);
+  }, [deferredRows, rowErrs, schema]);
 
   const excludeConditions = useExcludeStore((s) => s.conditions);
   const excludeMatchMode = useExcludeStore((s) => s.matchMode);
   const excludeActionMode = useExcludeStore((s) => s.actionMode);
 
-  /** 轉檔 R01 對話框顯示筆數：整檔（分割時含全部包）套用篩選／排除後 */
+  /** 轉檔 R01 筆數：僅開啟對話框時計算，避免每鍵重算 */
   const convertR01DetailCount = useMemo(() => {
+    if (!convertOpen) return 0;
     const exclude = resolveExcludeDoc(schema.code);
     if (partitionSession?.formatCode === schema.code) {
       try {
@@ -273,6 +281,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     const kept = filterExcludedRows(schema, rows, exclude).kept;
     return kept.filter((r) => !isRowEmpty(r, schema)).length;
   }, [
+    convertOpen,
     schema,
     rows,
     excludeConditions,
@@ -1275,38 +1284,31 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                       {schema.form.detail.map((field) => (
                         <td key={field.key}>
                           <div className="flex gap-0.5">
-                            <input
-                              className={`cell-input ${field.ui?.align === "right" ? "text-right" : ""} ${errs[field.key] ? "err" : ""}`}
+                            <DetailCellInput
                               value={row[field.key] ?? ""}
-                              onChange={(e) =>
+                              err={!!errs[field.key]}
+                              alignRight={field.ui?.align === "right"}
+                              onCommit={(value) =>
                                 updateRowT(
                                   schema.code,
                                   schema,
                                   row.id,
                                   field.key,
-                                  e.target.value,
+                                  value,
                                 )
                               }
-                              onBlur={() =>
+                              onBlurCommit={() =>
                                 blurRow(schema.code, schema, row.id, field.key)
                               }
-                              onPaste={
+                              onPasteMulti={
                                 field.key === schema.form.detail[0]?.key
-                                  ? (e) => {
-                                      const text =
-                                        e.clipboardData.getData("text");
-                                      if (
-                                        text.includes("\t") ||
-                                        text.includes("\n")
-                                      ) {
-                                        e.preventDefault();
-                                        pasteRows(
-                                          schema.code,
-                                          schema,
-                                          idx,
-                                          text,
-                                        );
-                                      }
+                                  ? (text) => {
+                                      pasteRows(
+                                        schema.code,
+                                        schema,
+                                        idx,
+                                        text,
+                                      );
                                     }
                                   : undefined
                               }
@@ -1392,3 +1394,58 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     </Stack>
   );
 }
+
+/** 明細格：本地 draft 立即反映按鍵；store 更新放 startTransition，避免每鍵重繪／驗證卡住 */
+const DetailCellInput = memo(function DetailCellInput({
+  value,
+  err,
+  alignRight,
+  onCommit,
+  onBlurCommit,
+  onPasteMulti,
+}: {
+  value: string;
+  err?: boolean;
+  alignRight?: boolean;
+  onCommit: (value: string) => void;
+  onBlurCommit: () => void;
+  onPasteMulti?: (text: string) => void;
+}) {
+  const [local, setLocal] = useState(value);
+  const focusedRef = useRef(false);
+
+  useEffect(() => {
+    if (!focusedRef.current) setLocal(value);
+  }, [value]);
+
+  return (
+    <input
+      className={`cell-input ${alignRight ? "text-right" : ""} ${err ? "err" : ""}`}
+      value={local}
+      onFocus={() => {
+        focusedRef.current = true;
+      }}
+      onChange={(e) => {
+        const next = e.target.value;
+        setLocal(next);
+        onCommit(next);
+      }}
+      onBlur={() => {
+        focusedRef.current = false;
+        if (local !== value) onCommit(local);
+        onBlurCommit();
+      }}
+      onPaste={
+        onPasteMulti
+          ? (e) => {
+              const text = e.clipboardData.getData("text");
+              if (text.includes("\t") || text.includes("\n")) {
+                e.preventDefault();
+                onPasteMulti(text);
+              }
+            }
+          : undefined
+      }
+    />
+  );
+});

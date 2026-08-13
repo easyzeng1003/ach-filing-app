@@ -27,7 +27,7 @@ localStorage.removeItem(STORAGE_KEY);
 localStorage.removeItem("ach-filing-forms-v1");
 
 const { loadEmbeddedFormats } = await import("../src/data/embedded");
-const { useFormStore } = await import("../src/lib/ach/store");
+const { flushFormPersist, useFormStore } = await import("../src/lib/ach/store");
 
 const formats = loadEmbeddedFormats();
 const p01 = formats.ACHP01!;
@@ -68,6 +68,8 @@ useFormStore.getState().loadFromImport(
 );
 assert.equal(useFormStore.getState().isWorkspaceOpen("ACHP01"), true);
 
+flushFormPersist();
+
 const raw = localStorage.getItem(STORAGE_KEY);
 assert.ok(raw, "應寫入 ach-filing-forms-v2");
 const parsed = JSON.parse(raw!) as {
@@ -106,6 +108,7 @@ useFormStore.getState().loadFromImport(
   { fileName: "big.txt" },
 );
 assert.equal(useFormStore.getState().forms.ACHP01?.rows.length, 250);
+flushFormPersist();
 const rawBig = localStorage.getItem(STORAGE_KEY);
 assert.ok(rawBig);
 const parsedBig = JSON.parse(rawBig!) as {
@@ -119,6 +122,7 @@ assert.equal(
 
 useFormStore.getState().closeWorkspace(p01);
 assert.equal(useFormStore.getState().isWorkspaceOpen("ACHP01"), false);
+flushFormPersist();
 const rawClosed = localStorage.getItem(STORAGE_KEY);
 assert.ok(rawClosed);
 const parsedClosed = JSON.parse(rawClosed!) as {
