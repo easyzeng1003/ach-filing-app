@@ -31,6 +31,7 @@ import {
 import {
   PARTITION_LIMITS,
   convertLargeP01FileToR01,
+  convertLargeR01FileToP01,
   partitionAchFile,
   partitionIndexFilename,
   planPartitions,
@@ -109,10 +110,15 @@ export function PartitionToolsDialog({
   const [pdate, setPdate] = useState(() => safeDigits(tdate));
   const [agentBank, setAgentBank] = useState("");
 
+  const convertToR01 = mode === "convert" && schema.code === "ACHP01";
+  const convertToP01 = mode === "convert" && schema.code === "ACHR01";
+
   const title =
     mode === "split"
       ? "編輯・分割來源檔"
-      : "大檔轉 R01（分塊→合併）";
+      : convertToP01
+        ? "大檔轉回 P01（分塊→合併）"
+        : "大檔轉 R01（分塊→合併）";
 
   const TitleIcon =
     mode === "split"
@@ -239,11 +245,51 @@ export function PartitionToolsDialog({
       return;
     }
     const r01 = formats.ACHR01;
-    const p01 = formats.ACHP01 ?? schema;
-    if (!r01 || p01.code !== "ACHP01") {
-      toast.error("大檔轉 R01 需要 ACHP01／ACHR01 格式");
+    const p01 = formats.ACHP01 ?? (schema.code === "ACHP01" ? schema : null);
+    if (!r01 || !p01 || p01.code !== "ACHP01") {
+      toast.error("大檔轉檔需要 ACHP01／ACHR01 格式");
       return;
     }
+
+    if (schema.code === "ACHR01") {
+      setBusy(true);
+      setProgress(null);
+      try {
+        const endingId = usePrefsStore.getState().lineEnding;
+        const result = await convertLargeR01FileToP01(
+          sourceFile,
+          withLineEndingId(r01, endingId),
+          withLineEndingId(p01, endingId),
+          txids,
+          branches,
+          {
+            date: safeDigits(tdate) || undefined,
+            onProgress: setProgress,
+          },
+        );
+        const saved = await saveAchFiles(
+          result.files.map((f) => ({
+            filename: f.filename,
+            content: f.content,
+          })),
+        );
+        if (saved.method === "canceled") {
+          toast.message("已取消儲存");
+          return;
+        }
+        toast.success(
+          `已大檔轉回 P01（${result.detailCount.toLocaleString("zh-TW")} 筆）· ${describeSaveResult(saved)}`,
+        );
+        onClose();
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "大檔轉檔失敗");
+      } finally {
+        setBusy(false);
+        setProgress(null);
+      }
+      return;
+    }
+
     const agentDigits = safeDigits(agentBank).slice(0, 7);
     if (agentDigits.length !== 7) {
       toast.error("請填寫七碼代表行代號");
@@ -304,7 +350,9 @@ export function PartitionToolsDialog({
       ? openForEdit
         ? "分割並開始編輯"
         : "分割並下載"
-      : "開始大檔轉 R01";
+      : convertToP01
+        ? "開始大檔轉回 P01"
+        : "開始大檔轉 R01";
 
   return (
     <Dialog
@@ -403,19 +451,24 @@ export function PartitionToolsDialog({
                 {detailCount > 0
                   ? ` · ${detailCount.toLocaleString("zh-TW")} 筆`
                   : ""}
+                {convertToP01
+                  ? "。將 TYPE=R 提回檔對調提出／收受行後轉回 ACHP01。"
+                  : ""}
               </Alert>
-              <ConvertFields
-                rcode={rcode}
-                ydate={ydate}
-                pdate={pdate}
-                agentBank={agentBank}
-                tdate={tdate}
-                busy={busy}
-                onRcode={setRcode}
-                onYdate={setYdate}
-                onPdate={setPdate}
-                onAgentBank={setAgentBank}
-              />
+              {convertToR01 ? (
+                <ConvertFields
+                  rcode={rcode}
+                  ydate={ydate}
+                  pdate={pdate}
+                  agentBank={agentBank}
+                  tdate={tdate}
+                  busy={busy}
+                  onRcode={setRcode}
+                  onYdate={setYdate}
+                  onPdate={setPdate}
+                  onAgentBank={setAgentBank}
+                />
+              ) : null}
             </>
           )}
 

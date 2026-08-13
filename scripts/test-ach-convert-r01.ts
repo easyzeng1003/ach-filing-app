@@ -1,8 +1,8 @@
 /**
- * P01 → R01 轉檔煙霧測試（vite-node）
+ * P01 ⇄ R01 轉檔煙霧測試（vite-node）
  */
 import assert from "node:assert/strict";
-import { convertP01ToR01 } from "../src/lib/ach/convertR01";
+import { convertP01ToR01, convertR01ToP01 } from "../src/lib/ach/convertR01";
 import { generateFromSchema } from "../src/lib/ach/engine";
 import { loadEmbeddedFormats, EMBEDDED_TXIDS, EMBEDDED_BRANCHES } from "../src/data/embedded";
 import type { DetailRow, HeaderValues } from "../src/lib/ach/schema";
@@ -165,4 +165,127 @@ assert.equal(multiTrl.slice(24, 31), "8220901", "EOF RORG");
   assert.equal(emptyY.lines.at(-1)!.slice(55, 63), "        ", "empty YDATE → 8 spaces");
 }
 
-console.log("OK convert P01→R01: lengths, TYPE/CDATA, bank swap, RCODE/PDATE/PSEQ/YDATE, SORG/RORG");
+// —— R01 → P01 往返 ——
+{
+  const back = convertR01ToP01(
+    p01,
+    {
+      date: "01150804",
+      txid: "704",
+      bankCode: "8120053",
+      agentBank: "0040000",
+      account: "0000000987654321",
+      taxId: "12345678",
+      ydate: "01150803",
+    },
+    [
+      {
+        id: "r1",
+        bankCode: "8120053",
+        account: "0000000987654321",
+        taxId: "A123456789",
+        userNo: "USER001",
+        amount: "1500",
+        txid: "704",
+        origBankCode: "0040000",
+        origAccount: "0000001234567890",
+        rcode: "04",
+        pdate: "01150804",
+        pseq: "00000001",
+        pschd: "B",
+      },
+      {
+        id: "r2",
+        bankCode: "8120053",
+        account: "0000000111222333",
+        taxId: "B987654321",
+        userNo: "USER002",
+        amount: "200",
+        txid: "704",
+        origBankCode: "0040000",
+        origAccount: "0000001234567890",
+        rcode: "04",
+        pdate: "01150804",
+        pseq: "00000002",
+        pschd: "B",
+      },
+    ],
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  assert.equal(back.files.length, 1);
+  assert.equal(back.detailCount, 2);
+  const pf = back.files[0]!;
+  assert.equal(pf.presenterBank, "0040000");
+  assert.ok(pf.lines.every((l) => l.length === 250));
+  assert.equal(pf.lines[0]!.slice(0, 9), "BOFACHP01");
+  assert.equal(pf.lines[0]!.slice(23, 30), "0040000", "P01 SORG from presenter");
+  assert.equal(pf.lines[0]!.slice(30, 37), "9990250", "P01 RORG fixed");
+  const pd1 = pf.lines[1]!;
+  assert.equal(pd1[0], "N", "TYPE=N");
+  assert.equal(pd1.slice(14, 21), "0040000", "PBANK = orig presenter");
+  assert.equal(pd1.slice(21, 37), "0000001234567890", "PCLNO");
+  assert.equal(pd1.slice(37, 44), "8120053", "RBANK = return/recv bank");
+  assert.equal(pd1.slice(44, 60), "0000000987654321", "RCLNO");
+  assert.equal(pd1.slice(70, 72), "  ", "RCODE cleared");
+  assert.equal(pd1.slice(99, 107), "        ", "PDATE cleared");
+  const ptr = pf.lines.at(-1)!;
+  assert.equal(ptr.slice(0, 9), "EOFACHP01");
+}
+
+// round-trip P01→R01→P01
+{
+  const round = convertR01ToP01(
+    p01,
+    {
+      date: converted.ydate ? "01150804" : "01150804",
+      txid: "704",
+      bankCode: file.returnBank,
+      agentBank: "0040000",
+      account: "",
+      taxId: "12345678",
+      ydate: converted.ydate,
+    },
+    // 從轉出 R01 明細反解（簡化：用已知欄位）
+    [
+      {
+        id: "x1",
+        bankCode: "8120053",
+        account: "0000000987654321",
+        taxId: "A123456789",
+        userNo: "USER001",
+        amount: "1500",
+        txid: "704",
+        origBankCode: "0040000",
+        origAccount: "0000001234567890",
+        rcode: "04",
+        pdate: "01150804",
+        pseq: "00000001",
+        pschd: "B",
+      },
+      {
+        id: "x2",
+        bankCode: "8120053",
+        account: "0000000111222333",
+        taxId: "B987654321",
+        userNo: "USER002",
+        amount: "200",
+        txid: "704",
+        origBankCode: "0040000",
+        origAccount: "0000001234567890",
+        rcode: "04",
+        pdate: "01150804",
+        pseq: "00000002",
+        pschd: "B",
+      },
+    ],
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  const rd1 = round.files[0]!.lines[1]!;
+  assert.equal(rd1.slice(14, 21), "0040000");
+  assert.equal(rd1.slice(37, 44), "8120053");
+  assert.equal(rd1.slice(60, 70), "0000001500");
+}
+
+console.log("OK convert P01⇄R01: lengths, TYPE/CDATA, bank swap, RCODE/PDATE/PSEQ/YDATE, SORG/RORG, round-trip");

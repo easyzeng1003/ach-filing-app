@@ -10,8 +10,11 @@
 import {
   ACHR01_SORG,
   convertP01ToR01,
+  convertR01ToP01,
   requireAgentBank,
   type ConvertP01ToR01Options,
+  type ConvertR01ToP01Options,
+  type ConvertedP01File,
   type ConvertedR01File,
 } from "./convertR01";
 import {
@@ -1439,6 +1442,199 @@ export async function convertLargeP01FileToR01(
     ydate: meta.ydate,
     pdate: meta.pdate,
   };
+}
+
+/**
+ * 大檔 R01→P01：串流分塊轉檔後合併為單一輸出檔（不依收受行分檔）。
+ */
+export async function convertLargeR01FileToP01(
+  file: File,
+  r01Schema: FormatSchema,
+  p01Schema: FormatSchema,
+  txids: Txid[],
+  branches: Branch[],
+  options: ConvertR01ToP01Options & {
+    onProgress?: (p: PartitionProgress) => void;
+    signal?: AbortSignal;
+  } = {},
+): Promise<{
+  files: ConvertedP01File[];
+  detailCount: number;
+}> {
+  if (r01Schema.code !== "ACHR01") {
+    throw new Error("大檔轉 P01 僅支援 ACHR01 來源");
+  }
+  if (p01Schema.code !== "ACHP01") {
+    throw new Error("轉檔目標須為 ACHP01");
+  }
+
+  const detailLines: string[] = [];
+  let headerLine = "";
+  let header: HeaderValues = emptyHeader(r01Schema);
+  let outHeader: HeaderValues | null = null;
+  let globalSeq = 0;
+  let chunkRows: DetailRow[] = [];
+  let totalAmount = 0;
+  let presenterBank = "";
+
+  const flushChunk = () => {
+    if (chunkRows.length === 0) return;
+    const converted = convertR01ToP01(
+      p01Schema,
+      header,
+      chunkRows,
+      txids,
+      branches,
+      { date: options.date },
+    );
+    const f = converted.files[0];
+    if (!f) return;
+    detailLines.push(...f.lines.slice(1, -1));
+    if (!outHeader) {
+      presenterBank = f.presenterBank;
+      outHeader = {
+        date: options.date?.trim()
+          ? requireRocDateLocal(options.date)
+          : (header.date ?? ""),
+        txid: header.txid ?? "",
+        bankCode: f.presenterBank,
+        account: "",
+        taxId: header.taxId ?? "",
+      };
+      // 從首塊明細補提出帳號
+      const firstDetail = f.lines[1];
+      if (firstDetail && firstDetail.length === p01Schema.recordLength) {
+        // PCLNO at 21..37 (TYPE1+TXTYPE2+TXID3+SEQ8+PBANK7 = 21)
+        outHeader.account = firstDetail.slice(21, 37);
+      }
+    }
+    chunkRows = [];
+  };
+
+  await streamFileLines(file, {
+    signal: options.signal,
+    onProgress: (p) =>
+      options.onProgress?.({
+        phase: "convert",
+        partIndex: 0,
+        partCount: 0,
+        bytesRead: p.bytesRead,
+        totalBytes: file.size,
+        linesRead: p.linesRead,
+        detailCount: globalSeq,
+        matchedCount: globalSeq,
+      }),
+    onLine: (line) => {
+      if (!line.trim()) return;
+      if (line.startsWith("BOF")) {
+        if (!headerLine) {
+          headerLine = line;
+          header = headerFromLine(line, r01Schema);
+        }
+        return;
+      }
+      if (line.startsWith("EOF")) {
+        header = mergeHeaderFromTrailerLine(header, line, r01Schema);
+        return;
+      }
+
+      const fields = parseRecordFields(line, r01Schema.records.detail.fields);
+      if (globalSeq === 0) {
+        for (const f of fields) {
+          if (f.source === "header" && f.key && !header[f.key]) {
+            header[f.key] = f.value;
+          }
+          if (f.id === "TXID" || f.key === "txid") {
+            const v = String(f.value ?? "").trim();
+            if (v && !header.txid) header.txid = v;
+          }
+        }
+        void lookupTxid(header.txid ?? "", txids);
+      }
+
+      globalSeq += 1;
+      const row = detailRowFromLine(line, r01Schema);
+      for (const def of r01Schema.records.detail.fields) {
+        if (def.source === "detail" && def.key) {
+          const parsed = fields.find((x) => x.id === def.id);
+          if (parsed) row[def.key] = parsed.value;
+        }
+      }
+      totalAmount += Math.floor(Number(row.amount) || 0);
+      chunkRows.push(row);
+
+      if (chunkRows.length >= PARTITION_LIMITS.convertChunkSize) {
+        flushChunk();
+      }
+    },
+  });
+
+  flushChunk();
+
+  if (globalSeq === 0) throw new Error("沒有明細列可轉檔");
+  if (detailLines.length === 0 || outHeader == null) {
+    throw new Error("轉檔結果為空");
+  }
+
+  const ending = endingOf(p01Schema);
+  // 巢狀 flushChunk 賦值使 CFA 可能將 outHeader 收斂為 never；此處顯式斷言
+  const baseHeader: HeaderValues = outHeader as HeaderValues;
+  const h: HeaderValues = options.date?.trim()
+    ? { ...baseHeader, date: requireRocDateLocal(options.date) }
+    : baseHeader;
+  const hdr = buildRecord(p01Schema.records.header.fields, {
+    schema: p01Schema,
+    header: h,
+    seq: 0,
+    totalCount: globalSeq,
+    totalAmount,
+    txids,
+    branches,
+  });
+  const trl = buildTrailerLine(
+    p01Schema,
+    h,
+    globalSeq,
+    totalAmount,
+    txids,
+    branches,
+  );
+  const renumbered = detailLines.map((line, i) => {
+    if (line.length !== p01Schema.recordLength) return line;
+    const seq = String(i + 1).padStart(8, "0");
+    return line.slice(0, 6) + seq + line.slice(14);
+  });
+  const lines = [hdr, ...renumbered, trl];
+  const content = lines.join(ending) + ending;
+  const filename = p01Schema.filenamePattern
+    .replace("{code}", p01Schema.code)
+    .replace("{date}", h.date ?? "")
+    .replace("{txid}", h.txid ?? "")
+    .replace("{taxId}", h.taxId ?? "")
+    .replace("{shortCode}", p01Schema.shortCode);
+
+  return {
+    files: [
+      {
+        content,
+        filename,
+        count: globalSeq,
+        amount: totalAmount,
+        presenterBank,
+        lines,
+      },
+    ],
+    detailCount: globalSeq,
+  };
+}
+
+/** 僅供大檔轉檔內部覆寫日期用（與 convertR01.requireRoc8 同規則） */
+function requireRocDateLocal(value: string): string {
+  const d = safeDigits(value);
+  if (d.length !== 8) {
+    throw new Error(`處理日期（TDATE）須為 8 碼民國年月日（目前 ${d.length || 0} 碼）`);
+  }
+  return d;
 }
 
 /**

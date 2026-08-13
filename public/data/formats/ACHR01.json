@@ -2,7 +2,7 @@
   "code": "ACHR01",
   "shortCode": "R01",
   "name": "提回／退件檔",
-  "description": "ACHP01 提回／退件（TYPE=R）；可由代收／代付提出檔轉檔產生，對照財金 ACHP01/ACHR01 規格",
+  "description": "ACHP01 提回／退件（TYPE=R）；可與代收／代付提出檔雙向轉檔，對照財金 ACHP01/ACHR01 規格",
   "version": "V10",
   "recordLength": 250,
   "lineEnding": "\r\n",

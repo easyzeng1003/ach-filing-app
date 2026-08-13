@@ -10,6 +10,7 @@ import {
 import { generateFromSchema } from "../src/lib/ach/engine";
 import {
   convertLargeP01FileToR01,
+  convertLargeR01FileToP01,
   mergeAchPartitions,
   parsePartitionIndex,
   partitionAchFile,
@@ -222,6 +223,24 @@ for (const f of converted.files) {
     assert.ok(lines.every((l) => l.length === 250), `R01 part line lens: ${lines.map((l) => l.length)}`);
     assert.equal(lines.at(-1)!.slice(55, 63), "01150803");
   }
+
+  // 大檔 R01→P01
+  const back = await convertLargeR01FileToP01(
+    r01Blob,
+    r01,
+    p01,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  assert.equal(back.detailCount, 7);
+  assert.equal(back.files.length, 1);
+  const backFile = back.files[0]!;
+  assert.ok(backFile.lines[0]!.includes("ACHP01"));
+  assert.equal(backFile.lines[1]![0], "N");
+  assert.ok(backFile.lines.every((l) => l.length === 250));
+  assert.equal(backFile.presenterBank, "0040000");
+  assert.equal(backFile.lines[1]!.slice(14, 21), "0040000");
+  assert.equal(backFile.lines[1]!.slice(37, 44), "8120053");
 }
 
 // 可編輯分割：每包 ≤ 5000
