@@ -115,6 +115,10 @@ export type WorkspaceMeta = {
   open: boolean;
   source: "import" | null;
   fileName?: string;
+  /** 來源檔原始 BOF（篩選／排除輸出優先使用） */
+  sourceHeaderLine?: string;
+  /** 來源檔原始 EOF（合計欄仍依輸出明細重算） */
+  sourceTrailerLine?: string;
 };
 
 type FormState = {
@@ -144,7 +148,11 @@ type FormState = {
   loadFromImport: (
     schema: FormatSchema,
     data: { header: HeaderValues; rows: DetailRow[] },
-    meta?: { fileName?: string },
+    meta?: {
+      fileName?: string;
+      sourceHeaderLine?: string;
+      sourceTrailerLine?: string;
+    },
   ) => void;
   getForm: (code: string) => FormBundle | undefined;
 };
@@ -439,6 +447,8 @@ export const useFormStore = create<FormState>()(
               open: true,
               source: "import",
               fileName: meta?.fileName,
+              sourceHeaderLine: meta?.sourceHeaderLine,
+              sourceTrailerLine: meta?.sourceTrailerLine,
             },
           },
         }));

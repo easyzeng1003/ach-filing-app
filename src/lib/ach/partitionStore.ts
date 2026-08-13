@@ -305,6 +305,8 @@ export async function splitFileAndStartEdit(opts: {
   partCount: number;
   totalDetailCount: number;
   autoRaised: boolean;
+  sourceHeaderLine?: string;
+  sourceTrailerLine?: string;
   first: {
     header: HeaderValues;
     rows: DetailRow[];
@@ -348,6 +350,8 @@ export async function splitFileAndStartEdit(opts: {
     partCount: index.partCount,
     totalDetailCount: index.totalDetailCount,
     autoRaised: plan.autoRaised,
+    sourceHeaderLine: index.sourceHeaderLine ?? index.headerLine,
+    sourceTrailerLine: index.sourceTrailerLine,
     first: {
       header: parsed.header,
       rows: parsed.rows,

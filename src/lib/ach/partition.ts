@@ -70,8 +70,16 @@ export type PartitionIndex = {
   lineEnding: string;
   createdAt: string;
   header: HeaderValues;
-  /** 原始控制首錄（合併時優先使用以保留 TTIME 等） */
+  /** 目前工作區控制首錄（存回編輯後可能更新） */
   headerLine: string;
+  /**
+   * 來源檔原始控制首錄（篩選／排除／合併輸出優先使用，不受表單編輯覆寫）
+   */
+  sourceHeaderLine?: string;
+  /**
+   * 來源檔原始控制尾錄（輸出時保留非合計欄；TCOUNT／TAMT 依實際輸出明細重算）
+   */
+  sourceTrailerLine?: string;
   totalDetailCount: number;
   totalAmount: number;
   /** 實際產出的分割檔數 y */
@@ -205,7 +213,7 @@ function amountFromDetailLine(line: string, schema: FormatSchema): number {
   return Math.floor(Number(safeDigits(amt?.value ?? "0") || 0));
 }
 
-function headerFromLine(line: string, schema: FormatSchema): HeaderValues {
+export function headerFromLine(line: string, schema: FormatSchema): HeaderValues {
   const header = emptyHeader(schema);
   const fields = parseRecordFields(line, schema.records.header.fields);
   for (const f of fields) {
@@ -606,11 +614,13 @@ async function countAchDetails(
   },
 ): Promise<{
   headerLine: string;
+  trailerLine: string;
   header: HeaderValues;
   detailCount: number;
   totalAmount: number;
 }> {
   let headerLine = "";
+  let trailerLine = "";
   let header: HeaderValues = emptyHeader(schema);
   let detailCount = 0;
   let totalAmount = 0;
@@ -637,7 +647,10 @@ async function countAchDetails(
         }
         return;
       }
-      if (line.startsWith("EOF")) return;
+      if (line.startsWith("EOF")) {
+        trailerLine = line;
+        return;
+      }
       detailCount += 1;
       totalAmount += amountFromDetailLine(line, schema);
     },
@@ -651,7 +664,7 @@ async function countAchDetails(
     // 第二趟太貴；合併／轉檔時由呼叫端補。此處僅用首錄。
   }
 
-  return { headerLine, header, detailCount, totalAmount };
+  return { headerLine, trailerLine, header, detailCount, totalAmount };
 }
 
 /**
@@ -803,6 +816,8 @@ export async function partitionAchFile(
     createdAt: new Date().toISOString(),
     header,
     headerLine: counted.headerLine,
+    sourceHeaderLine: counted.headerLine,
+    sourceTrailerLine: counted.trailerLine || undefined,
     totalDetailCount: counted.detailCount,
     totalAmount: counted.totalAmount,
     partCount: partitions.length,
@@ -907,16 +922,42 @@ export function mergeAchPartitions(
     keptAmount += amountFromDetailLine(line, schema);
   }
 
-  const header = { ...input.index.header };
-  // 一律依目前索引 header 重算首錄，避免沿用分割當下的舊 headerLine
-  const headerLine = buildHeaderLine(
-    schema,
-    header,
-    kept.length,
-    keptAmount,
-    txids,
-    branches,
-  );
+  // 篩選／排除／合併輸出：首錄以來源檔為主（保留 TTIME 等），尾錄合計依輸出明細重算
+  const sourceHeaderLine =
+    (input.index.sourceHeaderLine?.startsWith("BOF") &&
+    input.index.sourceHeaderLine.length === schema.recordLength
+      ? input.index.sourceHeaderLine
+      : null) ??
+    (input.index.headerLine?.startsWith("BOF") &&
+    input.index.headerLine.length === schema.recordLength
+      ? input.index.headerLine
+      : null);
+
+  const headerFromSource = sourceHeaderLine
+    ? headerFromLine(sourceHeaderLine, schema)
+    : { ...input.index.header };
+  // 補齊索引上可能較完整的提出資料（來源 BOF 不一定含帳號等）
+  const header: HeaderValues = {
+    ...headerFromSource,
+    ...Object.fromEntries(
+      Object.entries(input.index.header).filter(
+        ([, v]) => v != null && String(v).trim() !== "",
+      ),
+    ),
+    // 日期／TTIME 相關仍以來源首錄為準
+    ...(headerFromSource.date ? { date: headerFromSource.date } : {}),
+  };
+
+  const headerLine =
+    sourceHeaderLine ??
+    buildHeaderLine(
+      schema,
+      header,
+      kept.length,
+      keptAmount,
+      txids,
+      branches,
+    );
   const trailer = buildTrailerLine(
     schema,
     header,
@@ -1141,6 +1182,7 @@ export async function convertLargeP01FileToR01(
       createdAt: new Date().toISOString(),
       header,
       headerLine,
+      sourceHeaderLine: headerLine,
       totalDetailCount: globalSeq,
       totalAmount,
       partCount: plan.partCount,

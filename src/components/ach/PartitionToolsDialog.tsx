@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Alert,
   Box,
@@ -12,9 +12,6 @@ import {
   FormControlLabel,
   IconButton,
   LinearProgress,
-  List,
-  ListItem,
-  ListItemText,
   MenuItem,
   Stack,
   TextField,
@@ -23,29 +20,22 @@ import {
 import {
   Close as CloseIcon,
   ContentCut as ScissorsIcon,
-  MergeType as CombineIcon,
   SwapHoriz as ArrowRightLeftIcon,
 } from "@mui/icons-material";
 import { toast } from "sonner";
 import type { Branch, FormatSchema, Txid } from "@/lib/ach/schema";
 import {
   describeSaveResult,
-  saveAchFile,
   saveAchFiles,
 } from "@/lib/ach/desktop";
 import {
   PARTITION_LIMITS,
   convertLargeP01FileToR01,
-  convertMergedP01PartitionsToR01,
-  mergeAchPartitions,
-  parsePartitionIndex,
   partitionAchFile,
   partitionIndexFilename,
   planPartitions,
   planPartitionsForEdit,
-  readFileAsLatin1,
   stringifyPartitionIndex,
-  type PartitionIndex,
   type PartitionProgress,
 } from "@/lib/ach/partition";
 import {
@@ -56,11 +46,10 @@ import { RETURN_CODES } from "@/lib/ach/convertR01";
 import { IMPORT_LIMITS } from "@/lib/ach/import";
 import { withLineEndingId } from "@/lib/ach/lineEnding";
 import { usePrefsStore } from "@/lib/ach/prefsStore";
-import { resolveExcludeDoc } from "@/lib/ach/excludeStore";
 import { prevRocDate, safeDigits } from "@/lib/ach/utils";
 import { LineEndingSelect } from "./LineEndingSelect";
 
-type Mode = "split" | "merge" | "convert";
+type Mode = "split" | "convert";
 
 type Props = {
   open: boolean;
@@ -95,7 +84,6 @@ export function PartitionToolsDialog({
   onClose,
   onOpenPartitionEdit,
 }: Props) {
-  const mergeInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<PartitionProgress | null>(null);
 
@@ -120,22 +108,15 @@ export function PartitionToolsDialog({
   );
   const [pdate, setPdate] = useState(() => safeDigits(tdate));
 
-  const [mergeFiles, setMergeFiles] = useState<File[]>([]);
-  const [mergeConvert, setMergeConvert] = useState(false);
-
   const title =
     mode === "split"
       ? "編輯・分割來源檔"
-      : mode === "merge"
-        ? "編輯・合併分割檔"
-        : "大檔轉 R01（分塊→合併）";
+      : "大檔轉 R01（分塊→合併）";
 
   const TitleIcon =
     mode === "split"
       ? ScissorsIcon
-      : mode === "merge"
-        ? CombineIcon
-        : ArrowRightLeftIcon;
+      : ArrowRightLeftIcon;
 
   async function handleSplit() {
     if (!sourceFile) {
@@ -251,89 +232,6 @@ export function PartitionToolsDialog({
     }
   }
 
-  async function handleMerge() {
-    if (mergeFiles.length < 2) {
-      toast.error("請同時選擇索引 JSON 與分割 .txt 檔");
-      return;
-    }
-    setBusy(true);
-    try {
-      const indexFile = mergeFiles.find((f) =>
-        f.name.toLowerCase().endsWith(".json"),
-      );
-      if (!indexFile) throw new Error("請包含 partition-index.json");
-      const index = parsePartitionIndex(await indexFile.text()) as PartitionIndex;
-      const target =
-        formats[index.formatCode] ??
-        (index.formatCode === schema.code ? schema : null);
-      if (!target) {
-        throw new Error(`找不到格式定義 ${index.formatCode}`);
-      }
-      const outTarget = withLineEndingId(
-        target,
-        usePrefsStore.getState().lineEnding,
-      );
-
-      const parts = new Map<string, string>();
-      for (const f of mergeFiles) {
-        if (f.name.toLowerCase().endsWith(".json")) continue;
-        // latin1：固定長度尾端空白不被 UTF-8／trim 弄丟
-        parts.set(f.name, await readFileAsLatin1(f));
-      }
-
-      if (mergeConvert && index.formatCode === "ACHP01") {
-        const r01 = formats.ACHR01;
-        if (!r01) throw new Error("找不到 ACHR01");
-        const result = convertMergedP01PartitionsToR01(
-          withLineEndingId(r01, usePrefsStore.getState().lineEnding),
-          outTarget,
-          { index, parts },
-          txids,
-          branches,
-          {
-            rcode: safeDigits(rcode).padStart(2, "0").slice(-2),
-            ydate: safeDigits(ydate),
-            pdate: safeDigits(pdate),
-          },
-        );
-        const saved = await saveAchFiles(
-          result.files.map((f) => ({
-            filename: f.filename,
-            content: f.content,
-          })),
-        );
-        if (saved.method === "canceled") {
-          toast.message("已取消儲存");
-          return;
-        }
-        toast.success(
-          `已合併轉檔 R01（${result.detailCount.toLocaleString("zh-TW")} 筆）· ${describeSaveResult(saved)}`,
-        );
-      } else {
-        const merged = mergeAchPartitions(
-          outTarget,
-          { index, parts },
-          txids,
-          branches,
-          { exclude: resolveExcludeDoc(outTarget.code) },
-        );
-        await saveAchFile(merged.filename, merged.content);
-        const excludeNote =
-          merged.excludedCount > 0
-            ? `（已排除 ${merged.excludedCount.toLocaleString("zh-TW")} 筆）`
-            : "";
-        toast.success(
-          `已合併 ${merged.filename}（${merged.detailCount.toLocaleString("zh-TW")} 筆${excludeNote}）`,
-        );
-      }
-      onClose();
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "合併失敗");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function handleLargeConvert() {
     if (!sourceFile) {
       toast.error("沒有來源檔");
@@ -399,11 +297,7 @@ export function PartitionToolsDialog({
       ? openForEdit
         ? "分割並開始編輯"
         : "分割並下載"
-      : mode === "merge"
-        ? mergeConvert
-          ? "合併並轉 R01"
-          : "合併下載"
-        : "開始大檔轉 R01";
+      : "開始大檔轉 R01";
 
   return (
     <Dialog
@@ -431,9 +325,7 @@ export function PartitionToolsDialog({
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
               {mode === "split" &&
-                "編輯大檔：將明細切成多包後在網頁逐包修改（每包 ≤ 可編輯上限），再合併輸出；也可另存 ZIP。"}
-              {mode === "merge" &&
-                "編輯完成後：選擇索引 JSON 與全部 part*.txt，合併回單一 ACH 大檔（可順便轉 R01）。"}
+                "編輯大檔：將明細切成多包後在網頁逐包修改（每包 ≤ 可編輯上限）；合併／條件輸出請用「篩選／排除後輸出」。"}
               {mode === "convert" &&
                 "不經表單：串流分塊轉 ACHR01；多檔結果打包 ZIP 或寫入同一資料夾。"}
             </Typography>
@@ -453,7 +345,7 @@ export function PartitionToolsDialog({
         <Stack spacing={2.5}>
           <LineEndingSelect />
           <Typography variant="caption" color="text.secondary">
-            篩選／排除條件請於主畫面「篩選／排除後輸出」設定；合併時會一併套用。
+            條件輸出／合併全部分割包請於主畫面「篩選／排除後輸出」處理（首尾錄以來源檔為主）。
           </Typography>
           {mode === "split" && (
             <>
@@ -494,7 +386,7 @@ export function PartitionToolsDialog({
                       分割後在網頁編輯
                     </Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                      開啟分割工作區，逐包載入表單修改，再「合併全部輸出」
+                      開啟分割工作區，逐包載入表單修改；輸出請用「篩選／排除後輸出」
                     </Typography>
                   </Box>
                 }
@@ -521,78 +413,6 @@ export function PartitionToolsDialog({
                 }
                 sx={{ alignItems: "flex-start", m: 0 }}
               />
-            </>
-          )}
-
-          {mode === "merge" && (
-            <>
-              <input
-                ref={mergeInputRef}
-                type="file"
-                multiple
-                accept=".txt,.json,text/plain,application/json"
-                hidden
-                onChange={(e) =>
-                  setMergeFiles(Array.from(e.target.files ?? []))
-                }
-              />
-              <Button
-                variant="outlined"
-                fullWidth
-                disabled={busy}
-                onClick={() => mergeInputRef.current?.click()}
-              >
-                選擇索引 JSON ＋ 分割 txt（可多選）
-              </Button>
-              {mergeFiles.length > 0 && (
-                <List
-                  dense
-                  sx={{
-                    maxHeight: 160,
-                    overflow: "auto",
-                    border: 1,
-                    borderColor: "divider",
-                    borderRadius: 1,
-                    bgcolor: "grey.50",
-                    py: 0,
-                  }}
-                >
-                  {mergeFiles.map((f) => (
-                    <ListItem key={f.name} dense>
-                      <ListItemText
-                        primary={f.name}
-                        slotProps={{
-                          primary: {
-                            variant: "caption",
-                            sx: { fontFamily: "monospace" },
-                          },
-                        }}
-                      />
-                    </ListItem>
-                  ))}
-                </List>
-              )}
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={mergeConvert}
-                    onChange={(e) => setMergeConvert(e.target.checked)}
-                    disabled={busy}
-                  />
-                }
-                label="合併時一併轉成 ACHR01（來源須為 ACHP01 分割）"
-              />
-              {mergeConvert && (
-                <ConvertFields
-                  rcode={rcode}
-                  ydate={ydate}
-                  pdate={pdate}
-                  busy={busy}
-                  onRcode={setRcode}
-                  onYdate={setYdate}
-                  onPdate={setPdate}
-                />
-              )}
             </>
           )}
 
@@ -649,7 +469,6 @@ export function PartitionToolsDialog({
           }
           onClick={() => {
             if (mode === "split") void handleSplit();
-            else if (mode === "merge") void handleMerge();
             else void handleLargeConvert();
           }}
         >

@@ -317,7 +317,7 @@ usePartitionStore.getState().clearSession();
   }
 }
 
-// 控制首錄修改後存回：應同步到其他包與合併輸出（不回溯）
+// 控制首錄修改後存回：應同步到其他包；條件／合併輸出仍以來源首錄為主
 {
   usePartitionStore.getState().startSession({
     formatCode: "ACHP01",
@@ -327,6 +327,8 @@ usePartitionStore.getState().clearSession();
   });
   usePartitionStore.getState().setActiveIndex(0);
   const loaded = parsePartToForm(p01, parts[0]!.content, parts[0]!.filename);
+  const originalBof =
+    parsed.sourceHeaderLine ?? parsed.headerLine;
   const editedHeader = { ...loaded.header, date: "01150999" };
   usePartitionStore.getState().saveFormToActivePart(
     p01,
@@ -338,6 +340,11 @@ usePartitionStore.getState().clearSession();
   const after = usePartitionStore.getState().session!;
   assert.equal(after.index.header.date, "01150999");
   assert.ok(after.index.headerLine.includes("01150999"));
+  assert.equal(
+    after.index.sourceHeaderLine ?? originalBof,
+    originalBof,
+    "來源首錄不應被存回覆寫",
+  );
   for (const p of after.parts) {
     const bof = p.content.replace(/\r\n/g, "\n").split("\n")[0]!;
     assert.ok(bof.includes("01150999"), `${p.filename} 首錄未同步`);
@@ -351,7 +358,8 @@ usePartitionStore.getState().clearSession();
     EMBEDDED_BRANCHES,
   );
   const mergedBof = mergedEdited.content.replace(/\r\n/g, "\n").split("\n")[0]!;
-  assert.ok(mergedBof.includes("01150999"), "合併輸出首錄未使用新日期");
+  assert.equal(mergedBof, originalBof, "合併／條件輸出 BOF 應等於來源原檔首錄");
+  assert.ok(!mergedBof.includes("01150999"), "輸出首錄不應被表單編輯日期覆寫");
   usePartitionStore.getState().clearSession();
 }
 
