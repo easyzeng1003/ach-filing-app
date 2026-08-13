@@ -16,7 +16,6 @@ import {
 } from "@mui/material";
 import {
   FileUpload as FileUpIcon,
-  Search as SearchIcon,
   WarningAmber as AlertTriangleIcon,
   CheckCircle as CheckCircleIcon,
   FilterAltOff as FilterXIcon,
@@ -714,14 +713,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         closeWorkspace(schema);
         toast.message("已清除所有紀錄，請重新上傳檔案");
       }}
-      onConvertR01={
-        schema.code === "ACHP01"
-          ? () => {
-              if (!validateFormData()) return;
-              setConvertOpen(true);
-            }
-          : undefined
-      }
       onLoadPart={(payload) => {
         loadFromImport(
           schema,
@@ -819,8 +810,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       }
       onProcess={handleExcludeExport}
       onExportR01={
-        schema.code === "ACHP01" &&
-        partitionSession?.formatCode !== schema.code
+        schema.code === "ACHP01"
           ? () => {
               if (!validateFormData()) return;
               setConvertOpen(true);
@@ -1110,17 +1100,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
 
           {filterEnabled && (
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
-              <div className="relative min-w-[12rem] max-w-sm flex-1">
-                <SearchIcon sx={{ position:"absolute", top:"50%", left:10, transform:"translateY(-50%)", fontSize:16, color:"text.disabled", pointerEvents:"none" }} />
-                <input
-                  className="field-input h-8 pl-8 text-sm"
-                  placeholder="全域搜尋（任一欄位包含…）"
-                  value={filterOpts.global ?? ""}
-                  onChange={(e) =>
-                    setFilterOpts((o) => ({ ...o, global: e.target.value }))
-                  }
-                />
-              </div>
               <label className="inline-flex cursor-pointer items-center gap-1.5 text-sm">
                 <input
                   type="checkbox"
