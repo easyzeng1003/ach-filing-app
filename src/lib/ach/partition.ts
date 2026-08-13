@@ -942,7 +942,7 @@ export function mergeAchPartitions(
 }
 
 /**
- * 大檔 P01→R01：串流分塊轉檔後依退件行合併為輸出檔（可同時產出 partition index）。
+ * 大檔 P01→R01：串流分塊轉檔後合併為單一輸出檔（不依收受行分檔；可同時產出 partition index）。
  */
 export async function convertLargeP01FileToR01(
   file: File,
@@ -973,16 +973,10 @@ export async function convertLargeP01FileToR01(
     throw new Error("轉檔目標須為 ACHR01");
   }
 
-  type BankBuf = {
-    detailLines: string[];
-    count: number;
-    amount: number;
-    header: HeaderValues | null;
-  };
-
-  const byBank = new Map<string, BankBuf>();
+  const detailLines: string[] = [];
   let headerLine = "";
   let header: HeaderValues = emptyHeader(p01Schema);
+  let outHeader: HeaderValues | null = null;
   let globalSeq = 0;
   let chunkRows: DetailRow[] = [];
   let chunkStartSeq = 1;
@@ -1009,27 +1003,19 @@ export async function convertLargeP01FileToR01(
       ydate: converted.ydate,
       pdate: converted.pdate,
     };
-    for (const f of converted.files) {
-      let buf = byBank.get(f.returnBank);
-      if (!buf) {
-        buf = { detailLines: [], count: 0, amount: 0, header: null };
-        byBank.set(f.returnBank, buf);
-      }
-      // lines: header, details..., trailer
-      const details = f.lines.slice(1, -1);
-      buf.detailLines.push(...details);
-      buf.count += f.count;
-      buf.amount += f.amount;
-      if (!buf.header) {
-        buf.header = {
-          date: header.date ?? "",
-          txid: header.txid ?? "",
-          bankCode: f.returnBank,
-          account: "",
-          taxId: header.taxId ?? "",
-          ydate: converted.ydate,
-        };
-      }
+    const f = converted.files[0];
+    if (!f) return;
+    // lines: header, details..., trailer
+    detailLines.push(...f.lines.slice(1, -1));
+    if (!outHeader) {
+      outHeader = {
+        date: header.date ?? "",
+        txid: header.txid ?? "",
+        bankCode: f.returnBank,
+        account: "",
+        taxId: header.taxId ?? "",
+        ydate: converted.ydate,
+      };
     }
     chunkRows = [];
   };
@@ -1065,14 +1051,12 @@ export async function convertLargeP01FileToR01(
             header[f.key] = f.value;
           }
         }
-        // TXTYPE 驗證用
         void lookupTxid(header.txid ?? "", txids);
       }
 
       if (chunkRows.length === 0) chunkStartSeq = globalSeq + 1;
       globalSeq += 1;
       const row = detailRowFromLine(line, p01Schema);
-      // P01 form keys
       for (const def of p01Schema.records.detail.fields) {
         if (def.source === "detail" && def.key) {
           const parsed = fields.find((x) => x.id === def.id);
@@ -1091,62 +1075,54 @@ export async function convertLargeP01FileToR01(
   flushChunk();
 
   if (globalSeq === 0) throw new Error("沒有明細列可轉檔");
-  if (byBank.size === 0 || !meta.rcode) throw new Error("轉檔結果為空");
+  if (detailLines.length === 0 || !meta.rcode || outHeader == null) {
+    throw new Error("轉檔結果為空");
+  }
 
-  const multi = byBank.size > 1;
-  const files: ConvertedR01File[] = [];
   const ending = endingOf(r01Schema);
+  const h: HeaderValues = outHeader;
+  const hdr = buildRecord(r01Schema.records.header.fields, {
+    schema: r01Schema,
+    header: h,
+    seq: 0,
+    totalCount: globalSeq,
+    totalAmount,
+    txids,
+    branches,
+  });
+  const trl = buildTrailerLine(
+    r01Schema,
+    h,
+    globalSeq,
+    totalAmount,
+    txids,
+    branches,
+  );
+  // 整檔序號 1..n（分塊轉檔時 PSEQ 已用 seqOffset；此處重編 SEQ 欄）
+  const renumbered = detailLines.map((line, i) => {
+    if (line.length !== r01Schema.recordLength) return line;
+    const seq = String(i + 1).padStart(8, "0");
+    return line.slice(0, 6) + seq + line.slice(14);
+  });
+  const lines = [hdr, ...renumbered, trl];
+  const content = lines.join(ending) + ending;
+  const filename = r01Schema.filenamePattern
+    .replace("{code}", r01Schema.code)
+    .replace("{date}", h.date ?? "")
+    .replace("{txid}", h.txid ?? "")
+    .replace("{taxId}", h.taxId ?? "")
+    .replace("{shortCode}", r01Schema.shortCode);
 
-  for (const [returnBank, buf] of byBank) {
-    const h: HeaderValues = buf.header ?? {
-      date: header.date ?? "",
-      txid: header.txid ?? "",
-      bankCode: returnBank,
-      account: "",
-      taxId: header.taxId ?? "",
-      ydate: meta.ydate,
-    };
-    const hdr = buildRecord(r01Schema.records.header.fields, {
-      schema: r01Schema,
-      header: h,
-      seq: 0,
-      totalCount: buf.count,
-      totalAmount: buf.amount,
-      txids,
-      branches,
-    });
-    const trl = buildTrailerLine(
-      r01Schema,
-      h,
-      buf.count,
-      buf.amount,
-      txids,
-      branches,
-    );
-    // 重新編號 SEQ（退件行序號 1..n）— 明細列內 SEQ 欄位在 offset 6-14
-    const renumbered = buf.detailLines.map((line, i) => {
-      if (line.length !== r01Schema.recordLength) return line;
-      const seq = String(i + 1).padStart(8, "0");
-      return line.slice(0, 6) + seq + line.slice(14);
-    });
-    const lines = [hdr, ...renumbered, trl];
-    const content = lines.join(ending) + ending;
-    let filename = r01Schema.filenamePattern
-      .replace("{code}", r01Schema.code)
-      .replace("{date}", h.date ?? "")
-      .replace("{txid}", h.txid ?? "")
-      .replace("{taxId}", h.taxId ?? "")
-      .replace("{shortCode}", r01Schema.shortCode);
-    if (multi) filename = filename.replace(/\.txt$/i, `_${returnBank}.txt`);
-    files.push({
+  const files: ConvertedR01File[] = [
+    {
       content,
       filename,
-      count: buf.count,
-      amount: buf.amount,
-      returnBank,
+      count: globalSeq,
+      amount: totalAmount,
+      returnBank: h.bankCode ?? "",
       lines,
-    });
-  }
+    },
+  ];
 
   let index: PartitionIndex | null = null;
   if (options.alsoPartitionIndex) {
@@ -1231,11 +1207,13 @@ export function convertMergedP01PartitionsToR01(
     }
   }
 
-  // 單次轉檔可能爆記憶體；分塊 + 合併
-  const byBank = new Map<string, ConvertedR01File>();
+  // 單次轉檔可能爆記憶體；分塊後合併為單一檔（不依收受行分檔）
+  const detailLines: string[] = [];
   const chunk = PARTITION_LIMITS.convertChunkSize;
   let offset = 0;
   let meta = { rcode: "", ydate: "", pdate: "" };
+  let returnBank = "";
+  let totalAmount = 0;
 
   while (offset < allRows.length) {
     const slice = allRows.slice(offset, offset + chunk);
@@ -1252,78 +1230,69 @@ export function convertMergedP01PartitionsToR01(
       ydate: converted.ydate,
       pdate: converted.pdate,
     };
-    for (const f of converted.files) {
-      const prev = byBank.get(f.returnBank);
-      if (!prev) {
-        byBank.set(f.returnBank, {
-          ...f,
-          lines: f.lines.slice(1, -1), // 先只留明細
-          content: "",
-        });
-      } else {
-        prev.lines.push(...f.lines.slice(1, -1));
-        prev.count += f.count;
-        prev.amount += f.amount;
-      }
+    const f = converted.files[0];
+    if (f) {
+      if (!returnBank) returnBank = f.returnBank;
+      detailLines.push(...f.lines.slice(1, -1));
+      totalAmount += f.amount;
     }
     offset += chunk;
   }
 
-  const ending = endingOf(r01Schema);
-  const multi = byBank.size > 1;
-  const files: ConvertedR01File[] = [];
-
-  for (const [returnBank, buf] of byBank) {
-    const h: HeaderValues = {
-      date: header.date ?? "",
-      txid: header.txid ?? "",
-      bankCode: returnBank,
-      account: "",
-      taxId: header.taxId ?? "",
-      ydate: meta.ydate,
-    };
-    const hdr = buildRecord(r01Schema.records.header.fields, {
-      schema: r01Schema,
-      header: h,
-      seq: 0,
-      totalCount: buf.count,
-      totalAmount: buf.amount,
-      txids,
-      branches,
-    });
-    const trl = buildTrailerLine(
-      r01Schema,
-      h,
-      buf.count,
-      buf.amount,
-      txids,
-      branches,
-    );
-    const renumbered = buf.lines.map((line, i) => {
-      if (line.length !== r01Schema.recordLength) return line;
-      const seq = String(i + 1).padStart(8, "0");
-      return line.slice(0, 6) + seq + line.slice(14);
-    });
-    const lines = [hdr, ...renumbered, trl];
-    let filename = r01Schema.filenamePattern
-      .replace("{code}", r01Schema.code)
-      .replace("{date}", h.date ?? "")
-      .replace("{txid}", h.txid ?? "")
-      .replace("{taxId}", h.taxId ?? "")
-      .replace("{shortCode}", r01Schema.shortCode);
-    if (multi) filename = filename.replace(/\.txt$/i, `_${returnBank}.txt`);
-    files.push({
-      content: lines.join(ending) + ending,
-      filename,
-      count: buf.count,
-      amount: buf.amount,
-      returnBank,
-      lines,
-    });
+  if (detailLines.length === 0 || !meta.rcode) {
+    throw new Error("轉檔結果為空");
   }
 
+  const ending = endingOf(r01Schema);
+  const h: HeaderValues = {
+    date: header.date ?? "",
+    txid: header.txid ?? "",
+    bankCode: returnBank,
+    account: "",
+    taxId: header.taxId ?? "",
+    ydate: meta.ydate,
+  };
+  const hdr = buildRecord(r01Schema.records.header.fields, {
+    schema: r01Schema,
+    header: h,
+    seq: 0,
+    totalCount: allRows.length,
+    totalAmount,
+    txids,
+    branches,
+  });
+  const trl = buildTrailerLine(
+    r01Schema,
+    h,
+    allRows.length,
+    totalAmount,
+    txids,
+    branches,
+  );
+  const renumbered = detailLines.map((line, i) => {
+    if (line.length !== r01Schema.recordLength) return line;
+    const seq = String(i + 1).padStart(8, "0");
+    return line.slice(0, 6) + seq + line.slice(14);
+  });
+  const lines = [hdr, ...renumbered, trl];
+  const filename = r01Schema.filenamePattern
+    .replace("{code}", r01Schema.code)
+    .replace("{date}", h.date ?? "")
+    .replace("{txid}", h.txid ?? "")
+    .replace("{taxId}", h.taxId ?? "")
+    .replace("{shortCode}", r01Schema.shortCode);
+
   return {
-    files,
+    files: [
+      {
+        content: lines.join(ending) + ending,
+        filename,
+        count: allRows.length,
+        amount: totalAmount,
+        returnBank,
+        lines,
+      },
+    ],
     detailCount: allRows.length,
     rcode: meta.rcode,
     ydate: meta.ydate,

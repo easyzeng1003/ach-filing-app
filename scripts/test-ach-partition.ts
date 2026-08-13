@@ -133,7 +133,7 @@ const converted = await convertLargeP01FileToR01(
   { rcode: "04", ydate: "01150803", pdate: "01150804" },
 );
 assert.equal(converted.detailCount, 7);
-assert.equal(converted.files.length, 2); // two return banks
+assert.equal(converted.files.length, 1); // 整檔、不依收受行分檔
 const allR = converted.files.reduce((s, f) => s + f.count, 0);
 assert.equal(allR, 7);
 for (const f of converted.files) {
