@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect } from "react";
 import {
   AppBar,
   Box,
@@ -7,8 +7,6 @@ import {
   CircularProgress,
   Container,
   Stack,
-  Tab,
-  Tabs,
   Toolbar,
   Typography,
   Paper,
@@ -24,26 +22,13 @@ import {
   Handyman as HandymanIcon,
   Settings as SettingsIcon,
   SwapHoriz as SwapHorizIcon,
-  Code as BracesIcon,
-  HelpOutlined as HelpIcon,
-  Business as BuildingIcon,
-  Description as FileStackIcon,
-  Security as ShieldIcon,
 } from "@mui/icons-material";
 import { Toaster } from "sonner";
 import "@/styles.css";
 import { useFormStore, useRefStore } from "@/lib/ach/store";
 import type { BrandingIconPreset } from "@/lib/branding";
 import { FormatPanel } from "@/components/ach/FormatPanel";
-import { SchemaPanel } from "@/components/ach/SchemaPanel";
-import { RefsPanel } from "@/components/ach/RefsPanel";
-import { HelpPanel } from "@/components/ach/HelpPanel";
 import { useBranding } from "@/theme/AppProviders";
-
-const ICONS: Record<string, typeof FileStackIcon> = {
-  "file-stack": FileStackIcon,
-  shield: ShieldIcon,
-};
 
 const BRAND_ICONS: Record<BrandingIconPreset, typeof AccountBalanceIcon> = {
   account_balance: AccountBalanceIcon,
@@ -58,6 +43,9 @@ const BRAND_ICONS: Record<BrandingIconPreset, typeof AccountBalanceIcon> = {
   swap_horiz: SwapHorizIcon,
 };
 
+/** 主畫面僅提供 P01 工作區（R01 由轉檔產生；無格式／說明分頁） */
+const PRIMARY_FORMAT = "ACHP01";
+
 export function AppShell() {
   const branding = useBranding();
   const BrandIcon = BRAND_ICONS[branding.iconPreset] ?? AccountBalanceIcon;
@@ -71,61 +59,19 @@ export function AppShell() {
     formatList,
     formats,
   } = useRefStore();
-  const { activeCode, setActiveCode, ensureForm } = useFormStore();
+  const { setActiveCode, ensureForm } = useFormStore();
   const list = formatList();
-  const [tab, setTab] = useState("");
+  const activeSchema = formats[PRIMARY_FORMAT] ?? formats[list[0]?.code ?? ""];
 
   useEffect(() => {
     void loadRefs();
   }, [loadRefs]);
 
   useEffect(() => {
-    if (!loaded || !list.length) return;
-    const initial =
-      list.find((f) => f.code === activeCode)?.code ?? list[0]!.code;
-    setTab((t) =>
-      t &&
-      (t === "refs" ||
-        t === "schema" ||
-        t === "help" ||
-        list.some((f) => f.code === t))
-        ? t
-        : initial,
-    );
-    const schema = formats[initial];
-    if (schema) ensureForm(schema);
-  }, [loaded, list, activeCode, formats, ensureForm]);
-
-  const formatTabs = useMemo(
-    () =>
-      list.map((f) => ({
-        id: f.code,
-        label: `${f.shortCode} ${f.name}`,
-        icon: ICONS[f.icon || ""] || FileStackIcon,
-      })),
-    [list],
-  );
-
-  const allTabs = useMemo(
-    () => [
-      ...formatTabs,
-      { id: "schema", label: "格式參數", icon: BracesIcon },
-      { id: "refs", label: "代碼查詢", icon: BuildingIcon },
-      { id: "help", label: "說明", icon: HelpIcon },
-    ],
-    [formatTabs],
-  );
-
-  function selectTab(id: string) {
-    setTab(id);
-    if (list.some((f) => f.code === id)) setActiveCode(id);
-  }
-
-  const activeSchema = formats[tab];
-  const tabIndex = Math.max(
-    0,
-    allTabs.findIndex((t) => t.id === tab),
-  );
+    if (!loaded || !activeSchema) return;
+    setActiveCode(activeSchema.code);
+    ensureForm(activeSchema);
+  }, [loaded, activeSchema, setActiveCode, ensureForm]);
 
   return (
     <Box
@@ -143,14 +89,14 @@ export function AppShell() {
             flexWrap: "wrap",
             gap: 1.5,
             py: 1.5,
-            alignItems: "flex-start",
+            alignItems: "center",
             minHeight: "auto !important",
           }}
         >
           <Stack
             direction="row"
             spacing={1.5}
-            sx={{ alignItems: "center",  flex: "1 1 auto", minWidth: 220 }}
+            sx={{ alignItems: "center", flex: "1 1 auto", minWidth: 220 }}
           >
             <Box
               sx={{
@@ -199,7 +145,7 @@ export function AppShell() {
                 size="small"
                 color="secondary"
                 variant="filled"
-                label={`格式 ${list.length} · 交易 ${txids.length} · 銀行 ${branches.length}`}
+                label={`P01 · 交易 ${txids.length} · 銀行 ${branches.length}`}
               />
             )}
             {loadError && (
@@ -207,33 +153,6 @@ export function AppShell() {
             )}
           </Stack>
         </Toolbar>
-
-        <Tabs
-          value={allTabs[tabIndex]?.id ?? false}
-          onChange={(_, value: string) => selectTab(value)}
-          variant="scrollable"
-          scrollButtons="auto"
-          textColor="inherit"
-          indicatorColor="secondary"
-          aria-label="主要分頁"
-          sx={{
-            px: { xs: 1, sm: 2 },
-            bgcolor: "rgba(0,0,0,0.12)",
-            minHeight: 48,
-            "& .MuiTab-root": { color: "rgba(255,255,255,0.78)" },
-            "& .Mui-selected": { color: "#fff" },
-          }}
-        >
-          {allTabs.map(({ id, label, icon: Icon }) => (
-            <Tab
-              key={id}
-              value={id}
-              icon={<Icon fontSize="small" />}
-              iconPosition="start"
-              label={label}
-            />
-          ))}
-        </Tabs>
       </AppBar>
 
       <Container
@@ -267,15 +186,14 @@ export function AppShell() {
               重試
             </Button>
           </Paper>
+        ) : activeSchema ? (
+          <FormatPanel schema={activeSchema} />
         ) : (
-          <>
-            {activeSchema && (
-              <FormatPanel schema={activeSchema} onSelectFormat={selectTab} />
-            )}
-            {tab === "schema" && <SchemaPanel />}
-            {tab === "refs" && <RefsPanel />}
-            {tab === "help" && <HelpPanel />}
-          </>
+          <Paper sx={{ p: 4, textAlign: "center" }}>
+            <Typography color="error" sx={{ fontWeight: 700 }}>
+              找不到 ACHP01 格式定義
+            </Typography>
+          </Paper>
         )}
       </Container>
 

@@ -30,4 +30,4 @@
 - Bank codes (header `bankCode` and detail `bankCode`) must match a code in `public/data/branch.json` (e.g. `0040000` = 台灣銀行).
 - ACHP01 **TXTYPE** is derived from `txid.json`: **SD＝代收**, **SC＝代付**. Header/trailer layout matches 財金「代收建檔小程式.xlsm」.
 - Large ACH uploads use **streaming parse** (`parseAchFile`); do not call `file.text()` on big files. Editable form apply is capped at **5,000** detail rows (`IMPORT_LIMITS.maxFormDetailRows`). Larger files: use import-preview **預先篩選** (`filters` / `filterGlobal` on `parseAchFile`) to stream-load only matching rows, then display all matches and apply.
-- Form state persists in `localStorage` under key `ach-filing-forms-v1` (Zustand persist). To prefill deterministically during manual testing you can seed this key and reload; a successful export shows a green toast "已產生 …txt（N 筆）" and downloads the file.
+- Form state is **not** persisted across page loads (localStorage keys `ach-filing-forms-v1`／`v2` are cleared on open). Each visit starts at the upload screen with an empty workspace. A successful export shows a green toast "已產生 …txt（N 筆）" and downloads the file.
