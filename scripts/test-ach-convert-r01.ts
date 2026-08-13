@@ -105,7 +105,7 @@ assert.equal(trl.slice(0, 3), "EOF");
 assert.equal(trl.slice(3, 9), "ACHR01");
 assert.equal(trl.slice(55, 63), "01150803", "YDATE");
 
-// 多退件行分檔
+// 多收受行：仍輸出單一檔（不依收受行分檔）
 const multiRows: DetailRow[] = [
   { ...rows[0]!, id: "a", bankCode: "8120053" },
   { ...rows[1]!, id: "b", bankCode: "0070000", account: "0000000555666777" },
@@ -113,7 +113,10 @@ const multiRows: DetailRow[] = [
 const multi = convertP01ToR01(r01, header, multiRows, EMBEDDED_TXIDS, EMBEDDED_BRANCHES, {
   rcode: "99",
 });
-assert.equal(multi.files.length, 2);
-assert.ok(multi.files.every((f) => f.filename.includes("_")));
+assert.equal(multi.files.length, 1);
+assert.equal(multi.detailCount, 2);
+assert.equal(multi.files[0]!.count, 2);
+assert.ok(!multi.files[0]!.filename.includes("_812"));
+assert.ok(!multi.files[0]!.filename.includes("_007"));
 
 console.log("OK convert P01→R01: lengths, TYPE/CDATA, bank swap, RCODE/PDATE/PSEQ/YDATE");

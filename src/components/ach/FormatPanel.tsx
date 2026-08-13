@@ -83,6 +83,7 @@ import { LineEndingSelect } from "./LineEndingSelect";
 import { PartitionToolsDialog } from "./PartitionToolsDialog";
 import { PartitionWorkspaceBar } from "./PartitionWorkspaceBar";
 import {
+  collectSessionRows,
   mergeSessionToFile,
   splitFileAndStartEdit,
   usePartitionStore,
@@ -254,12 +255,22 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   const excludeConditions = useExcludeStore((s) => s.conditions);
   const excludeMatchMode = useExcludeStore((s) => s.matchMode);
 
-  /** 轉檔 R01 對話框顯示筆數：已套用排除規則後的有效明細 */
+  /** 轉檔 R01 對話框顯示筆數：整檔（分割時含全部包）套用排除後 */
   const convertR01DetailCount = useMemo(() => {
     const exclude = resolveExcludeDoc(schema.code);
+    if (partitionSession?.formatCode === schema.code) {
+      try {
+        const { rows: all } = collectSessionRows(schema, partitionSession);
+        return filterExcludedRows(schema, all, exclude).kept.filter(
+          (r) => !isRowEmpty(r, schema),
+        ).length;
+      } catch {
+        return partitionSession.parts.reduce((n, p) => n + p.detailCount, 0);
+      }
+    }
     const kept = filterExcludedRows(schema, rows, exclude).kept;
     return kept.filter((r) => !isRowEmpty(r, schema)).length;
-  }, [schema, rows, excludeConditions, excludeMatchMode]);
+  }, [schema, rows, excludeConditions, excludeMatchMode, partitionSession]);
 
   const filtered = useMemo(() => {
     if (!filterEnabled) {
@@ -377,20 +388,41 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       toast.error("找不到 ACHR01 格式定義");
       return;
     }
-    if (!validateFormData()) return;
     setConverting(true);
     try {
-      // R01 與 P01 相同：先套用目前排除／篩選規則，再轉檔
+      // 整檔輸出：分割工作區時合併全部包（非僅目前開啟的那一包）
+      let sourceHeader = header;
+      let sourceRows = rows;
+      const sess = usePartitionStore.getState().session;
+      if (sess && sess.formatCode === schema.code) {
+        if (sess.activeIndex != null && partitionFormDirty) {
+          usePartitionStore
+            .getState()
+            .saveFormToActivePart(schema, header, rows, txids, branches);
+          setPartitionFormDirty(false);
+        }
+        const latest = usePartitionStore.getState().session;
+        if (!latest || latest.formatCode !== schema.code) {
+          throw new Error("分割工作區已結束");
+        }
+        const collected = collectSessionRows(schema, latest);
+        sourceHeader = collected.header;
+        sourceRows = collected.rows;
+      } else if (!validateFormData()) {
+        return;
+      }
+
       const lineEnding = usePrefsStore.getState().lineEnding;
       const exclude = resolveExcludeDoc(schema.code);
-      const filtered = filterExcludedRows(schema, rows, exclude);
+      const filtered = filterExcludedRows(schema, sourceRows, exclude);
       if (filtered.kept.length === 0) {
         toast.error("排除後沒有可轉檔的明細");
         return;
       }
+      // 單一整檔；不依收受行分檔
       const result = convertP01ToR01(
         withLineEndingId(r01, lineEnding),
-        header,
+        sourceHeader,
         filtered.kept,
         txids,
         branches,
@@ -412,7 +444,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           ? `（已排除 ${filtered.excludedCount.toLocaleString("zh-TW")} 筆）`
           : "";
       toast.success(
-        `已轉檔（${result.detailCount} 筆${excludeNote}，RCODE=${result.rcode}）· ${describeSaveResult(saved)}`,
+        `已轉檔整檔（${result.detailCount} 筆${excludeNote}，RCODE=${result.rcode}）· ${describeSaveResult(saved)}`,
       );
       setConvertOpen(false);
     } catch (e) {

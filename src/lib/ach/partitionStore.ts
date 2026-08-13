@@ -379,6 +379,29 @@ export function mergeSessionToFile(
   );
 }
 
+/**
+ * 收集分割工作區「全部包」的表頭＋明細（整檔，非僅目前開啟的那一包）。
+ * 呼叫前請先將目前表單存回 active part（若有未存變更）。
+ */
+export function collectSessionRows(
+  schema: FormatSchema,
+  session: PartitionSession,
+): { header: HeaderValues; rows: DetailRow[] } {
+  if (!session.parts.length) {
+    throw new Error("分割工作區沒有可轉檔的包");
+  }
+  const header: HeaderValues = { ...session.index.header };
+  const rows: DetailRow[] = [];
+  for (const part of session.parts) {
+    const parsed = parsePartToForm(schema, part.content, part.filename);
+    if (rows.length === 0) {
+      Object.assign(header, parsed.header);
+    }
+    rows.push(...parsed.rows);
+  }
+  return { header, rows };
+}
+
 export function countNonEmptyRows(
   schema: FormatSchema,
   rows: DetailRow[],

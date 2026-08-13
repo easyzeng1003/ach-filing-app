@@ -8,6 +8,8 @@
  * - 退件時對調：PBANK/PCLNO ← 原 RBANK/RCLNO；RBANK/RCLNO ← 原 PBANK/PCLNO
  * - 退件必填：RCODE、PDATE、PSEQ、PSCHD
  * - Trailer YDATE：ACHR01 置放前一營業日（ACHP01 空白）
+ *
+ * 輸出：單一整檔（不依收受行分檔）；表頭 SORG 取首筆退件行銀行代號。
  */
 
 import { generateFromSchema } from "./engine";
@@ -73,6 +75,7 @@ export type ConvertedR01File = {
   filename: string;
   count: number;
   amount: number;
+  /** 表頭採用的退件行（首筆）；整檔不依收受行分檔 */
   returnBank: string;
   lines: string[];
 };
@@ -108,8 +111,7 @@ function padSeq8(seq: number | string): string {
 
 /**
  * 將 ACHP01 表單資料轉成 ACHR01 提回／退件檔。
- * 若明細含多個收受行（退件行），依退件行分組各產出一個檔。
- * 呼叫端可先以排除規則過濾明細再傳入（與「排除後輸出 R01」一致）。
+ * 一律輸出單一整檔（不依收受行分檔）；呼叫端可先排除再傳入。
  */
 export function convertP01ToR01(
   r01Schema: FormatSchema,
@@ -147,8 +149,8 @@ export function convertP01ToR01(
 
   const seqOffset = Math.max(0, Math.floor(options.seqOffset ?? 0));
 
-  // 依原提回行（收受行）分組＝退件行
-  const groups = new Map<string, Array<{ row: DetailRow; origSeq: number }>>();
+  const items: Array<{ row: DetailRow; origSeq: number; returnBank: string }> =
+    [];
   let seq = 0;
   for (const row of nonEmpty) {
     seq += 1;
@@ -156,90 +158,78 @@ export function convertP01ToR01(
     if (returnBank.length !== 7) {
       throw new Error(`第 ${seqOffset + seq} 筆收受者銀行代號須為 7 碼`);
     }
-    const list = groups.get(returnBank) ?? [];
-    list.push({ row, origSeq: seqOffset + seq });
-    groups.set(returnBank, list);
+    items.push({ row, origSeq: seqOffset + seq, returnBank });
   }
 
-  const multi = groups.size > 1;
-  const files: ConvertedR01File[] = [];
+  const headerBank = items[0]!.returnBank;
+  const header: HeaderValues = {
+    date: tdate,
+    txid: String(p01Header.txid ?? ""),
+    bankCode: headerBank,
+    account: safeDigits(String(items[0]!.row.account ?? "")),
+    taxId: String(p01Header.taxId ?? ""),
+    ydate,
+  };
 
-  for (const [returnBank, items] of groups) {
-    const header: HeaderValues = {
-      date: tdate,
-      txid: String(p01Header.txid ?? ""),
+  const rows: DetailRow[] = items.map(({ row, origSeq, returnBank }) => {
+    const recvAccount = safeDigits(String(row.account ?? ""));
+    if (recvAccount.length === 0) {
+      throw new Error(`原提示序號 ${padSeq8(origSeq)} 收受者帳號未輸入`);
+    }
+    return {
+      id: row.id,
       bankCode: returnBank,
-      // 參考用：首筆原收受者帳號（明細才寫入 PCLNO）
-      account: safeDigits(String(items[0]!.row.account ?? "")),
-      taxId: String(p01Header.taxId ?? ""),
-      ydate,
+      account:
+        recvAccount.length < 16 ? recvAccount.padStart(16, "0") : recvAccount,
+      taxId: String(row.taxId ?? ""),
+      userNo: String(row.userNo ?? ""),
+      amount: String(row.amount ?? ""),
+      origBankCode: presenterBank,
+      origAccount:
+        presenterAccount.length < 16
+          ? presenterAccount.padStart(16, "0")
+          : presenterAccount,
+      rcode,
+      pdate,
+      pseq: padSeq8(origSeq),
+      pschd: "B",
     };
+  });
 
-    const rows: DetailRow[] = items.map(({ row, origSeq }) => {
-      const recvAccount = safeDigits(String(row.account ?? ""));
-      if (recvAccount.length === 0) {
-        throw new Error(`原提示序號 ${padSeq8(origSeq)} 收受者帳號未輸入`);
-      }
-      return {
-        id: row.id,
-        bankCode: returnBank,
-        account: recvAccount.length < 16 ? recvAccount.padStart(16, "0") : recvAccount,
-        taxId: String(row.taxId ?? ""),
-        userNo: String(row.userNo ?? ""),
-        amount: String(row.amount ?? ""),
-        origBankCode: presenterBank,
-        origAccount:
-          presenterAccount.length < 16
-            ? presenterAccount.padStart(16, "0")
-            : presenterAccount,
-        rcode,
-        pdate,
-        pseq: padSeq8(origSeq),
-        pschd: "B",
-      };
-    });
+  const generated = generateFromSchema(
+    r01Schema,
+    header,
+    rows,
+    txids,
+    branches,
+  );
 
-    const generated = generateFromSchema(
-      r01Schema,
-      header,
-      rows,
-      txids,
-      branches,
+  const bad = generated.lines.find((l) => l.length !== r01Schema.recordLength);
+  if (bad) {
+    throw new Error(
+      `提回列長度 ${bad.length} 與定義 ${r01Schema.recordLength} 不符`,
     );
+  }
 
-    const bad = generated.lines.find((l) => l.length !== r01Schema.recordLength);
-    if (bad) {
-      throw new Error(
-        `提回列長度 ${bad.length} 與定義 ${r01Schema.recordLength} 不符`,
-      );
-    }
-
-    // 確認關鍵欄位
-    const detailLine = generated.lines[1] ?? "";
-    if (detailLine[0] !== "R") {
-      throw new Error("提回明細 TYPE 應為 R");
-    }
-    if (!generated.lines[0]?.includes("ACHR01")) {
-      throw new Error("提回首錄 CDATA 應為 ACHR01");
-    }
-
-    let filename = generated.filename;
-    if (multi) {
-      filename = filename.replace(/\.txt$/i, `_${returnBank}.txt`);
-    }
-
-    files.push({
-      content: generated.content,
-      filename,
-      count: generated.count,
-      amount: generated.amount,
-      returnBank,
-      lines: generated.lines,
-    });
+  const detailLine = generated.lines[1] ?? "";
+  if (detailLine[0] !== "R") {
+    throw new Error("提回明細 TYPE 應為 R");
+  }
+  if (!generated.lines[0]?.includes("ACHR01")) {
+    throw new Error("提回首錄 CDATA 應為 ACHR01");
   }
 
   return {
-    files,
+    files: [
+      {
+        content: generated.content,
+        filename: generated.filename,
+        count: generated.count,
+        amount: generated.amount,
+        returnBank: headerBank,
+        lines: generated.lines,
+      },
+    ],
     detailCount: nonEmpty.length,
     ydate,
     pdate,
