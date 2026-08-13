@@ -45,7 +45,7 @@ type ExcludeState = {
     patch: Partial<Pick<ExcludeUiCondition, "key" | "value" | "op">>,
   ) => void;
   removeCondition: (id: string) => void;
-  syncDocFromConditions: (formatCode: string) => ExcludeRulesDoc;
+  syncDocFromConditions: (formatCode: string) => ExcludeRulesDoc | null;
   setDoc: (doc: ExcludeRulesDoc, sourceName?: string) => void;
   setLastResult: (result: ExcludeExportResult | null) => void;
   clear: () => void;
@@ -135,12 +135,7 @@ export const useExcludeStore = create<ExcludeState>((set, get) => ({
 
   syncDocFromConditions: (formatCode) => {
     const { conditions, matchMode, actionMode } = get();
-    const doc = buildExcludeDocFromConditions(
-      formatCode,
-      conditions,
-      matchMode,
-      actionMode,
-    );
+    const doc = syncDoc(formatCode, conditions, matchMode, actionMode);
     set({ doc, sourceName: null });
     return doc;
   },
