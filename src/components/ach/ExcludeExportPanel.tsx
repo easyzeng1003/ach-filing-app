@@ -126,10 +126,20 @@ export function ExcludeExportPanel({
   const r01Label = hasActiveConditions
     ? `${actionVerb}後輸出 R01`
     : "輸出 R01";
+  const primaryExportLabel =
+    schema.code === "ACHR01"
+      ? hasActiveConditions
+        ? `${actionVerb}後輸出 R01`
+        : "輸出 R01"
+      : p01Label;
 
   async function handleProcess() {
     if (processDateError) {
       toast.error(processDateError);
+      return;
+    }
+    if (schema.code === "ACHR01" && agentBankError) {
+      toast.error(agentBankError);
       return;
     }
     setBusy(true);
@@ -446,7 +456,7 @@ export function ExcludeExportPanel({
             startIcon={<FilterIcon />}
             onClick={() => void handleProcess()}
           >
-            {busy ? "處理中…" : p01Label}
+            {busy ? "處理中…" : primaryExportLabel}
           </Button>
         </Stack>
 

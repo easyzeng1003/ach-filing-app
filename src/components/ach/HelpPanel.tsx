@@ -12,10 +12,10 @@ export function HelpPanel() {
           <h2 className="text-lg font-bold">關於本程式</h2>
         </div>
         <p className="text-sm leading-relaxed text-muted">
-          以財金 ACH <strong className="text-fg">P01 代收／代付</strong>
-          固定長度檔為主，進行<strong className="text-fg">檢核與加工</strong>；
-          <strong className="text-fg">R01 提回／退件</strong>僅由 P01 轉檔產生。
-          開啟後請先上傳既有 P01 檔。
+          以財金 ACH <strong className="text-fg">P01 代收／代付</strong>與
+          <strong className="text-fg">R01 提回／退件</strong>
+          固定長度檔為主，進行<strong className="text-fg">檢核與加工</strong>。
+          開啟後請先上傳既有 P01 或 R01 檔（上傳時自動辨識檔案代號）。
           ACHP01 明細<strong className="text-fg">交易類別</strong>依交易代號帶入：
           <strong className="text-fg">SD＝代收</strong>、
           <strong className="text-fg">SC＝代付</strong>。

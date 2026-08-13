@@ -43,8 +43,8 @@ const BRAND_ICONS: Record<BrandingIconPreset, typeof AccountBalanceIcon> = {
   swap_horiz: SwapHorizIcon,
 };
 
-/** 主畫面僅提供 P01 工作區（R01 由轉檔產生；無格式／說明分頁） */
-const PRIMARY_FORMAT = "ACHP01";
+/** 主畫面以 activeCode 切換 P01／R01 工作區（上傳偵測後自動切換） */
+const DEFAULT_FORMAT = "ACHP01";
 
 export function AppShell() {
   const branding = useBranding();
@@ -59,9 +59,12 @@ export function AppShell() {
     formatList,
     formats,
   } = useRefStore();
-  const { setActiveCode, ensureForm } = useFormStore();
+  const { activeCode, setActiveCode, ensureForm } = useFormStore();
   const list = formatList();
-  const activeSchema = formats[PRIMARY_FORMAT] ?? formats[list[0]?.code ?? ""];
+  const activeSchema =
+    formats[activeCode] ??
+    formats[DEFAULT_FORMAT] ??
+    formats[list[0]?.code ?? ""];
 
   useEffect(() => {
     void loadRefs();
@@ -69,9 +72,14 @@ export function AppShell() {
 
   useEffect(() => {
     if (!loaded || !activeSchema) return;
+    if (!formats[activeCode] && formats[DEFAULT_FORMAT]) {
+      setActiveCode(DEFAULT_FORMAT);
+      ensureForm(formats[DEFAULT_FORMAT]!);
+      return;
+    }
     setActiveCode(activeSchema.code);
     ensureForm(activeSchema);
-  }, [loaded, activeSchema, setActiveCode, ensureForm]);
+  }, [loaded, activeSchema, activeCode, formats, setActiveCode, ensureForm]);
 
   return (
     <Box
@@ -145,7 +153,7 @@ export function AppShell() {
                 size="small"
                 color="secondary"
                 variant="filled"
-                label={`P01 · 交易 ${txids.length} · 銀行 ${branches.length}`}
+                label={`${activeSchema?.shortCode ?? "ACH"} · 交易 ${txids.length} · 銀行 ${branches.length}`}
               />
             )}
             {loadError && (
@@ -187,11 +195,19 @@ export function AppShell() {
             </Button>
           </Paper>
         ) : activeSchema ? (
-          <FormatPanel schema={activeSchema} />
+          <FormatPanel
+            schema={activeSchema}
+            onSelectFormat={(code) => {
+              const next = formats[code];
+              if (!next) return;
+              setActiveCode(code);
+              ensureForm(next);
+            }}
+          />
         ) : (
           <Paper sx={{ p: 4, textAlign: "center" }}>
             <Typography color="error" sx={{ fontWeight: 700 }}>
-              找不到 ACHP01 格式定義
+              找不到 ACHP01／ACHR01 格式定義
             </Typography>
           </Paper>
         )}
