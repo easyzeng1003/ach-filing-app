@@ -453,6 +453,26 @@ export function headerFromLine(line: string, schema: FormatSchema): HeaderValues
   return header;
 }
 
+/** 自 EOF 補入僅存在於尾錄的 header 欄（如 ACHR01 YDATE） */
+export function mergeHeaderFromTrailerLine(
+  header: HeaderValues,
+  trailerLine: string | null | undefined,
+  schema: FormatSchema,
+): HeaderValues {
+  if (!trailerLine || !trailerLine.startsWith("EOF")) return header;
+  const line = padRecordLine(trailerLine, schema.recordLength);
+  if (line.length !== schema.recordLength) return header;
+  const fields = parseRecordFields(line, schema.records.trailer.fields);
+  const next = { ...header };
+  for (const f of fields) {
+    if (f.source !== "header" || !f.key) continue;
+    const v = String(f.value ?? "").trim();
+    if (!v) continue;
+    if (!String(next[f.key] ?? "").trim()) next[f.key] = f.value;
+  }
+  return next;
+}
+
 function detailRowFromLine(line: string, schema: FormatSchema): DetailRow {
   const fields = parseRecordFields(line, schema.records.detail.fields);
   const row: DetailRow = { id: newRowId() };
@@ -866,6 +886,7 @@ async function countAchDetails(
       }
       if (line.startsWith("EOF")) {
         trailerLine = line;
+        header = mergeHeaderFromTrailerLine(header, line, schema);
         return;
       }
       detailCount += 1;

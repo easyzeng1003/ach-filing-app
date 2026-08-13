@@ -196,6 +196,34 @@ for (const f of converted.files) {
   assert.equal(f.lines[0]!.slice(30, 37), "0040000");
 }
 
+// 上傳 R01 後分割：尾錄須 250，且自 EOF 帶入 YDATE
+{
+  const r01File = converted.files[0]!;
+  const r01Blob = new File([r01File.content], "sample-r01.txt", {
+    type: "text/plain",
+  });
+  const r01Parts: { filename: string; content: string }[] = [];
+  const r01Index = await partitionAchFile(
+    r01Blob,
+    r01,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+    {
+      partCount: 2,
+      onPartition: (p) => {
+        r01Parts.push({ filename: p.filename, content: p.content });
+      },
+    },
+  );
+  assert.equal(r01Index.header.ydate, "01150803", "split 應自 EOF 帶入 YDATE");
+  assert.equal(r01Parts.length, 2);
+  for (const p of r01Parts) {
+    const lines = p.content.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
+    assert.ok(lines.every((l) => l.length === 250), `R01 part line lens: ${lines.map((l) => l.length)}`);
+    assert.equal(lines.at(-1)!.slice(55, 63), "01150803");
+  }
+}
+
 // 可編輯分割：每包 ≤ 5000
 const editPlan = planPartitionsForEdit(12_000);
 assert.ok(editPlan.partCount >= 3);

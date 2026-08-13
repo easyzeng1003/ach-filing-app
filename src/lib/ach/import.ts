@@ -473,6 +473,14 @@ function finalizeHeader(acc: ParseAcc): HeaderValues {
   if (acc.headerLine) {
     Object.assign(header, collectKeyedValues(acc.headerLine.fields, "header"));
   }
+  // R01 的 YDATE 等欄位在尾錄；缺時從來源 EOF 補入
+  if (acc.trailerLine) {
+    const fromTrailer = collectKeyedValues(acc.trailerLine.fields, "header");
+    for (const [k, v] of Object.entries(fromTrailer)) {
+      if (!v?.trim()) continue;
+      if (!String(header[k] ?? "").trim()) header[k] = v;
+    }
+  }
   if (acc.detailSamples[0]) {
     const fromDetailHeader = collectKeyedValues(
       acc.detailSamples[0].fields,
