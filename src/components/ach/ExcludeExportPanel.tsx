@@ -184,7 +184,8 @@ export function ExcludeExportPanel({
       ) : null}
 
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
-        可選「篩選」（只留符合）或「排除」（去掉符合）；P01／R01 皆套用相同條件，R01
+          可選「篩選」（只留符合）或「排除」（去掉符合）；P01／R01 皆套用相同條件。
+        輸出首尾錄以來源原檔為主（尾錄合計依輸出明細重算）。R01
         會再開啟轉檔對話框。
       </Typography>
 

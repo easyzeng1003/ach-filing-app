@@ -89,7 +89,11 @@ import {
   splitFileAndStartEdit,
   usePartitionStore,
 } from "@/lib/ach/partitionStore";
-import type { PartitionProgress } from "@/lib/ach/partition";
+import {
+  buildTrailerLine,
+  headerFromLine,
+  type PartitionProgress,
+} from "@/lib/ach/partition";
 
 type Props = {
   schema: FormatSchema;
@@ -140,7 +144,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   const [convertOpen, setConvertOpen] = useState(false);
   const [converting, setConverting] = useState(false);
   const [partitionTools, setPartitionTools] = useState<{
-    mode: "split" | "merge" | "convert";
+    mode: "split" | "convert";
   } | null>(null);
   const [partitionFormDirty, setPartitionFormDirty] = useState(false);
   const partitionSession = usePartitionStore((s) => s.session);
@@ -547,7 +551,11 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         loadFromImport(
           target,
           { header: split.first.header, rows: split.first.rows },
-          { fileName: split.first.fileName },
+          {
+            fileName: split.first.fileName,
+            sourceHeaderLine: split.sourceHeaderLine,
+            sourceTrailerLine: split.sourceTrailerLine,
+          },
         );
         setPartitionFormDirty(false);
         setImportResult(null);
@@ -612,13 +620,19 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       toast.error("筆數仍超過上限，請再縮小表頭篩選條件");
       return;
     }
+    const sourceHeaderLine = result.lines.find((l) => l.kind === "header")?.raw;
+    const sourceTrailerLine = result.lines.find((l) => l.kind === "trailer")?.raw;
     loadFromImport(
       result.schema,
       {
         header: result.header,
         rows: result.rows,
       },
-      { fileName: result.filename },
+      {
+        fileName: result.filename,
+        sourceHeaderLine,
+        sourceTrailerLine,
+      },
     );
     if (result.schema.code !== schema.code) {
       onSelectFormat?.(result.schema.code);
@@ -722,7 +736,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   const partitionDialog = (
     <PartitionToolsDialog
       open={!!partitionTools}
-      mode={partitionTools?.mode ?? "merge"}
+      mode={partitionTools?.mode ?? "split"}
       schema={schema}
       formats={formats}
       txids={txids}
@@ -734,10 +748,16 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       }
       onClose={() => setPartitionTools(null)}
       onOpenPartitionEdit={(payload) => {
+        const sess = usePartitionStore.getState().session;
         loadFromImport(
           schema,
           { header: payload.header, rows: payload.rows },
-          { fileName: payload.fileName },
+          {
+            fileName: payload.fileName,
+            sourceHeaderLine:
+              sess?.index.sourceHeaderLine ?? sess?.index.headerLine,
+            sourceTrailerLine: sess?.index.sourceTrailerLine,
+          },
         );
         setPartitionFormDirty(false);
         setImportResult(null);
@@ -820,7 +840,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       };
     }
 
-    // 一般表單：套用篩選／排除後產生 TXT
+    // 一般表單：套用篩選／排除後產生 TXT（首尾錄以來源檔為主）
     const filtered = filterExcludedRows(schema, rows, doc);
     if (filtered.kept.length === 0) {
       throw new Error(`${actionVerb}後沒有可輸出的明細`);
@@ -840,12 +860,49 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         `產生列長度 ${badLen.length} 與定義 ${schema.recordLength} 不符`,
       );
     }
+
+    const ending = outSchema.lineEnding || "\r\n";
+    const detailLines = generated.lines.filter(
+      (l) => !l.startsWith("BOF") && !l.startsWith("EOF"),
+    );
+    const ws = getWorkspace(schema.code);
+    const sourceHeader =
+      ws.sourceHeaderLine &&
+      ws.sourceHeaderLine.startsWith("BOF") &&
+      ws.sourceHeaderLine.length === schema.recordLength
+        ? ws.sourceHeaderLine
+        : null;
+    const headerLine = sourceHeader ?? generated.lines[0]!;
+    const fromSource = sourceHeader
+      ? headerFromLine(sourceHeader, schema)
+      : null;
+    const ctrlHeader = fromSource
+      ? {
+          ...fromSource,
+          ...Object.fromEntries(
+            Object.entries(header).filter(
+              ([, v]) => v != null && String(v).trim() !== "",
+            ),
+          ),
+          ...(fromSource.date ? { date: fromSource.date } : {}),
+        }
+      : header;
+    const trailer = buildTrailerLine(
+      outSchema,
+      ctrlHeader,
+      detailLines.length,
+      generated.amount,
+      txids,
+      branches,
+    );
+    const content = [headerLine, ...detailLines, trailer].join(ending) + ending;
+
     return {
       filename: generated.filename.replace(/\.txt$/, fileSuffix),
-      content: generated.content,
+      content,
       totalBefore: filtered.totalBefore,
       excludedCount: filtered.excludedCount,
-      detailCount: generated.count,
+      detailCount: detailLines.length,
       amount: generated.amount,
       partCount: null,
       action,
@@ -1017,7 +1074,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   return (
     <Stack spacing={2}>
       {importLoadingMask}
-      {partitionBar}
       <Card>
         <CardContent>
           <Stack
@@ -1155,6 +1211,10 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
               </span>
             </Stack>
           </div>
+
+          {partitionSession?.formatCode === schema.code ? (
+            <div className="mt-3">{partitionBar}</div>
+          ) : null}
 
           {filterEnabled && (
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">

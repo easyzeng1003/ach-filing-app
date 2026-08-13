@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
-  Combine,
   Loader2,
   Save,
   Layers,
@@ -11,20 +10,9 @@ import {
 import { toast } from "sonner";
 import type { Branch, DetailRow, FormatSchema, HeaderValues, Txid } from "@/lib/ach/schema";
 import {
-  describeSaveResult,
-  saveAchFiles,
-} from "@/lib/ach/desktop";
-import {
-  partitionIndexFilename,
-  stringifyPartitionIndex,
-} from "@/lib/ach/partition";
-import {
-  mergeSessionToFile,
   parsePartToForm,
-  sessionIndex,
   usePartitionStore,
 } from "@/lib/ach/partitionStore";
-import { resolveExcludeDoc } from "@/lib/ach/excludeStore";
 import { LineEndingSelect } from "./LineEndingSelect";
 
 type Props = {
@@ -41,7 +29,7 @@ type Props = {
   /** 表單是否有未存回分割的變更（由外層追蹤） */
   formDirty?: boolean;
   onFormClean?: () => void;
-  /** 清除並回到上傳（與合併全部輸出同列） */
+  /** 清除並回到上傳 */
   onClearToUpload?: () => void;
 };
 
@@ -128,51 +116,6 @@ export function PartitionWorkspaceBar({
     }
   }
 
-  async function handleMergeExport() {
-    setBusy(true);
-    try {
-      if (active != null && dirty) {
-        const ok = await persistActive();
-        if (!ok) return;
-      }
-      const sess = usePartitionStore.getState().session;
-      if (!sess) return;
-      const exclude = resolveExcludeDoc(schema.code);
-      const merged = mergeSessionToFile(schema, sess, txids, branches, {
-        exclude,
-      });
-      const index = sessionIndex(sess);
-      const base =
-        sess.sourceFilename.replace(/\.[^.]+$/, "") || schema.code;
-      const saved = await saveAchFiles(
-        [
-          { filename: merged.filename, content: merged.content },
-          {
-            filename: partitionIndexFilename(sess.sourceFilename),
-            content: stringifyPartitionIndex(index),
-            mime: "application/json;charset=utf-8",
-          },
-        ],
-        { zipName: `${base}.merged.zip` },
-      );
-      if (saved.method === "canceled") {
-        toast.message("已取消儲存");
-        return;
-      }
-      const excludeNote =
-        merged.excludedCount > 0
-          ? `（已排除 ${merged.excludedCount.toLocaleString("zh-TW")} 筆）`
-          : "";
-      toast.success(
-        `已合併 ${merged.detailCount.toLocaleString("zh-TW")} 筆${excludeNote} · ${describeSaveResult(saved)}`,
-      );
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "合併失敗");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   return (
     <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2.5">
       <div className="flex flex-wrap items-center gap-2">
@@ -197,6 +140,9 @@ export function PartitionWorkspaceBar({
             {part
               ? `${part.filename} · ${part.detailCount.toLocaleString("zh-TW")} 筆 · 序號 ${part.seqFrom}–${part.seqTo}`
               : session.sourceFilename}
+          </p>
+          <p className="mt-0.5 text-xs text-muted">
+            合併／條件輸出請用上方「篩選／排除後輸出」（會涵蓋全部分割包）
           </p>
         </div>
 
@@ -254,15 +200,6 @@ export function PartitionWorkspaceBar({
             存回此包
           </button>
           <LineEndingSelect compact />
-          <button
-            type="button"
-            className="btn btn-primary"
-            disabled={busy}
-            onClick={() => void handleMergeExport()}
-          >
-            <Combine className="size-4" />
-            合併全部輸出
-          </button>
           {onClearToUpload ? (
             <button
               type="button"
