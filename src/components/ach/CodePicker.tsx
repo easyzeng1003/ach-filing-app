@@ -74,11 +74,6 @@ export function CodePicker({ open, mode, items, onClose, onSelect }: Props) {
         <Typography variant="h6" component="span" sx={{ display: "block" }}>
           {mode === "txid" ? "交易代號（代收 SD／代付 SC）" : "銀行／分行代號"}
         </Typography>
-        <Typography variant="caption" color="text.secondary">
-          {mode === "txid"
-            ? "SD＝代收、SC＝代付；點選一列即可帶入"
-            : "點選一列即可帶入"}
-        </Typography>
         <IconButton
           aria-label="關閉"
           onClick={onClose}

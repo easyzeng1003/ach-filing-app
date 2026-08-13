@@ -69,6 +69,8 @@ export function ConvertR01Dialog({
   const pDigits = safeDigits(pdate);
   const rDigits = safeDigits(rcode).padStart(2, "0").slice(-2);
   const agentDigits = safeDigits(agentBank).slice(0, 7);
+  const agentBankError =
+    agentDigits.length > 0 && agentDigits.length !== 7 ? "須為七碼" : null;
   const canSubmit =
     !busy &&
     detailCount > 0 &&
@@ -86,19 +88,11 @@ export function ConvertR01Dialog({
       aria-labelledby="convert-r01-title"
     >
       <DialogTitle id="convert-r01-title" sx={{ pr: 6 }}>
-        <Stack direction="row" spacing={1} sx={{ alignItems: "flex-start" }}>
-          <ArrowRightLeftIcon color="primary" sx={{ mt: 0.25 }} />
-          <Stack spacing={0.5}>
-            <Typography variant="h6" component="span">
-              轉檔 P01 → R01（提回／退件）
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              依財金 ACHP01/ACHR01 規格：TYPE=R、對調提出／提回行與帳號，並填入退件欄位。
-              輸出為整檔（分割時含全部包，非僅目前開啟的那一批），不依收受行分檔。
-              BOF／EOF：發送單位固定 9990250；接收單位＝代表行代號。
-              若已設定篩選／排除條件，會先套用後再轉檔（筆數如下）。
-            </Typography>
-          </Stack>
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+          <ArrowRightLeftIcon color="primary" />
+          <Typography variant="h6" component="span">
+            轉檔 P01 → R01（提回／退件）
+          </Typography>
         </Stack>
         <IconButton
           aria-label="關閉"
@@ -115,7 +109,7 @@ export function ConvertR01Dialog({
           <Alert severity="info" variant="outlined">
             將轉換整檔{" "}
             <strong>{detailCount.toLocaleString("zh-TW")}</strong>{" "}
-            筆有效明細為單一 ACHR01 檔（不依收受行分檔）。
+            筆有效明細為單一 ACHR01 檔。
           </Alert>
 
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
@@ -125,7 +119,7 @@ export function ConvertR01Dialog({
               size="small"
               value={safeDigits(tdate).slice(0, 8)}
               disabled
-              helperText="取自表單處理日期"
+              placeholder="01150804"
               sx={{ "& input": { fontFamily: "monospace" } }}
             />
             <TextField
@@ -139,8 +133,8 @@ export function ConvertR01Dialog({
               }
               disabled={busy}
               placeholder="0040000"
-              error={agentDigits.length > 0 && agentDigits.length !== 7}
-              helperText="七碼；寫入 BOF／EOF 接收單位（RORG）"
+              error={Boolean(agentBankError)}
+              helperText={agentBankError ?? undefined}
               sx={{ "& input": { fontFamily: "monospace" } }}
             />
           </Stack>
@@ -182,7 +176,6 @@ export function ConvertR01Dialog({
               onChange={(e) => setYdate(safeDigits(e.target.value).slice(0, 8))}
               disabled={busy}
               placeholder="01150803"
-              helperText="預設為處理日前一日（非營業日曆）"
               sx={{ "& input": { fontFamily: "monospace" } }}
             />
           </Stack>
