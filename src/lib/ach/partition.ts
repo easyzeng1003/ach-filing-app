@@ -264,7 +264,7 @@ export function copyRecordFieldValues(
 /**
  * 組出輸出用控制首／尾錄：
  * - 首錄以來源 BOF 為底，可覆寫 TDATE（處理日期）
- * - 尾錄重算合計後，SORG／RORG 固定從來源首／尾錄複製
+ * - SORG／RORG **只**從來源 BOF／EOF 位元組複製，绝不依明細／表單 bankCode 重算
  */
 export function buildExportControlLines(
   schema: FormatSchema,
@@ -283,6 +283,8 @@ export function buildExportControlLines(
     0,
     8,
   );
+  // 組尾錄合計時不要用可能被明細覆寫的 bankCode 去推 SORG；
+  // 實際 SORG／RORG 稍後一律從來源列貼上。
   const headerValues: HeaderValues = {
     ...opts.header,
     ...(date.length === 8 ? { date } : {}),
@@ -316,17 +318,27 @@ export function buildExportControlLines(
       headerLine,
       schema.records.header.fields,
       "TDATE",
-      date,
+      date.padStart(8, "0").slice(-8),
     );
   }
-  // 發送／接收單位代號固定原檔（首錄）
-  headerLine = copyRecordFieldValues(
-    headerLine,
-    schema.records.header.fields,
-    srcH,
-    schema.records.header.fields,
-    ["SORG", "RORG"],
-  );
+  // 發送／接收單位代號：優先來源 BOF，其次來源 EOF
+  if (srcH) {
+    headerLine = copyRecordFieldValues(
+      headerLine,
+      schema.records.header.fields,
+      srcH,
+      schema.records.header.fields,
+      ["SORG", "RORG"],
+    );
+  } else if (srcT) {
+    headerLine = copyRecordFieldValues(
+      headerLine,
+      schema.records.header.fields,
+      srcT,
+      schema.records.trailer.fields,
+      ["SORG", "RORG"],
+    );
+  }
 
   let trailerLine = buildTrailerLine(
     schema,
@@ -336,7 +348,7 @@ export function buildExportControlLines(
     opts.txids,
     opts.branches,
   );
-  // 尾錄 SORG／RORG：優先來源 EOF，否則從來源 BOF 對應欄位帶入
+  // 尾錄 SORG／RORG：優先來源 EOF，否則來源 BOF
   if (srcT) {
     trailerLine = copyRecordFieldValues(
       trailerLine,
@@ -359,7 +371,7 @@ export function buildExportControlLines(
       trailerLine,
       schema.records.trailer.fields,
       "TDATE",
-      date,
+      date.padStart(8, "0").slice(-8),
     );
   }
 
@@ -1089,33 +1101,33 @@ export function mergeAchPartitions(
     keptAmount += amountFromDetailLine(line, schema);
   }
 
-  // 篩選／排除／合併輸出：首錄以來源檔為底；SORG／RORG 固定原檔；可覆寫處理日期
+  // 僅使用不可被表單編輯覆寫的來源 BOF／EOF（勿回退到 index.headerLine，
+  // 存回後 headerLine 可能已依明細 bankCode 重算 SORG）
   const sourceHeaderLine =
-    (input.index.sourceHeaderLine?.startsWith("BOF") &&
+    input.index.sourceHeaderLine?.startsWith("BOF") &&
     input.index.sourceHeaderLine.length === schema.recordLength
       ? input.index.sourceHeaderLine
-      : null) ??
-    (input.index.headerLine?.startsWith("BOF") &&
-    input.index.headerLine.length === schema.recordLength
-      ? input.index.headerLine
-      : null);
+      : null;
+  const sourceTrailerLine =
+    input.index.sourceTrailerLine?.startsWith("EOF") &&
+    input.index.sourceTrailerLine.length === schema.recordLength
+      ? input.index.sourceTrailerLine
+      : null;
 
   const headerFromSource = sourceHeaderLine
     ? headerFromLine(sourceHeaderLine, schema)
     : { ...input.index.header };
+  // 合計／日期用；SORG／RORG 仍由 buildExportControlLines 從來源列貼上
   const header: HeaderValues = {
     ...headerFromSource,
-    ...Object.fromEntries(
-      Object.entries(input.index.header).filter(
-        ([, v]) => v != null && String(v).trim() !== "",
-      ),
-    ),
-    ...(headerFromSource.date ? { date: headerFromSource.date } : {}),
+    ...(options?.processDate
+      ? { date: safeDigits(options.processDate).slice(0, 8) }
+      : {}),
   };
 
   const { headerLine, trailerLine: trailer } = buildExportControlLines(schema, {
     sourceHeaderLine,
-    sourceTrailerLine: input.index.sourceTrailerLine,
+    sourceTrailerLine,
     header,
     processDate: options?.processDate,
     detailCount: kept.length,
