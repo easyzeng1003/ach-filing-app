@@ -152,7 +152,8 @@ export function HelpPanel() {
           <h3 className="font-bold">篩選／排除後輸出</h3>
         </div>
         <p className="mb-2 text-sm text-muted">
-          於主畫面可填<strong className="text-fg">處理日期</strong>（寫入輸出首／尾錄），
+          於主畫面可填<strong className="text-fg">處理日期</strong>（寫入輸出首／尾錄）與
+          <strong className="text-fg">代表行代號</strong>（輸出 R01 時寫入接收單位 RORG），
           選擇動作（
           <strong className="text-fg">篩選</strong>＝只留符合條件；
           <strong className="text-fg">排除</strong>＝去掉符合條件；
@@ -160,8 +161,10 @@ export function HelpPanel() {
           <strong className="text-fg">等於</strong>／
           <strong className="text-fg">包含</strong>）並輸入條件內容，
           按「輸出 P01」或「… R01」。
-          輸出檔<strong className="text-fg">控制首錄／尾錄以來源原檔為主</strong>
+          輸出 P01 時<strong className="text-fg">控制首錄／尾錄以來源原檔為主</strong>
           （<strong className="text-fg">SORG／RORG 固定為原檔值</strong>；尾錄總筆數／總金額依實際輸出明細重算；處理日期可覆寫）。
+          輸出 R01（ACHR01）時<strong className="text-fg">發送單位 SORG 固定 9990250</strong>，
+          <strong className="text-fg">接收單位 RORG＝代表行代號</strong>。
           P01 直接下載結果檔；R01 再開啟轉檔對話框填入退件理由後產生。
           「包含」只要欄位值含輸入字串即命中（類似{" "}
           <code className="font-mono text-xs">String.includes</code>
@@ -170,7 +173,7 @@ export function HelpPanel() {
           若正在<strong className="text-fg">分割工作區</strong>，條件輸出 P01 會合併
           <strong className="text-fg">全部分割包</strong>後再套用（非僅目前開啟的那一包）。
           條件關係可選全部符合（AND）或任一符合（OR）。
-          主畫面已隱藏控制首／尾錄編輯，僅於本區塊提供處理日期。
+          主畫面已隱藏控制首／尾錄編輯，僅於本區塊提供處理日期與代表行代號。
         </p>
         <pre className="mt-3 overflow-x-auto rounded-lg bg-header p-3 font-mono text-[11px] text-header-fg">
 {`{

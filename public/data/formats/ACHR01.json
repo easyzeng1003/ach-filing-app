@@ -53,6 +53,41 @@
         }
       },
       {
+        "key": "agentBank",
+        "label": "代表行代號",
+        "placeholder": "0040000",
+        "inputType": "text",
+        "length": 7,
+        "charset": "digit",
+        "required": true,
+        "pad": {
+          "side": "none"
+        },
+        "validation": {
+          "rules": [
+            {
+              "type": "required",
+              "message": "未輸入代表行代號"
+            },
+            {
+              "type": "exactLength",
+              "length": 7,
+              "message": "代表行代號須為七碼"
+            },
+            {
+              "type": "branchCode",
+              "message": "代表行代號錯誤"
+            }
+          ]
+        },
+        "picker": "branch",
+        "metaFrom": "branch",
+        "ui": {
+          "mono": true,
+          "colSpan": 1
+        }
+      },
+      {
         "key": "txid",
         "label": "交易代號（代收 SD／代付 SC）",
         "placeholder": "704",
@@ -80,7 +115,7 @@
       },
       {
         "key": "bankCode",
-        "label": "退件行銀行代號（發送單位）",
+        "label": "退件行銀行代號（參考）",
         "placeholder": "0040000",
         "inputType": "text",
         "length": 7,
@@ -726,18 +761,19 @@
         },
         {
           "id": "SORG",
-          "source": "derived",
-          "fn": "sorg",
+          "source": "literal",
+          "value": "9990250",
           "length": 7,
           "charset": "digit",
           "label": "發送單位代號"
         },
         {
           "id": "RORG",
-          "source": "literal",
-          "value": "9990250",
+          "source": "header",
+          "key": "agentBank",
           "length": 7,
-          "label": "接收單位代號"
+          "charset": "digit",
+          "label": "接收單位代號（代表行）"
         },
         {
           "id": "VERNO",
@@ -1020,18 +1056,19 @@
         },
         {
           "id": "SORG",
-          "source": "derived",
-          "fn": "sorg",
+          "source": "literal",
+          "value": "9990250",
           "length": 7,
           "charset": "digit",
           "label": "發送單位代號"
         },
         {
           "id": "RORG",
-          "source": "literal",
-          "value": "9990250",
+          "source": "header",
+          "key": "agentBank",
           "length": 7,
-          "label": "接收單位代號"
+          "charset": "digit",
+          "label": "接收單位代號（代表行）"
         },
         {
           "id": "TCOUNT",

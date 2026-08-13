@@ -8,7 +8,9 @@
  */
 
 import {
+  ACHR01_SORG,
   convertP01ToR01,
+  requireAgentBank,
   type ConvertP01ToR01Options,
   type ConvertedR01File,
 } from "./convertR01";
@@ -264,7 +266,8 @@ export function copyRecordFieldValues(
 /**
  * 組出輸出用控制首／尾錄：
  * - 首錄以來源 BOF 為底，可覆寫 TDATE（處理日期）
- * - SORG／RORG **只**從來源 BOF／EOF 位元組複製，绝不依明細／表單 bankCode 重算
+ * - ACHP01：SORG／RORG **只**從來源 BOF／EOF 位元組複製，绝不依明細／表單 bankCode 重算
+ * - ACHR01：SORG 固定 9990250；RORG＝代表行代號（agentBank）
  */
 export function buildExportControlLines(
   schema: FormatSchema,
@@ -273,6 +276,8 @@ export function buildExportControlLines(
     sourceTrailerLine?: string | null;
     header: HeaderValues;
     processDate?: string | null;
+    /** ACHR01 接收單位（代表行）；未傳則用 header.agentBank */
+    agentBank?: string | null;
     detailCount: number;
     totalAmount: number;
     txids: Txid[];
@@ -283,20 +288,28 @@ export function buildExportControlLines(
     0,
     8,
   );
+  const isR01 = schema.code === "ACHR01";
+  const agentBankRaw = opts.agentBank ?? opts.header.agentBank ?? "";
+  const agentBank = isR01
+    ? requireAgentBank(agentBankRaw, opts.branches)
+    : "";
   // 組尾錄合計時不要用可能被明細覆寫的 bankCode 去推 SORG；
-  // 實際 SORG／RORG 稍後一律從來源列貼上。
+  // ACHP01：實際 SORG／RORG 稍後從來源列貼上；ACHR01：用固定 SORG＋代表行。
   const headerValues: HeaderValues = {
     ...opts.header,
     ...(date.length === 8 ? { date } : {}),
+    ...(isR01 ? { agentBank } : {}),
   };
 
   const srcH =
+    !isR01 &&
     opts.sourceHeaderLine &&
     opts.sourceHeaderLine.startsWith("BOF") &&
     opts.sourceHeaderLine.length === schema.recordLength
       ? opts.sourceHeaderLine
       : null;
   const srcT =
+    !isR01 &&
     opts.sourceTrailerLine &&
     opts.sourceTrailerLine.startsWith("EOF") &&
     opts.sourceTrailerLine.length === schema.recordLength
@@ -321,8 +334,21 @@ export function buildExportControlLines(
       date.padStart(8, "0").slice(-8),
     );
   }
-  // 發送／接收單位代號：優先來源 BOF，其次來源 EOF
-  if (srcH) {
+  if (isR01) {
+    headerLine = patchRecordFieldById(
+      headerLine,
+      schema.records.header.fields,
+      "SORG",
+      ACHR01_SORG,
+    );
+    headerLine = patchRecordFieldById(
+      headerLine,
+      schema.records.header.fields,
+      "RORG",
+      agentBank,
+    );
+  } else if (srcH) {
+    // ACHP01：發送／接收單位代號優先來源 BOF，其次來源 EOF
     headerLine = copyRecordFieldValues(
       headerLine,
       schema.records.header.fields,
@@ -348,8 +374,21 @@ export function buildExportControlLines(
     opts.txids,
     opts.branches,
   );
-  // 尾錄 SORG／RORG：優先來源 EOF，否則來源 BOF
-  if (srcT) {
+  if (isR01) {
+    trailerLine = patchRecordFieldById(
+      trailerLine,
+      schema.records.trailer.fields,
+      "SORG",
+      ACHR01_SORG,
+    );
+    trailerLine = patchRecordFieldById(
+      trailerLine,
+      schema.records.trailer.fields,
+      "RORG",
+      agentBank,
+    );
+  } else if (srcT) {
+    // 尾錄 SORG／RORG：優先來源 EOF，否則來源 BOF
     trailerLine = copyRecordFieldValues(
       trailerLine,
       schema.records.trailer.fields,
@@ -399,10 +438,13 @@ export function headerFromLine(line: string, schema: FormatSchema): HeaderValues
   for (const k of Object.keys(header)) {
     if (!headerKeys.has(k)) delete header[k];
   }
-  // SORG 對應 bankCode：若 header 無 bankCode，嘗試從 SORG 欄
+  // SORG 對應 bankCode：若 header 無 bankCode，嘗試從 SORG 欄（略過財金 9990250）
   if (!header.bankCode) {
     const sorg = fields.find((f) => f.id === "SORG");
-    if (sorg?.value) header.bankCode = safeDigits(sorg.value);
+    const sorgDigits = safeDigits(sorg?.value ?? "");
+    if (sorgDigits.length === 7 && sorgDigits !== ACHR01_SORG) {
+      header.bankCode = sorgDigits;
+    }
   }
   if (!header.date) {
     const tdate = fields.find((f) => f.id === "TDATE");
@@ -1042,6 +1084,8 @@ export function mergeAchPartitions(
     exclude?: ExcludeRulesDoc | null;
     /** 輸出處理日期（覆寫首／尾錄 TDATE） */
     processDate?: string | null;
+    /** ACHR01 代表行代號（RORG） */
+    agentBank?: string | null;
   },
 ): {
   content: string;
@@ -1117,11 +1161,14 @@ export function mergeAchPartitions(
   const headerFromSource = sourceHeaderLine
     ? headerFromLine(sourceHeaderLine, schema)
     : { ...input.index.header };
-  // 合計／日期用；SORG／RORG 仍由 buildExportControlLines 從來源列貼上
+  // 合計／日期用；ACHP01 SORG／RORG 由 buildExportControlLines 從來源列貼上
   const header: HeaderValues = {
     ...headerFromSource,
     ...(options?.processDate
       ? { date: safeDigits(options.processDate).slice(0, 8) }
+      : {}),
+    ...(options?.agentBank
+      ? { agentBank: safeDigits(options.agentBank).slice(0, 7) }
       : {}),
   };
 
@@ -1130,6 +1177,7 @@ export function mergeAchPartitions(
     sourceTrailerLine,
     header,
     processDate: options?.processDate,
+    agentBank: options?.agentBank,
     detailCount: kept.length,
     totalAmount: keptAmount,
     txids,
@@ -1205,6 +1253,7 @@ export async function convertLargeP01FileToR01(
         rcode: options.rcode,
         ydate: options.ydate,
         pdate: options.pdate,
+        agentBank: options.agentBank,
         seqOffset: chunkStartSeq - 1,
       },
     );
@@ -1222,6 +1271,7 @@ export async function convertLargeP01FileToR01(
         date: header.date ?? "",
         txid: header.txid ?? "",
         bankCode: f.returnBank,
+        agentBank: requireAgentBank(options.agentBank, branches),
         account: "",
         taxId: header.taxId ?? "",
         ydate: converted.ydate,

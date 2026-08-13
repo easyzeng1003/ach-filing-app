@@ -25,12 +25,15 @@ type Props = {
   detailCount: number;
   /** 提出檔處理日期（8 碼民國） */
   tdate: string;
+  /** 收受行代表行代號（預填自主畫面） */
+  agentBank?: string;
   busy?: boolean;
   onClose: () => void;
   onConfirm: (opts: {
     rcode: string;
     ydate: string;
     pdate: string;
+    agentBank: string;
   }) => void | Promise<void>;
 };
 
@@ -38,6 +41,7 @@ export function ConvertR01Dialog({
   open,
   detailCount,
   tdate,
+  agentBank: agentBankProp = "",
   busy = false,
   onClose,
   onConfirm,
@@ -49,23 +53,29 @@ export function ConvertR01Dialog({
   const [rcode, setRcode] = useState("04");
   const [ydate, setYdate] = useState(defaultYdate);
   const [pdate, setPdate] = useState(safeDigits(tdate));
+  const [agentBank, setAgentBank] = useState(
+    safeDigits(agentBankProp).slice(0, 7),
+  );
 
   useEffect(() => {
     if (!open) return;
     setRcode("04");
     setYdate(prevRocDate(safeDigits(tdate)) ?? "");
     setPdate(safeDigits(tdate));
-  }, [open, tdate]);
+    setAgentBank(safeDigits(agentBankProp).slice(0, 7));
+  }, [open, tdate, agentBankProp]);
 
   const yDigits = safeDigits(ydate);
   const pDigits = safeDigits(pdate);
   const rDigits = safeDigits(rcode).padStart(2, "0").slice(-2);
+  const agentDigits = safeDigits(agentBank).slice(0, 7);
   const canSubmit =
     !busy &&
     detailCount > 0 &&
     rDigits.length === 2 &&
     yDigits.length === 8 &&
-    pDigits.length === 8;
+    pDigits.length === 8 &&
+    agentDigits.length === 7;
 
   return (
     <Dialog
@@ -85,6 +95,7 @@ export function ConvertR01Dialog({
             <Typography variant="body2" color="text.secondary">
               依財金 ACHP01/ACHR01 規格：TYPE=R、對調提出／提回行與帳號，並填入退件欄位。
               輸出為整檔（分割時含全部包，非僅目前開啟的那一批），不依收受行分檔。
+              BOF／EOF：發送單位固定 9990250；接收單位＝代表行代號。
               若已設定篩選／排除條件，會先套用後再轉檔（筆數如下）。
             </Typography>
           </Stack>
@@ -106,6 +117,33 @@ export function ConvertR01Dialog({
             <strong>{detailCount.toLocaleString("zh-TW")}</strong>{" "}
             筆有效明細為單一 ACHR01 檔（不依收受行分檔）。
           </Alert>
+
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+            <TextField
+              label="處理日期（TDATE）"
+              fullWidth
+              size="small"
+              value={safeDigits(tdate).slice(0, 8)}
+              disabled
+              helperText="取自表單處理日期"
+              sx={{ "& input": { fontFamily: "monospace" } }}
+            />
+            <TextField
+              label="代表行代號"
+              fullWidth
+              size="small"
+              slotProps={{ htmlInput: { maxLength: 7, inputMode: "numeric" } }}
+              value={agentBank}
+              onChange={(e) =>
+                setAgentBank(safeDigits(e.target.value).slice(0, 7))
+              }
+              disabled={busy}
+              placeholder="0040000"
+              error={agentDigits.length > 0 && agentDigits.length !== 7}
+              helperText="七碼；寫入 BOF／EOF 接收單位（RORG）"
+              sx={{ "& input": { fontFamily: "monospace" } }}
+            />
+          </Stack>
 
           <TextField
             select
@@ -166,7 +204,12 @@ export function ConvertR01Dialog({
             )
           }
           onClick={() =>
-            void onConfirm({ rcode: rDigits, ydate: yDigits, pdate: pDigits })
+            void onConfirm({
+              rcode: rDigits,
+              ydate: yDigits,
+              pdate: pDigits,
+              agentBank: agentDigits,
+            })
           }
         >
           {busy ? "轉檔中…" : "產生 ACHR01"}

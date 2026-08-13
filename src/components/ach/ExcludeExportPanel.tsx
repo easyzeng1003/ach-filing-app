@@ -46,6 +46,12 @@ type Props = {
   processDate: string;
   onProcessDateChange: (value: string) => void;
   onProcessDateBlur?: () => void;
+  /**
+   * 代表行代號（ACHR01 RORG）。
+   * 提供時顯示於處理日期旁；輸出 R01 必填。
+   */
+  agentBank?: string;
+  onAgentBankChange?: (value: string) => void;
   /** 執行篩選／排除（條件可為 null＝整檔輸出） */
   onProcess: (doc: ExcludeRulesDoc | null) => Promise<ExcludeExportResult>;
   /**
@@ -62,6 +68,8 @@ export function ExcludeExportPanel({
   processDate,
   onProcessDateChange,
   onProcessDateBlur,
+  agentBank = "",
+  onAgentBankChange,
   onProcess,
   onExportR01,
 }: Props) {
@@ -80,6 +88,10 @@ export function ExcludeExportPanel({
 
   const fields = schema.form.detail;
   const dateField = schema.form.header.find((f) => f.key === "date");
+  const showAgentBank =
+    Boolean(onAgentBankChange) ||
+    schema.code === "ACHR01" ||
+    Boolean(onExportR01);
   const processDateError = dateField
     ? validateField(dateField, safeDigits(processDate).slice(0, 8), {
         schema,
@@ -92,6 +104,15 @@ export function ExcludeExportPanel({
       ? "未輸入"
       : safeDigits(processDate).length !== 8
         ? "日期長度請輸入八碼"
+        : null;
+  const agentBankDigits = safeDigits(agentBank).slice(0, 7);
+  // P01 面板無 agentBank schema 欄；僅檢核七碼。完整分行檢核於轉檔時執行。
+  const agentBankError = !showAgentBank
+    ? null
+    : !agentBankDigits
+      ? "未輸入代表行代號"
+      : agentBankDigits.length !== 7
+        ? "代表行代號須為七碼"
         : null;
   const isFilter = actionMode === "filter";
   const actionVerb = isFilter ? "篩選" : "排除";
@@ -207,30 +228,56 @@ export function ExcludeExportPanel({
 
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
         可不填條件直接輸出。選「篩選」只留符合、「排除」去掉符合。
-        首尾錄以來源原檔為主（SORG／RORG 固定原檔；處理日期可於此覆寫）。
+        {schema.code === "ACHR01"
+          ? " ACHR01：發送單位（SORG）固定 9990250；接收單位（RORG）＝代表行代號；處理日期可覆寫。"
+          : " 首尾錄以來源原檔為主（SORG／RORG 固定原檔；處理日期可於此覆寫）。輸出 R01 時請填代表行代號。"}
       </Typography>
 
       <Stack spacing={1.5}>
-        <TextField
-          size="small"
-          label="處理日期"
-          placeholder="01151231"
-          value={processDate}
-          onChange={(e) => onProcessDateChange(e.target.value)}
-          onBlur={() => {
-            const { value, convertedFromAd } = normalizeSubmitDate(processDate);
-            if (value !== processDate) onProcessDateChange(value);
-            if (convertedFromAd) toast.message("已將日期西元年轉換為民國年");
-            onProcessDateBlur?.();
-          }}
-          error={Boolean(processDateError)}
-          sx={{ maxWidth: 280 }}
-          slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 8 } }}
-          helperText={
-            processDateError ?? "八碼民國年，不可為過去日期；寫入輸出檔 TDATE"
-          }
-        />
-
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1.5}
+          useFlexGap
+          sx={{ flexWrap: "wrap", alignItems: "flex-start" }}
+        >
+          <TextField
+            size="small"
+            label="處理日期"
+            placeholder="01151231"
+            value={processDate}
+            onChange={(e) => onProcessDateChange(e.target.value)}
+            onBlur={() => {
+              const { value, convertedFromAd } = normalizeSubmitDate(processDate);
+              if (value !== processDate) onProcessDateChange(value);
+              if (convertedFromAd) toast.message("已將日期西元年轉換為民國年");
+              onProcessDateBlur?.();
+            }}
+            error={Boolean(processDateError)}
+            sx={{ maxWidth: 280, flex: "1 1 200px" }}
+            slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 8 } }}
+            helperText={
+              processDateError ?? "八碼民國年，不可為過去日期；寫入輸出檔 TDATE"
+            }
+          />
+          {showAgentBank ? (
+            <TextField
+              size="small"
+              label="代表行代號"
+              placeholder="0040000"
+              value={agentBank}
+              onChange={(e) =>
+                onAgentBankChange?.(safeDigits(e.target.value).slice(0, 7))
+              }
+              error={Boolean(agentBankError)}
+              sx={{ maxWidth: 280, flex: "1 1 200px" }}
+              slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 7 } }}
+              helperText={
+                agentBankError ??
+                "七碼；輸出 R01 寫入 BOF／EOF 接收單位（RORG）；發送單位固定 9990250"
+              }
+            />
+          ) : null}
+        </Stack>
         <Stack
           direction={{ xs: "column", sm: "row" }}
           spacing={1}
@@ -392,7 +439,17 @@ export function ExcludeExportPanel({
               color="primary"
               disabled={busy}
               startIcon={<SwapHorizIcon />}
-              onClick={onExportR01}
+              onClick={() => {
+                if (processDateError) {
+                  toast.error(processDateError);
+                  return;
+                }
+                if (agentBankError) {
+                  toast.error(agentBankError);
+                  return;
+                }
+                onExportR01();
+              }}
               title={r01Label}
             >
               {r01Label}

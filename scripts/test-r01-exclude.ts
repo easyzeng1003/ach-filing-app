@@ -73,9 +73,11 @@ const converted = convertP01ToR01(
   filtered.kept,
   EMBEDDED_TXIDS,
   EMBEDDED_BRANCHES,
-  { rcode: "04" },
+  { rcode: "04", agentBank: "0040000" },
 );
 assert.equal(converted.detailCount, 2);
+assert.equal(converted.files[0]!.lines[0]!.slice(23, 30), "9990250");
+assert.equal(converted.files[0]!.lines[0]!.slice(30, 37), "0040000");
 
 console.log(
   "OK r01-exclude: before=",
