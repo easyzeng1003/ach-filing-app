@@ -129,4 +129,40 @@ const multiTrl = multi.files[0]!.lines[multi.files[0]!.lines.length - 1]!;
 assert.equal(multiTrl.slice(17, 24), "9990250", "EOF SORG");
 assert.equal(multiTrl.slice(24, 31), "8220901", "EOF RORG");
 
+// 空 YDATE 時尾錄仍須固定 250（pad 空白，不可因 pad:none 變 242）
+{
+  const emptyY = generateFromSchema(
+    r01,
+    {
+      date: "01150804",
+      txid: "704",
+      bankCode: "8120053",
+      agentBank: "0040000",
+      account: "0000000987654321",
+      taxId: "12345678",
+      ydate: "",
+    },
+    [
+      {
+        id: "r1",
+        bankCode: "8120053",
+        account: "0000000987654321",
+        taxId: "A123456789",
+        userNo: "U1",
+        amount: "100",
+        origBankCode: "0040000",
+        origAccount: "0000001234567890",
+        rcode: "04",
+        pdate: "01150804",
+        pseq: "00000001",
+        pschd: "B",
+      },
+    ],
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  assert.ok(emptyY.lines.every((l) => l.length === 250), "empty YDATE trailer/header length");
+  assert.equal(emptyY.lines.at(-1)!.slice(55, 63), "        ", "empty YDATE → 8 spaces");
+}
+
 console.log("OK convert P01→R01: lengths, TYPE/CDATA, bank swap, RCODE/PDATE/PSEQ/YDATE, SORG/RORG");

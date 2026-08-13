@@ -1102,7 +1102,8 @@
           "key": "ydate",
           "charset": "digit",
           "pad": {
-            "side": "none"
+            "side": "right",
+            "char": " "
           }
         },
         {
