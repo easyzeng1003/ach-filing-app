@@ -1,5 +1,5 @@
 /**
- * 表單寫入 localStorage（zustand persist）：小檔可還原；超過上限只留表頭＋緩衝列。
+ * 表單寫入 localStorage（zustand persist）：小檔可還原；超過上限關閉工作區。
  */
 import assert from "node:assert/strict";
 
@@ -84,7 +84,7 @@ assert.ok(
   "persist 應含匯入明細",
 );
 
-// 超過 200 列時 partialize 只留 15 列緩衝，避免 localStorage 卡住
+// 超過 200 列時不殘留假 15 列編輯畫面：明細清空並關閉工作區，請重新上傳
 const many = Array.from({ length: 250 }, (_, i) => ({
   id: String(i),
   bankCode: "0040000",
@@ -112,12 +112,20 @@ flushFormPersist();
 const rawBig = localStorage.getItem(STORAGE_KEY);
 assert.ok(rawBig);
 const parsedBig = JSON.parse(rawBig!) as {
-  state?: { forms?: Record<string, { rows: unknown[] }> };
+  state?: {
+    forms?: Record<string, { rows: unknown[] }>;
+    workspaces?: Record<string, { open?: boolean }>;
+  };
 };
 assert.equal(
   parsedBig.state?.forms?.ACHP01?.rows.length,
-  15,
-  "超過上限時 persist 只留 15 列",
+  0,
+  "超過上限時 persist 不留明細列",
+);
+assert.equal(
+  parsedBig.state?.workspaces?.ACHP01?.open,
+  false,
+  "超過上限時工作區應關閉，避免殘留假編輯畫面",
 );
 
 useFormStore.getState().closeWorkspace(p01);
@@ -130,4 +138,4 @@ const parsedClosed = JSON.parse(rawClosed!) as {
 };
 assert.equal(parsedClosed.state?.workspaces?.ACHP01?.open, false);
 
-console.log("OK form-persist: write-back + row cap");
+console.log("OK form-persist: write-back + large-file closes workspace");
