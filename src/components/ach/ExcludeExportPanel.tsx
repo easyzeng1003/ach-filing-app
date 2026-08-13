@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import {
   assertExcludeFormat,
   parseExcludeRules,
+  type ExcludeActionMode,
   type ExcludeCompareOp,
   type ExcludeMatchMode,
 } from "@/lib/ach/exclude";
@@ -42,16 +43,16 @@ type Props = {
   schema: FormatSchema;
   /** 分割工作區範圍提示（全包數／總筆數）；無分割時省略 */
   partitionScope?: { partCount: number; detailCount: number } | null;
-  /** 執行排除並輸出 P01 檔內容 */
+  /** 執行篩選／排除並輸出 P01 檔內容 */
   onProcess: (doc: NonNullable<ReturnType<typeof resolveExcludeDoc>>) => Promise<ExcludeExportResult>;
   /**
-   * 排除後輸出 R01：開啟 P01→R01 轉檔對話框並套用目前排除條件。
+   * 篩選／排除後輸出 R01：開啟 P01→R01 轉檔對話框並套用目前條件。
    * 不提供時隱藏 R01 按鈕。
    */
   onExportR01?: () => void;
 };
 
-/** 前端排除：下拉選欄位＋輸入值；P01／R01 皆可排除後輸出 */
+/** 前端條件：篩選（僅保留符合）／排除（剔除符合）；可輸出 P01 或轉 R01 */
 export function ExcludeExportPanel({
   schema,
   partitionScope = null,
@@ -62,9 +63,11 @@ export function ExcludeExportPanel({
   const [busy, setBusy] = useState(false);
   const conditions = useExcludeStore((s) => s.conditions);
   const matchMode = useExcludeStore((s) => s.matchMode);
+  const actionMode = useExcludeStore((s) => s.actionMode);
   const sourceName = useExcludeStore((s) => s.sourceName);
   const lastResult = useExcludeStore((s) => s.lastResult);
   const setMatchMode = useExcludeStore((s) => s.setMatchMode);
+  const setActionMode = useExcludeStore((s) => s.setActionMode);
   const addCondition = useExcludeStore((s) => s.addCondition);
   const updateCondition = useExcludeStore((s) => s.updateCondition);
   const removeCondition = useExcludeStore((s) => s.removeCondition);
@@ -73,6 +76,9 @@ export function ExcludeExportPanel({
   const clear = useExcludeStore((s) => s.clear);
 
   const fields = schema.form.detail;
+  const isFilter = actionMode === "filter";
+  const actionVerb = isFilter ? "篩選" : "排除";
+  const actionKeepLabel = isFilter ? "保留符合" : "剔除符合";
 
   async function onPickJson(file: File | undefined) {
     if (!file) return;
@@ -80,9 +86,9 @@ export function ExcludeExportPanel({
       const parsed = parseExcludeRules(await file.text());
       assertExcludeFormat(parsed, schema.code);
       setDoc(parsed, file.name);
-      toast.success(`已載入排除規則（${parsed.rules.length} 條）`);
+      toast.success(`已載入規則（${parsed.rules.length} 條）`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "排除規則載入失敗");
+      toast.error(e instanceof Error ? e.message : "規則載入失敗");
     }
   }
 
@@ -103,15 +109,15 @@ export function ExcludeExportPanel({
       ]);
       if (saved.method === "canceled") {
         toast.message(
-          `已完成排除（輸出 ${result.detailCount.toLocaleString("zh-TW")} 筆），但取消下載`,
+          `已完成${actionVerb}（輸出 ${result.detailCount.toLocaleString("zh-TW")} 筆），但取消下載`,
         );
         return;
       }
       toast.success(
-        `排除 ${result.excludedCount.toLocaleString("zh-TW")} 筆，輸出 ${result.detailCount.toLocaleString("zh-TW")} 筆 · ${describeSaveResult(saved)}`,
+        `${actionVerb}後輸出 ${result.detailCount.toLocaleString("zh-TW")} 筆（未輸出 ${result.excludedCount.toLocaleString("zh-TW")} 筆）· ${describeSaveResult(saved)}`,
       );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "排除輸出失敗");
+      toast.error(e instanceof Error ? e.message : `${actionVerb}輸出失敗`);
     } finally {
       setBusy(false);
     }
@@ -153,7 +159,7 @@ export function ExcludeExportPanel({
       >
         <FilterIcon color="primary" fontSize="small" />
         <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-          排除後輸出
+          篩選／排除後輸出
         </Typography>
         {partitionScope ? (
           <Chip
@@ -173,29 +179,66 @@ export function ExcludeExportPanel({
         <Alert severity="info" sx={{ mb: 1.5 }}>
           將先合併<strong>全部分割工作區</strong>（{partitionScope.partCount}{" "}
           包、共 {partitionScope.detailCount.toLocaleString("zh-TW")}{" "}
-          筆），再依條件排除並輸出單一檔，不會只處理目前開啟的那一包。
+          筆），再依條件{actionVerb}並輸出單一檔，不會只處理目前開啟的那一包。
         </Alert>
       ) : null}
 
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
-        「排除後輸出 P01」與「排除後輸出 R01」皆套用下方條件；R01 會再開啟轉檔對話框填入退件欄位。
+        可選「篩選」（只留符合）或「排除」（去掉符合）；P01／R01 皆套用相同條件，R01
+        會再開啟轉檔對話框。
       </Typography>
 
       <Stack spacing={1.5}>
-        <FormControl size="small" sx={{ maxWidth: 280 }}>
-          <InputLabel id="exclude-match-mode">條件關係</InputLabel>
-          <Select
-            labelId="exclude-match-mode"
-            label="條件關係"
-            value={matchMode}
-            onChange={(e: SelectChangeEvent<ExcludeMatchMode>) =>
-              setMatchMode(e.target.value as ExcludeMatchMode)
-            }
-          >
-            <MenuItem value="and">全部符合才排除（AND）</MenuItem>
-            <MenuItem value="or">符合任一即排除（OR）</MenuItem>
-          </Select>
-        </FormControl>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1}
+          useFlexGap
+          sx={{ flexWrap: "wrap" }}
+        >
+          <FormControl size="small" sx={{ minWidth: 160, maxWidth: 220 }}>
+            <InputLabel id="exclude-action-mode">動作</InputLabel>
+            <Select
+              labelId="exclude-action-mode"
+              label="動作"
+              value={actionMode}
+              onChange={(e: SelectChangeEvent<ExcludeActionMode>) =>
+                setActionMode(e.target.value as ExcludeActionMode)
+              }
+            >
+              <MenuItem value="filter">篩選（僅保留符合）</MenuItem>
+              <MenuItem value="exclude">排除（剔除符合）</MenuItem>
+            </Select>
+          </FormControl>
+          <FormControl size="small" sx={{ minWidth: 220, maxWidth: 320 }}>
+            <InputLabel id="exclude-match-mode">條件關係</InputLabel>
+            <Select
+              labelId="exclude-match-mode"
+              label="條件關係"
+              value={matchMode}
+              onChange={(e: SelectChangeEvent<ExcludeMatchMode>) =>
+                setMatchMode(e.target.value as ExcludeMatchMode)
+              }
+            >
+              <MenuItem value="and">
+                {isFilter
+                  ? "全部符合才保留（AND）"
+                  : "全部符合才排除（AND）"}
+              </MenuItem>
+              <MenuItem value="or">
+                {isFilter
+                  ? "符合任一即保留（OR）"
+                  : "符合任一即排除（OR）"}
+              </MenuItem>
+            </Select>
+          </FormControl>
+          <Chip
+            size="small"
+            color={isFilter ? "info" : "warning"}
+            variant="outlined"
+            label={actionKeepLabel}
+            sx={{ alignSelf: "center" }}
+          />
+        </Stack>
 
         {conditions.map((c, idx) => (
           <Stack
@@ -243,9 +286,11 @@ export function ExcludeExportPanel({
             </FormControl>
             <TextField
               size="small"
-              label={c.op === "like" ? "包含內容" : "排除內容"}
+              label={c.op === "like" ? "包含內容" : "條件內容"}
               placeholder={
-                c.op === "like" ? "例：1234（欄位含此字串即排除）" : "完全相符的值"
+                c.op === "like"
+                  ? `例：1234（欄位含此字串即${isFilter ? "保留" : "排除"}）`
+                  : "完全相符的值"
               }
               value={c.value}
               onChange={(e) =>
@@ -274,8 +319,8 @@ export function ExcludeExportPanel({
         ))}
 
         <Typography variant="caption" color="text.secondary">
-          「等於」完全相符；「包含」只要欄位值含輸入字串即排除（類似
-          includes，不區分大小寫）。
+          「等於」完全相符；「包含」只要欄位值含輸入字串即命中（類似
+          includes，不區分大小寫）。命中後依上方動作決定保留或剔除。
         </Typography>
 
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
@@ -313,7 +358,7 @@ export function ExcludeExportPanel({
             startIcon={<ClearIcon />}
             onClick={() => {
               clear();
-              toast.message("已清除排除條件");
+              toast.message("已清除條件");
             }}
           >
             清除
@@ -326,9 +371,9 @@ export function ExcludeExportPanel({
               disabled={busy}
               startIcon={<SwapHorizIcon />}
               onClick={onExportR01}
-              title="套用目前排除條件後轉檔輸出 R01"
+              title={`${actionVerb}後轉檔輸出 R01（整檔）`}
             >
-              排除後輸出 R01
+              {actionVerb}後輸出 R01
             </Button>
           ) : null}
           <Button
@@ -338,7 +383,7 @@ export function ExcludeExportPanel({
             startIcon={<FilterIcon />}
             onClick={() => void handleProcess()}
           >
-            {busy ? "處理中…" : "排除後輸出 P01"}
+            {busy ? "處理中…" : `${actionVerb}後輸出 P01`}
           </Button>
         </Stack>
 
@@ -363,7 +408,8 @@ export function ExcludeExportPanel({
               : ""}
             ：原{" "}
             <strong>{lastResult.totalBefore.toLocaleString("zh-TW")}</strong>{" "}
-            筆 → 排除{" "}
+            筆 →{" "}
+            {lastResult.action === "filter" ? "未符合" : "排除"}{" "}
             <strong>{lastResult.excludedCount.toLocaleString("zh-TW")}</strong>{" "}
             筆 → 輸出{" "}
             <strong>{lastResult.detailCount.toLocaleString("zh-TW")}</strong>{" "}

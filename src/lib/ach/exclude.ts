@@ -1,9 +1,11 @@
 /**
- * 排除規則（JSON）：符合條件的明細於「輸出」時剔除
+ * 條件輸出規則（JSON）：符合條件的明細可「排除」或「篩選（僅保留）」後再輸出
  *
  * 語意：
+ * - action＝exclude（預設）：符合規則的列剔除
+ * - action＝filter：僅保留符合規則的列
  * - 單一 rule 內多欄位 = AND（欄位 A 符合且 欄位 C 符合）
- * - rules 陣列 = OR（符合任一規則即排除）
+ * - rules 陣列 = OR（符合任一規則即命中）
  * - 比對：eq＝精確相等；like＝包含（類似 String.includes，不分大小寫）
  * - 金額／數字欄另去千分位後再比
  */
@@ -13,6 +15,9 @@ import type { DetailRow, FormatSchema, FormFieldDef } from "./schema";
 export const EXCLUDE_RULES_KIND = "ach-exclude-rules";
 
 export type ExcludeCompareOp = "eq" | "like";
+
+/** 排除＝剔除符合列；篩選＝僅保留符合列 */
+export type ExcludeActionMode = "exclude" | "filter";
 
 export type ExcludeFieldMatch = {
   op: ExcludeCompareOp;
@@ -27,14 +32,23 @@ export type ExcludeRulesDoc = {
   kind: typeof EXCLUDE_RULES_KIND;
   formatCode?: string;
   description?: string;
+  /** exclude（預設）／filter；舊 JSON 無此欄視為 exclude */
+  action?: ExcludeActionMode;
   rules: ExcludeRule[];
 };
 
 export type ExcludeFilterResult<T> = {
   kept: T[];
+  /** 未輸出筆數（排除模式下為被剔除；篩選模式下為未符合） */
   excludedCount: number;
   totalBefore: number;
 };
+
+export function resolveExcludeAction(
+  doc: ExcludeRulesDoc | null | undefined,
+): ExcludeActionMode {
+  return doc?.action === "filter" ? "filter" : "exclude";
+}
 
 function formFieldByKey(
   schema: FormatSchema,
@@ -179,6 +193,7 @@ export function parseExcludeRules(text: string): ExcludeRulesDoc {
       typeof doc.formatCode === "string" ? doc.formatCode : undefined,
     description:
       typeof doc.description === "string" ? doc.description : undefined,
+    action: doc.action === "filter" ? "filter" : "exclude",
     rules,
   };
 }
@@ -222,14 +237,16 @@ export function newExcludeCondition(
 }
 
 /**
- * 由前端條件列組出排除規則文件。
- * - and：全部條件組成單一 rule（多欄位同時符合才排除）
- * - or：每一條件各自一條 rule（符合任一即排除）
+ * 由前端條件列組出規則文件。
+ * - and：全部條件組成單一 rule（多欄位同時符合才命中）
+ * - or：每一條件各自一條 rule（符合任一即命中）
+ * - action：exclude＝剔除命中列；filter＝僅保留命中列
  */
 export function buildExcludeDocFromConditions(
   formatCode: string,
   conditions: ExcludeUiCondition[],
   mode: ExcludeMatchMode = "and",
+  action: ExcludeActionMode = "exclude",
 ): ExcludeRulesDoc {
   const cleaned = conditions
     .map((c) => ({
@@ -239,13 +256,16 @@ export function buildExcludeDocFromConditions(
     }))
     .filter((c) => c.key && c.value);
   if (!cleaned.length) {
-    throw new Error("請至少選擇欄位並輸入排除內容");
+    throw new Error("請至少選擇欄位並輸入條件內容");
   }
   const toMatch = (c: {
     op: ExcludeCompareOp;
     value: string;
   }): string | ExcludeFieldMatch =>
     c.op === "eq" ? c.value : { op: c.op, value: c.value };
+
+  const actionMode: ExcludeActionMode =
+    action === "filter" ? "filter" : "exclude";
 
   if (mode === "and") {
     const rule: ExcludeRule = {};
@@ -254,6 +274,7 @@ export function buildExcludeDocFromConditions(
       version: 1,
       kind: EXCLUDE_RULES_KIND,
       formatCode,
+      action: actionMode,
       rules: [rule],
     };
   }
@@ -261,6 +282,7 @@ export function buildExcludeDocFromConditions(
     version: 1,
     kind: EXCLUDE_RULES_KIND,
     formatCode,
+    action: actionMode,
     rules: cleaned.map((c) => ({ [c.key]: toMatch(c) })),
   };
 }
@@ -321,14 +343,18 @@ export function filterExcludedRows(
   if (!doc?.rules.length) {
     return { kept: rows, excludedCount: 0, totalBefore: rows.length };
   }
+  const keepMatches = resolveExcludeAction(doc) === "filter";
   const kept: DetailRow[] = [];
   let excludedCount = 0;
   for (const row of rows) {
-    if (rowMatchesAnyExcludeRule(detailValuesFromRow(row), doc, schema)) {
-      excludedCount += 1;
-    } else {
-      kept.push(row);
-    }
+    const matched = rowMatchesAnyExcludeRule(
+      detailValuesFromRow(row),
+      doc,
+      schema,
+    );
+    const keep = keepMatches ? matched : !matched;
+    if (keep) kept.push(row);
+    else excludedCount += 1;
   }
   return { kept, excludedCount, totalBefore: rows.length };
 }
@@ -341,16 +367,18 @@ export function filterExcludedDetailLines(
   if (!doc?.rules.length) {
     return { kept: lines, excludedCount: 0, totalBefore: lines.length };
   }
+  const keepMatches = resolveExcludeAction(doc) === "filter";
   const kept: string[] = [];
   let excludedCount = 0;
   for (const line of lines) {
-    if (
-      rowMatchesAnyExcludeRule(detailValuesFromLine(schema, line), doc, schema)
-    ) {
-      excludedCount += 1;
-    } else {
-      kept.push(line);
-    }
+    const matched = rowMatchesAnyExcludeRule(
+      detailValuesFromLine(schema, line),
+      doc,
+      schema,
+    );
+    const keep = keepMatches ? matched : !matched;
+    if (keep) kept.push(line);
+    else excludedCount += 1;
   }
   return { kept, excludedCount, totalBefore: lines.length };
 }

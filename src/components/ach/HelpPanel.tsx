@@ -149,27 +149,33 @@ export function HelpPanel() {
       <div className="card p-5">
         <div className="mb-2 flex items-center gap-2">
           <MonitorSmartphone className="size-5 text-primary" />
-          <h3 className="font-bold">排除後輸出</h3>
+          <h3 className="font-bold">篩選／排除後輸出</h3>
         </div>
         <p className="mb-2 text-sm text-muted">
-          於主畫面以<strong className="text-fg">下拉選欄位</strong>、比對方式（
+          於主畫面選擇動作（
+          <strong className="text-fg">篩選</strong>＝只留符合條件；
+          <strong className="text-fg">排除</strong>＝去掉符合條件）、比對方式（
           <strong className="text-fg">等於</strong>／
-          <strong className="text-fg">包含</strong>）並輸入排除內容，
-          按「排除後輸出 P01」或「排除後輸出 R01」後會先套用相同排除條件。
-          P01 直接下載結果檔並顯示原筆數／排除筆數／輸出筆數；R01 再開啟轉檔對話框填入退件理由後產生。
-          「包含」只要欄位值含輸入字串即排除（類似{" "}
+          <strong className="text-fg">包含</strong>）並輸入條件內容，
+          按「篩選／排除後輸出 P01」或「… R01」後會先套用相同條件。
+          P01 直接下載結果檔並顯示原筆數／未輸出筆數／輸出筆數；R01 再開啟轉檔對話框填入退件理由後產生。
+          「包含」只要欄位值含輸入字串即命中（類似{" "}
           <code className="font-mono text-xs">String.includes</code>
           ，不區分大小寫；JSON 運算子仍為{" "}
           <code className="font-mono text-xs">like</code>）。
-          若正在<strong className="text-fg">分割工作區</strong>，排除後輸出 P01 會合併
-          <strong className="text-fg">全部分割包</strong>後再排除（非僅目前開啟的那一包）。
-          條件關係可選全部符合（AND）或任一符合（OR）；亦可載入 JSON 規則。
+          若正在<strong className="text-fg">分割工作區</strong>，條件輸出 P01 會合併
+          <strong className="text-fg">全部分割包</strong>後再套用（非僅目前開啟的那一包）。
+          條件關係可選全部符合（AND）或任一符合（OR）；亦可載入 JSON 規則（
+          <code className="font-mono text-xs">action</code> 可為{" "}
+          <code className="font-mono text-xs">filter</code>／
+          <code className="font-mono text-xs">exclude</code>）。
         </p>
         <pre className="mt-3 overflow-x-auto rounded-lg bg-header p-3 font-mono text-[11px] text-header-fg">
 {`{
   "version": 1,
   "kind": "ach-exclude-rules",
   "formatCode": "ACHP01",
+  "action": "filter",
   "rules": [
     { "bankCode": "0040000", "amount": "1000" },
     { "account": { "op": "like", "value": "1234567890" } },

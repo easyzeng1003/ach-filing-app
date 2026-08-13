@@ -1,5 +1,5 @@
 /**
- * 排除規則 JSON 煙霧測試
+ * 篩選／排除規則 JSON 煙霧測試
  */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -12,6 +12,7 @@ import {
   matchLikeIncludes,
   newExcludeCondition,
   parseExcludeRules,
+  resolveExcludeAction,
   rowMatchesExcludeRule,
 } from "../src/lib/ach/exclude";
 import {
@@ -116,11 +117,24 @@ const rows: DetailRow[] = [
   },
 ];
 
+assert.equal(resolveExcludeAction(doc), "exclude", "example defaults to exclude");
+assert.equal(doc.action, "exclude");
+
 const filtered = filterExcludedRows(p01, rows, doc);
 // rule1 bank+amount → row1; rule2 account → row2; row3 kept
 assert.equal(filtered.excludedCount, 2);
 assert.equal(filtered.kept.length, 1);
 assert.equal(filtered.kept[0]!.id, "3");
+
+const filterDoc = { ...doc, action: "filter" as const };
+assert.equal(resolveExcludeAction(filterDoc), "filter");
+const keepMatches = filterExcludedRows(p01, rows, filterDoc);
+assert.equal(keepMatches.kept.length, 2, "filter keeps matching rows");
+assert.equal(keepMatches.excludedCount, 1, "filter drops non-matching");
+assert.deepEqual(
+  keepMatches.kept.map((r) => r.id).sort(),
+  ["1", "2"],
+);
 
 const generated = generateFromSchema(
   p01,
@@ -166,6 +180,16 @@ assert.equal(
   "排除前筆數須等於全部分割包明細合計",
 );
 
+const mergedFilter = mergeAchPartitions(
+  p01,
+  { index, parts: partMap },
+  EMBEDDED_TXIDS,
+  EMBEDDED_BRANCHES,
+  { exclude: filterDoc },
+);
+assert.equal(mergedFilter.detailCount, 2, "merge filter keeps matches");
+assert.equal(mergedFilter.excludedCount, 1);
+
 const lineFilter = filterExcludedDetailLines(
   p01,
   generated.content
@@ -188,6 +212,17 @@ const uiDoc = buildExcludeDocFromConditions(
 );
 assert.equal(uiDoc.rules.length, 1);
 assert.equal(uiDoc.rules[0]!.bankCode, "0040000");
+assert.equal(uiDoc.action, "exclude");
+assert.equal(resolveExcludeAction(undefined), "exclude");
+assert.equal(resolveExcludeAction(null), "exclude");
+
+const uiFilterDoc = buildExcludeDocFromConditions(
+  "ACHP01",
+  [newExcludeCondition("bankCode", "0040000")],
+  "and",
+  "filter",
+);
+assert.equal(uiFilterDoc.action, "filter");
 
 const likeDoc = buildExcludeDocFromConditions(
   "ACHP01",
@@ -207,4 +242,6 @@ console.log(
   merged.excludedCount,
   "kept=",
   merged.detailCount,
+  "filterKept=",
+  keepMatches.kept.length,
 );

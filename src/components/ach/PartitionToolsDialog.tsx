@@ -453,7 +453,7 @@ export function PartitionToolsDialog({
         <Stack spacing={2.5}>
           <LineEndingSelect />
           <Typography variant="caption" color="text.secondary">
-            排除條件請於主畫面「排除後輸出」設定；合併時會一併套用。
+            篩選／排除條件請於主畫面「篩選／排除後輸出」設定；合併時會一併套用。
           </Typography>
           {mode === "split" && (
             <>
