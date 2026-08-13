@@ -33,6 +33,7 @@ import {
   useExcludeStore,
   type ExcludeExportResult,
 } from "@/lib/ach/excludeStore";
+import { validateField } from "@/lib/ach/engine";
 import type { FormatSchema } from "@/lib/ach/schema";
 import { describeSaveResult, saveAchFiles } from "@/lib/ach/desktop";
 import { normalizeSubmitDate, safeDigits } from "@/lib/ach/utils";
@@ -78,6 +79,20 @@ export function ExcludeExportPanel({
   const clear = useExcludeStore((s) => s.clear);
 
   const fields = schema.form.detail;
+  const dateField = schema.form.header.find((f) => f.key === "date");
+  const processDateError = dateField
+    ? validateField(dateField, safeDigits(processDate).slice(0, 8), {
+        schema,
+        header: { date: safeDigits(processDate).slice(0, 8) },
+        section: "header",
+        txids: [],
+        branches: [],
+      })
+    : !safeDigits(processDate).slice(0, 8)
+      ? "未輸入"
+      : safeDigits(processDate).length !== 8
+        ? "日期長度請輸入八碼"
+        : null;
   const isFilter = actionMode === "filter";
   const actionVerb = isFilter ? "篩選" : "排除";
   const actionKeepLabel = isFilter ? "保留符合" : "剔除符合";
@@ -92,9 +107,8 @@ export function ExcludeExportPanel({
     : "輸出 R01";
 
   async function handleProcess() {
-    const date = safeDigits(processDate).slice(0, 8);
-    if (date.length !== 8) {
-      toast.error("請輸入八碼處理日期（民國年）");
+    if (processDateError) {
+      toast.error(processDateError);
       return;
     }
     setBusy(true);
@@ -209,9 +223,12 @@ export function ExcludeExportPanel({
             if (convertedFromAd) toast.message("已將日期西元年轉換為民國年");
             onProcessDateBlur?.();
           }}
-          sx={{ maxWidth: 220 }}
+          error={Boolean(processDateError)}
+          sx={{ maxWidth: 280 }}
           slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 8 } }}
-          helperText="八碼民國年，寫入輸出檔首／尾錄 TDATE"
+          helperText={
+            processDateError ?? "八碼民國年，不可為過去日期；寫入輸出檔 TDATE"
+          }
         />
 
         <Stack

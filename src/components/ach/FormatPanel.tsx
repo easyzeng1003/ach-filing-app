@@ -782,10 +782,15 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         toast.message("已清除所有紀錄，請重新上傳檔案");
       }}
       onLoadPart={(payload) => {
+        const sess = usePartitionStore.getState().session;
         loadFromImport(
           schema,
           { header: payload.header, rows: payload.rows },
-          { fileName: payload.fileName },
+          {
+            fileName: payload.fileName,
+            sourceHeaderLine: sess?.index.sourceHeaderLine,
+            sourceTrailerLine: sess?.index.sourceTrailerLine,
+          },
         );
         setPartitionFormDirty(false);
       }}
@@ -872,29 +877,40 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       (l) => !l.startsWith("BOF") && !l.startsWith("EOF"),
     );
     const ws = getWorkspace(schema.code);
+    const partSess = usePartitionStore.getState().session;
+    const rawSourceHeader =
+      ws.sourceHeaderLine ??
+      (partSess?.formatCode === schema.code
+        ? partSess.index.sourceHeaderLine
+        : undefined);
+    const rawSourceTrailer =
+      ws.sourceTrailerLine ??
+      (partSess?.formatCode === schema.code
+        ? partSess.index.sourceTrailerLine
+        : undefined);
     const sourceHeader =
-      ws.sourceHeaderLine &&
-      ws.sourceHeaderLine.startsWith("BOF") &&
-      ws.sourceHeaderLine.length === schema.recordLength
-        ? ws.sourceHeaderLine
+      rawSourceHeader &&
+      rawSourceHeader.startsWith("BOF") &&
+      rawSourceHeader.length === schema.recordLength
+        ? rawSourceHeader
+        : null;
+    const sourceTrailer =
+      rawSourceTrailer &&
+      rawSourceTrailer.startsWith("EOF") &&
+      rawSourceTrailer.length === schema.recordLength
+        ? rawSourceTrailer
         : null;
     const fromSource = sourceHeader
       ? headerFromLine(sourceHeader, schema)
       : null;
-    const ctrlHeader = fromSource
-      ? {
-          ...fromSource,
-          ...Object.fromEntries(
-            Object.entries(header).filter(
-              ([, v]) => v != null && String(v).trim() !== "",
-            ),
-          ),
-          ...(fromSource.date ? { date: fromSource.date } : {}),
-        }
-      : header;
+    // 控制錄只用來源 BOF 解析出的值＋處理日期；勿併入可能來自明細的 bankCode
+    const ctrlHeader: typeof header = {
+      ...(fromSource ?? header),
+      date: processDate || fromSource?.date || header.date || "",
+    };
     const { headerLine, trailerLine } = buildExportControlLines(outSchema, {
       sourceHeaderLine: sourceHeader,
-      sourceTrailerLine: ws.sourceTrailerLine,
+      sourceTrailerLine: sourceTrailer,
       header: ctrlHeader,
       processDate,
       detailCount: detailLines.length,

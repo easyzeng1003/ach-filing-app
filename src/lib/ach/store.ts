@@ -435,23 +435,29 @@ export const useFormStore = create<FormState>()(
         const pad = Math.max(0, 15 - imported.length);
         const rows = [...imported, ...makeRows(schema, pad)];
 
-        set((s) => ({
-          activeCode: schema.code,
-          forms: {
-            ...s.forms,
-            [schema.code]: { header, rows },
-          },
-          workspaces: {
-            ...s.workspaces,
-            [schema.code]: {
-              open: true,
-              source: "import",
-              fileName: meta?.fileName,
-              sourceHeaderLine: meta?.sourceHeaderLine,
-              sourceTrailerLine: meta?.sourceTrailerLine,
+        set((s) => {
+          const prev = s.workspaces[schema.code];
+          return {
+            activeCode: schema.code,
+            forms: {
+              ...s.forms,
+              [schema.code]: { header, rows },
             },
-          },
-        }));
+            workspaces: {
+              ...s.workspaces,
+              [schema.code]: {
+                open: true,
+                source: "import",
+                fileName: meta?.fileName ?? prev?.fileName,
+                // 未帶入時保留既有來源 BOF／EOF（切換分割包勿清掉）
+                sourceHeaderLine:
+                  meta?.sourceHeaderLine ?? prev?.sourceHeaderLine,
+                sourceTrailerLine:
+                  meta?.sourceTrailerLine ?? prev?.sourceTrailerLine,
+              },
+            },
+          };
+        });
         flushFormPersist();
       },
       getForm: (code) => get().forms[code],
