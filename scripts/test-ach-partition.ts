@@ -17,6 +17,7 @@ import {
   planPartitions,
   planPartitionsForEdit,
   rebuildPartitionPreservingDetails,
+  recordFieldSpans,
   stringifyPartitionIndex,
 } from "../src/lib/ach/partition";
 import {
@@ -122,6 +123,57 @@ assert.equal(mergedLines.length, 9);
 assert.equal(mergedLines[0]!.slice(0, 9), "BOFACHP01");
 assert.equal(Number(mergedLines[8]!.slice(31, 39)), 7);
 assert.ok(mergedLines.every((l) => l.length === 250));
+
+// SORG／RORG 固定為來源原檔；可覆寫處理日期；無條件亦可合併
+{
+  const srcBof = parsed.sourceHeaderLine ?? parsed.headerLine;
+  const srcEof = parsed.sourceTrailerLine ?? "";
+  const hSpans = recordFieldSpans(p01.records.header.fields);
+  const tSpans = recordFieldSpans(p01.records.trailer.fields);
+  const hSorg = hSpans.find((s) => s.id === "SORG")!;
+  const hRorg = hSpans.find((s) => s.id === "RORG")!;
+  const tSorg = tSpans.find((s) => s.id === "SORG")!;
+  const tRorg = tSpans.find((s) => s.id === "RORG")!;
+  assert.equal(
+    mergedLines[0]!.slice(hSorg.start, hSorg.start + hSorg.length),
+    srcBof.slice(hSorg.start, hSorg.start + hSorg.length),
+    "合併首錄 SORG 應等於來源",
+  );
+  assert.equal(
+    mergedLines[0]!.slice(hRorg.start, hRorg.start + hRorg.length),
+    srcBof.slice(hRorg.start, hRorg.start + hRorg.length),
+    "合併首錄 RORG 應等於來源",
+  );
+  if (srcEof.startsWith("EOF")) {
+    assert.equal(
+      mergedLines[8]!.slice(tSorg.start, tSorg.start + tSorg.length),
+      srcEof.slice(tSorg.start, tSorg.start + tSorg.length),
+      "合併尾錄 SORG 應等於來源",
+    );
+    assert.equal(
+      mergedLines[8]!.slice(tRorg.start, tRorg.start + tRorg.length),
+      srcEof.slice(tRorg.start, tRorg.start + tRorg.length),
+      "合併尾錄 RORG 應等於來源",
+    );
+  }
+  const dated = mergeAchPartitions(
+    p01,
+    { index: parsed, parts: partMap },
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+    { exclude: null, processDate: "01159999" },
+  );
+  const datedBof = dated.content.replace(/\r\n/g, "\n").split("\n")[0]!;
+  const hTdate = hSpans.find((s) => s.id === "TDATE")!;
+  assert.equal(
+    datedBof.slice(hTdate.start, hTdate.start + hTdate.length),
+    "01159999",
+  );
+  assert.equal(
+    datedBof.slice(hSorg.start, hSorg.start + hSorg.length),
+    srcBof.slice(hSorg.start, hSorg.start + hSorg.length),
+  );
+}
 
 // 大檔轉 R01（同檔串流）
 const converted = await convertLargeP01FileToR01(

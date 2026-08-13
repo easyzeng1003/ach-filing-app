@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import {
   Alert,
   Box,
@@ -21,30 +21,32 @@ import {
   FilterAlt as FilterIcon,
   FilterAltOff as ClearIcon,
   SwapHoriz as SwapHorizIcon,
-  UploadFile as UploadIcon,
 } from "@mui/icons-material";
 import { toast } from "sonner";
 import {
-  assertExcludeFormat,
-  parseExcludeRules,
   type ExcludeActionMode,
   type ExcludeCompareOp,
   type ExcludeMatchMode,
+  type ExcludeRulesDoc,
 } from "@/lib/ach/exclude";
 import {
-  resolveExcludeDoc,
   useExcludeStore,
   type ExcludeExportResult,
 } from "@/lib/ach/excludeStore";
 import type { FormatSchema } from "@/lib/ach/schema";
 import { describeSaveResult, saveAchFiles } from "@/lib/ach/desktop";
+import { normalizeSubmitDate, safeDigits } from "@/lib/ach/utils";
 
 type Props = {
   schema: FormatSchema;
   /** 分割工作區範圍提示（全包數／總筆數）；無分割時省略 */
   partitionScope?: { partCount: number; detailCount: number } | null;
-  /** 執行篩選／排除並輸出 P01 檔內容 */
-  onProcess: (doc: NonNullable<ReturnType<typeof resolveExcludeDoc>>) => Promise<ExcludeExportResult>;
+  /** 處理日期（輸出首／尾錄 TDATE） */
+  processDate: string;
+  onProcessDateChange: (value: string) => void;
+  onProcessDateBlur?: () => void;
+  /** 執行篩選／排除（條件可為 null＝整檔輸出） */
+  onProcess: (doc: ExcludeRulesDoc | null) => Promise<ExcludeExportResult>;
   /**
    * 篩選／排除後輸出 R01：開啟 P01→R01 轉檔對話框並套用目前條件。
    * 不提供時隱藏 R01 按鈕。
@@ -52,26 +54,26 @@ type Props = {
   onExportR01?: () => void;
 };
 
-/** 前端條件：篩選（僅保留符合）／排除（剔除符合）；可輸出 P01 或轉 R01 */
+/** 前端條件：篩選（僅保留符合）／排除（剔除符合）；可無條件整檔輸出 */
 export function ExcludeExportPanel({
   schema,
   partitionScope = null,
+  processDate,
+  onProcessDateChange,
+  onProcessDateBlur,
   onProcess,
   onExportR01,
 }: Props) {
-  const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const conditions = useExcludeStore((s) => s.conditions);
   const matchMode = useExcludeStore((s) => s.matchMode);
   const actionMode = useExcludeStore((s) => s.actionMode);
-  const sourceName = useExcludeStore((s) => s.sourceName);
   const lastResult = useExcludeStore((s) => s.lastResult);
   const setMatchMode = useExcludeStore((s) => s.setMatchMode);
   const setActionMode = useExcludeStore((s) => s.setActionMode);
   const addCondition = useExcludeStore((s) => s.addCondition);
   const updateCondition = useExcludeStore((s) => s.updateCondition);
   const removeCondition = useExcludeStore((s) => s.removeCondition);
-  const setDoc = useExcludeStore((s) => s.setDoc);
   const setLastResult = useExcludeStore((s) => s.setLastResult);
   const clear = useExcludeStore((s) => s.clear);
 
@@ -79,20 +81,22 @@ export function ExcludeExportPanel({
   const isFilter = actionMode === "filter";
   const actionVerb = isFilter ? "篩選" : "排除";
   const actionKeepLabel = isFilter ? "保留符合" : "剔除符合";
-
-  async function onPickJson(file: File | undefined) {
-    if (!file) return;
-    try {
-      const parsed = parseExcludeRules(await file.text());
-      assertExcludeFormat(parsed, schema.code);
-      setDoc(parsed, file.name);
-      toast.success(`已載入規則（${parsed.rules.length} 條）`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "規則載入失敗");
-    }
-  }
+  const hasActiveConditions = conditions.some(
+    (c) => c.key.trim() && String(c.value ?? "").trim(),
+  );
+  const p01Label = hasActiveConditions
+    ? `${actionVerb}後輸出 P01`
+    : "輸出 P01";
+  const r01Label = hasActiveConditions
+    ? `${actionVerb}後輸出 R01`
+    : "輸出 R01";
 
   async function handleProcess() {
+    const date = safeDigits(processDate).slice(0, 8);
+    if (date.length !== 8) {
+      toast.error("請輸入八碼處理日期（民國年）");
+      return;
+    }
     setBusy(true);
     try {
       const doc = useExcludeStore
@@ -109,15 +113,22 @@ export function ExcludeExportPanel({
       ]);
       if (saved.method === "canceled") {
         toast.message(
-          `已完成${actionVerb}（輸出 ${result.detailCount.toLocaleString("zh-TW")} 筆），但取消下載`,
+          `已完成輸出（${result.detailCount.toLocaleString("zh-TW")} 筆），但取消下載`,
         );
         return;
       }
+      const modeNote = hasActiveConditions
+        ? `${actionVerb}後輸出`
+        : "已輸出";
       toast.success(
-        `${actionVerb}後輸出 ${result.detailCount.toLocaleString("zh-TW")} 筆（未輸出 ${result.excludedCount.toLocaleString("zh-TW")} 筆）· ${describeSaveResult(saved)}`,
+        `${modeNote} ${result.detailCount.toLocaleString("zh-TW")} 筆` +
+          (result.excludedCount > 0
+            ? `（未輸出 ${result.excludedCount.toLocaleString("zh-TW")} 筆）`
+            : "") +
+          ` · ${describeSaveResult(saved)}`,
       );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : `${actionVerb}輸出失敗`);
+      toast.error(e instanceof Error ? e.message : "輸出失敗");
     } finally {
       setBusy(false);
     }
@@ -170,26 +181,39 @@ export function ExcludeExportPanel({
         ) : (
           <Chip size="small" variant="outlined" label="範圍：目前表單明細" />
         )}
-        {sourceName ? (
-          <Chip size="small" color="warning" label={`JSON：${sourceName}`} />
-        ) : null}
       </Stack>
 
       {partitionScope ? (
         <Alert severity="info" sx={{ mb: 1.5 }}>
           將先合併<strong>全部分割工作區</strong>（{partitionScope.partCount}{" "}
           包、共 {partitionScope.detailCount.toLocaleString("zh-TW")}{" "}
-          筆），再依條件{actionVerb}並輸出單一檔，不會只處理目前開啟的那一包。
+          筆），再依條件輸出單一檔（無條件則整檔輸出）。
         </Alert>
       ) : null}
 
       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
-          可選「篩選」（只留符合）或「排除」（去掉符合）；P01／R01 皆套用相同條件。
-        輸出首尾錄以來源原檔為主（尾錄合計依輸出明細重算）。R01
-        會再開啟轉檔對話框。
+        可不填條件直接輸出。選「篩選」只留符合、「排除」去掉符合。
+        首尾錄以來源原檔為主（SORG／RORG 固定原檔；處理日期可於此覆寫）。
       </Typography>
 
       <Stack spacing={1.5}>
+        <TextField
+          size="small"
+          label="處理日期"
+          placeholder="01151231"
+          value={processDate}
+          onChange={(e) => onProcessDateChange(e.target.value)}
+          onBlur={() => {
+            const { value, convertedFromAd } = normalizeSubmitDate(processDate);
+            if (value !== processDate) onProcessDateChange(value);
+            if (convertedFromAd) toast.message("已將日期西元年轉換為民國年");
+            onProcessDateBlur?.();
+          }}
+          sx={{ maxWidth: 220 }}
+          slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 8 } }}
+          helperText="八碼民國年，寫入輸出檔首／尾錄 TDATE"
+        />
+
         <Stack
           direction={{ xs: "column", sm: "row" }}
           spacing={1}
@@ -320,8 +344,7 @@ export function ExcludeExportPanel({
         ))}
 
         <Typography variant="caption" color="text.secondary">
-          「等於」完全相符；「包含」只要欄位值含輸入字串即命中（類似
-          includes，不區分大小寫）。命中後依上方動作決定保留或剔除。
+          條件可留空＝整檔輸出。「等於」完全相符；「包含」為 includes（不分大小寫）。
         </Typography>
 
         <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
@@ -333,25 +356,6 @@ export function ExcludeExportPanel({
           >
             新增條件
           </Button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".json,application/json"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              e.target.value = "";
-              void onPickJson(f);
-            }}
-          />
-          <Button
-            size="small"
-            variant="text"
-            startIcon={<UploadIcon />}
-            onClick={() => fileRef.current?.click()}
-          >
-            載入 JSON
-          </Button>
           <Button
             size="small"
             variant="text"
@@ -362,7 +366,7 @@ export function ExcludeExportPanel({
               toast.message("已清除條件");
             }}
           >
-            清除
+            清除條件
           </Button>
           <Box sx={{ flex: 1 }} />
           {onExportR01 ? (
@@ -372,9 +376,9 @@ export function ExcludeExportPanel({
               disabled={busy}
               startIcon={<SwapHorizIcon />}
               onClick={onExportR01}
-              title={`${actionVerb}後轉檔輸出 R01（整檔）`}
+              title={r01Label}
             >
-              {actionVerb}後輸出 R01
+              {r01Label}
             </Button>
           ) : null}
           <Button
@@ -384,7 +388,7 @@ export function ExcludeExportPanel({
             startIcon={<FilterIcon />}
             onClick={() => void handleProcess()}
           >
-            {busy ? "處理中…" : `${actionVerb}後輸出 P01`}
+            {busy ? "處理中…" : p01Label}
           </Button>
         </Stack>
 
@@ -409,10 +413,19 @@ export function ExcludeExportPanel({
               : ""}
             ：原{" "}
             <strong>{lastResult.totalBefore.toLocaleString("zh-TW")}</strong>{" "}
-            筆 →{" "}
-            {lastResult.action === "filter" ? "未符合" : "排除"}{" "}
-            <strong>{lastResult.excludedCount.toLocaleString("zh-TW")}</strong>{" "}
-            筆 → 輸出{" "}
+            筆
+            {lastResult.excludedCount > 0 ? (
+              <>
+                {" "}
+                →{" "}
+                {lastResult.action === "filter" ? "未符合" : "排除"}{" "}
+                <strong>
+                  {lastResult.excludedCount.toLocaleString("zh-TW")}
+                </strong>{" "}
+                筆
+              </>
+            ) : null}{" "}
+            → 輸出{" "}
             <strong>{lastResult.detailCount.toLocaleString("zh-TW")}</strong>{" "}
             筆
             {schema.features.sumAmount ? (

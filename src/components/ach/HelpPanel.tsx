@@ -152,25 +152,25 @@ export function HelpPanel() {
           <h3 className="font-bold">篩選／排除後輸出</h3>
         </div>
         <p className="mb-2 text-sm text-muted">
-          於主畫面選擇動作（
+          於主畫面可填<strong className="text-fg">處理日期</strong>（寫入輸出首／尾錄），
+          選擇動作（
           <strong className="text-fg">篩選</strong>＝只留符合條件；
-          <strong className="text-fg">排除</strong>＝去掉符合條件）、比對方式（
+          <strong className="text-fg">排除</strong>＝去掉符合條件；
+          <strong className="text-fg">可不填條件直接輸出整檔</strong>）、比對方式（
           <strong className="text-fg">等於</strong>／
           <strong className="text-fg">包含</strong>）並輸入條件內容，
-          按「篩選後／排除後輸出 P01」或「… R01」後會先套用相同條件。
+          按「輸出 P01」或「… R01」。
           輸出檔<strong className="text-fg">控制首錄／尾錄以來源原檔為主</strong>
-          （保留原 TTIME 等；尾錄總筆數／總金額依實際輸出明細重算）。
-          P01 直接下載結果檔並顯示原筆數／未輸出筆數／輸出筆數；R01 再開啟轉檔對話框填入退件理由後產生。
+          （<strong className="text-fg">SORG／RORG 固定為原檔值</strong>；尾錄總筆數／總金額依實際輸出明細重算；處理日期可覆寫）。
+          P01 直接下載結果檔；R01 再開啟轉檔對話框填入退件理由後產生。
           「包含」只要欄位值含輸入字串即命中（類似{" "}
           <code className="font-mono text-xs">String.includes</code>
           ，不區分大小寫；JSON 運算子仍為{" "}
           <code className="font-mono text-xs">like</code>）。
           若正在<strong className="text-fg">分割工作區</strong>，條件輸出 P01 會合併
           <strong className="text-fg">全部分割包</strong>後再套用（非僅目前開啟的那一包）。
-          條件關係可選全部符合（AND）或任一符合（OR）；亦可載入 JSON 規則（
-          <code className="font-mono text-xs">action</code> 可為{" "}
-          <code className="font-mono text-xs">filter</code>／
-          <code className="font-mono text-xs">exclude</code>）。
+          條件關係可選全部符合（AND）或任一符合（OR）。
+          主畫面已隱藏控制首／尾錄編輯，僅於本區塊提供處理日期。
         </p>
         <pre className="mt-3 overflow-x-auto rounded-lg bg-header p-3 font-mono text-[11px] text-header-fg">
 {`{

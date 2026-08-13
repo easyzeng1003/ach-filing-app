@@ -73,10 +73,6 @@ import {
   saveAchFiles,
 } from "@/lib/ach/desktop";
 import { CodePicker } from "./CodePicker";
-import {
-  ControlHeaderFields,
-  ControlTrailerFields,
-} from "./ControlRecords";
 import { ConvertR01Dialog } from "./ConvertR01Dialog";
 import { ExcludeExportPanel } from "./ExcludeExportPanel";
 import { ImportPreviewDialog } from "./ImportPreviewDialog";
@@ -90,7 +86,7 @@ import {
   usePartitionStore,
 } from "@/lib/ach/partitionStore";
 import {
-  buildTrailerLine,
+  buildExportControlLines,
   headerFromLine,
   type PartitionProgress,
 } from "@/lib/ach/partition";
@@ -796,13 +792,18 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     />
   );
 
-  async function handleExcludeExport(doc: ExcludeRulesDoc) {
+  async function handleExcludeExport(doc: ExcludeRulesDoc | null) {
     const lineEnding = usePrefsStore.getState().lineEnding;
     const outSchema = withLineEndingId(schema, lineEnding);
     const action = resolveExcludeAction(doc);
     const actionVerb = action === "filter" ? "篩選" : "排除";
-    const fileSuffix =
-      action === "filter" ? ".filtered.txt" : ".excluded.txt";
+    const hasRules = Boolean(doc?.rules?.length);
+    const fileSuffix = !hasRules
+      ? ".txt"
+      : action === "filter"
+        ? ".filtered.txt"
+        : ".excluded.txt";
+    const processDate = String(header.date ?? "");
 
     // 一律以最新 store 判斷；有分割工作區則合併「全部分割包」後再套用條件
     const sess = usePartitionStore.getState().session;
@@ -822,10 +823,13 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       }
       const merged = mergeSessionToFile(outSchema, latest, txids, branches, {
         exclude: doc,
+        processDate,
       });
       if (merged.detailCount === 0) {
         throw new Error(
-          `全部分割包（${latest.parts.length} 包、共 ${merged.totalBeforeExclude.toLocaleString("zh-TW")} 筆）${actionVerb}後沒有可輸出的明細`,
+          hasRules
+            ? `全部分割包（${latest.parts.length} 包、共 ${merged.totalBeforeExclude.toLocaleString("zh-TW")} 筆）${actionVerb}後沒有可輸出的明細`
+            : "沒有可輸出的明細",
         );
       }
       return {
@@ -840,10 +844,12 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       };
     }
 
-    // 一般表單：套用篩選／排除後產生 TXT（首尾錄以來源檔為主）
+    // 一般表單：套用篩選／排除（可無條件）後產生 TXT
     const filtered = filterExcludedRows(schema, rows, doc);
     if (filtered.kept.length === 0) {
-      throw new Error(`${actionVerb}後沒有可輸出的明細`);
+      throw new Error(
+        hasRules ? `${actionVerb}後沒有可輸出的明細` : "沒有可輸出的明細",
+      );
     }
     const generated = generateFromSchema(
       outSchema,
@@ -872,7 +878,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       ws.sourceHeaderLine.length === schema.recordLength
         ? ws.sourceHeaderLine
         : null;
-    const headerLine = sourceHeader ?? generated.lines[0]!;
     const fromSource = sourceHeader
       ? headerFromLine(sourceHeader, schema)
       : null;
@@ -887,15 +892,18 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           ...(fromSource.date ? { date: fromSource.date } : {}),
         }
       : header;
-    const trailer = buildTrailerLine(
-      outSchema,
-      ctrlHeader,
-      detailLines.length,
-      generated.amount,
+    const { headerLine, trailerLine } = buildExportControlLines(outSchema, {
+      sourceHeaderLine: sourceHeader,
+      sourceTrailerLine: ws.sourceTrailerLine,
+      header: ctrlHeader,
+      processDate,
+      detailCount: detailLines.length,
+      totalAmount: generated.amount,
       txids,
       branches,
-    );
-    const content = [headerLine, ...detailLines, trailer].join(ending) + ending;
+    });
+    const content =
+      [headerLine, ...detailLines, trailerLine].join(ending) + ending;
 
     return {
       filename: generated.filename.replace(/\.txt$/, fileSuffix),
@@ -923,6 +931,11 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
             }
           : null
       }
+      processDate={String(header.date ?? "")}
+      onProcessDateChange={(value) =>
+        setHeaderT(schema.code, schema, "date", value)
+      }
+      onProcessDateBlur={() => blurHeader(schema.code, schema, "date")}
       onProcess={handleExcludeExport}
       onExportR01={
         schema.code === "ACHP01"
@@ -1146,52 +1159,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       </Card>
 
       {excludePanel}
-
-      <div className="card overflow-hidden">
-        <div className="border-b border-border px-4 py-3">
-          <h3 className="font-bold">控制首錄</h3>
-        </div>
-        <ControlHeaderFields
-          schema={schema}
-          header={header}
-          branches={branches}
-          edit={{
-            header,
-            errors: headerErrs,
-            onChange: (key, value) =>
-              setHeaderT(schema.code, schema, key, value),
-            onBlur: onHeaderBlur,
-            fieldMeta,
-            selectOptions,
-            onPick: (mode, key) =>
-              setPicker({ mode, target: "header", key }),
-          }}
-        />
-      </div>
-
-      <div className="card overflow-hidden">
-        <div className="border-b border-border px-4 py-3">
-          <h3 className="font-bold">控制尾錄</h3>
-        </div>
-        <ControlTrailerFields
-          schema={schema}
-          header={header}
-          branches={branches}
-          totalCount={stats.count}
-          totalAmount={stats.amount}
-          edit={{
-            header,
-            errors: headerErrs,
-            onChange: (key, value) =>
-              setHeaderT(schema.code, schema, key, value),
-            onBlur: onHeaderBlur,
-            fieldMeta,
-            selectOptions,
-            onPick: (mode, key) =>
-              setPicker({ mode, target: "header", key }),
-          }}
-        />
-      </div>
 
       <div className="card">
         <div className="border-b border-border px-4 py-3">

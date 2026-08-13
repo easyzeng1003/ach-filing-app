@@ -203,6 +203,169 @@ export function parsePartitionIndex(text: string): PartitionIndex {
   return data;
 }
 
+/** 計算固定長度欄位在列上的起訖位置 */
+export function recordFieldSpans(
+  fields: RecordFieldDef[],
+): { id: string; start: number; length: number }[] {
+  const spans: { id: string; start: number; length: number }[] = [];
+  let offset = 0;
+  for (const f of fields) {
+    spans.push({ id: f.id, start: offset, length: f.length });
+    offset += f.length;
+  }
+  return spans;
+}
+
+/** 覆寫列上指定欄位（依欄位 id；值不足則右／左填空白以符合長度） */
+export function patchRecordFieldById(
+  line: string,
+  fields: RecordFieldDef[],
+  fieldId: string,
+  value: string,
+): string {
+  const spans = recordFieldSpans(fields);
+  const span = spans.find((s) => s.id === fieldId);
+  if (!span || line.length < span.start + span.length) return line;
+  const piece = String(value ?? "");
+  const padded =
+    piece.length >= span.length
+      ? piece.slice(0, span.length)
+      : piece.padEnd(span.length, " ");
+  return (
+    line.slice(0, span.start) + padded + line.slice(span.start + span.length)
+  );
+}
+
+/** 從來源列讀取欄位值（依來源欄位定義），寫入目標列（依目標欄位定義） */
+export function copyRecordFieldValues(
+  target: string,
+  targetFields: RecordFieldDef[],
+  source: string | null | undefined,
+  sourceFields: RecordFieldDef[],
+  fieldIds: string[],
+): string {
+  if (!source) return target;
+  let out = target;
+  const srcSpans = recordFieldSpans(sourceFields);
+  const dstSpans = recordFieldSpans(targetFields);
+  for (const id of fieldIds) {
+    const src = srcSpans.find((s) => s.id === id);
+    const dst = dstSpans.find((s) => s.id === id);
+    if (!src || !dst || source.length < src.start + src.length) continue;
+    if (out.length < dst.start + dst.length) continue;
+    let piece = source.slice(src.start, src.start + src.length);
+    if (piece.length >= dst.length) piece = piece.slice(0, dst.length);
+    else piece = piece.padEnd(dst.length, " ");
+    out = out.slice(0, dst.start) + piece + out.slice(dst.start + dst.length);
+  }
+  return out;
+}
+
+/**
+ * 組出輸出用控制首／尾錄：
+ * - 首錄以來源 BOF 為底，可覆寫 TDATE（處理日期）
+ * - 尾錄重算合計後，SORG／RORG 固定從來源首／尾錄複製
+ */
+export function buildExportControlLines(
+  schema: FormatSchema,
+  opts: {
+    sourceHeaderLine?: string | null;
+    sourceTrailerLine?: string | null;
+    header: HeaderValues;
+    processDate?: string | null;
+    detailCount: number;
+    totalAmount: number;
+    txids: Txid[];
+    branches: Branch[];
+  },
+): { headerLine: string; trailerLine: string } {
+  const date = safeDigits(opts.processDate ?? opts.header.date ?? "").slice(
+    0,
+    8,
+  );
+  const headerValues: HeaderValues = {
+    ...opts.header,
+    ...(date.length === 8 ? { date } : {}),
+  };
+
+  const srcH =
+    opts.sourceHeaderLine &&
+    opts.sourceHeaderLine.startsWith("BOF") &&
+    opts.sourceHeaderLine.length === schema.recordLength
+      ? opts.sourceHeaderLine
+      : null;
+  const srcT =
+    opts.sourceTrailerLine &&
+    opts.sourceTrailerLine.startsWith("EOF") &&
+    opts.sourceTrailerLine.length === schema.recordLength
+      ? opts.sourceTrailerLine
+      : null;
+
+  let headerLine =
+    srcH ??
+    buildHeaderLine(
+      schema,
+      headerValues,
+      opts.detailCount,
+      opts.totalAmount,
+      opts.txids,
+      opts.branches,
+    );
+  if (date.length === 8) {
+    headerLine = patchRecordFieldById(
+      headerLine,
+      schema.records.header.fields,
+      "TDATE",
+      date,
+    );
+  }
+  // 發送／接收單位代號固定原檔（首錄）
+  headerLine = copyRecordFieldValues(
+    headerLine,
+    schema.records.header.fields,
+    srcH,
+    schema.records.header.fields,
+    ["SORG", "RORG"],
+  );
+
+  let trailerLine = buildTrailerLine(
+    schema,
+    headerValues,
+    opts.detailCount,
+    opts.totalAmount,
+    opts.txids,
+    opts.branches,
+  );
+  // 尾錄 SORG／RORG：優先來源 EOF，否則從來源 BOF 對應欄位帶入
+  if (srcT) {
+    trailerLine = copyRecordFieldValues(
+      trailerLine,
+      schema.records.trailer.fields,
+      srcT,
+      schema.records.trailer.fields,
+      ["SORG", "RORG"],
+    );
+  } else if (srcH) {
+    trailerLine = copyRecordFieldValues(
+      trailerLine,
+      schema.records.trailer.fields,
+      srcH,
+      schema.records.header.fields,
+      ["SORG", "RORG"],
+    );
+  }
+  if (date.length === 8) {
+    trailerLine = patchRecordFieldById(
+      trailerLine,
+      schema.records.trailer.fields,
+      "TDATE",
+      date,
+    );
+  }
+
+  return { headerLine, trailerLine };
+}
+
 function endingOf(schema: FormatSchema): string {
   return schema.lineEnding || "\r\n";
 }
@@ -863,7 +1026,11 @@ export function mergeAchPartitions(
   input: MergeInput,
   txids: Txid[],
   branches: Branch[],
-  options?: { exclude?: ExcludeRulesDoc | null },
+  options?: {
+    exclude?: ExcludeRulesDoc | null;
+    /** 輸出處理日期（覆寫首／尾錄 TDATE） */
+    processDate?: string | null;
+  },
 ): {
   content: string;
   filename: string;
@@ -922,7 +1089,7 @@ export function mergeAchPartitions(
     keptAmount += amountFromDetailLine(line, schema);
   }
 
-  // 篩選／排除／合併輸出：首錄以來源檔為主（保留 TTIME 等），尾錄合計依輸出明細重算
+  // 篩選／排除／合併輸出：首錄以來源檔為底；SORG／RORG 固定原檔；可覆寫處理日期
   const sourceHeaderLine =
     (input.index.sourceHeaderLine?.startsWith("BOF") &&
     input.index.sourceHeaderLine.length === schema.recordLength
@@ -936,7 +1103,6 @@ export function mergeAchPartitions(
   const headerFromSource = sourceHeaderLine
     ? headerFromLine(sourceHeaderLine, schema)
     : { ...input.index.header };
-  // 補齊索引上可能較完整的提出資料（來源 BOF 不一定含帳號等）
   const header: HeaderValues = {
     ...headerFromSource,
     ...Object.fromEntries(
@@ -944,28 +1110,19 @@ export function mergeAchPartitions(
         ([, v]) => v != null && String(v).trim() !== "",
       ),
     ),
-    // 日期／TTIME 相關仍以來源首錄為準
     ...(headerFromSource.date ? { date: headerFromSource.date } : {}),
   };
 
-  const headerLine =
-    sourceHeaderLine ??
-    buildHeaderLine(
-      schema,
-      header,
-      kept.length,
-      keptAmount,
-      txids,
-      branches,
-    );
-  const trailer = buildTrailerLine(
-    schema,
+  const { headerLine, trailerLine: trailer } = buildExportControlLines(schema, {
+    sourceHeaderLine,
+    sourceTrailerLine: input.index.sourceTrailerLine,
     header,
-    kept.length,
-    keptAmount,
+    processDate: options?.processDate,
+    detailCount: kept.length,
+    totalAmount: keptAmount,
     txids,
     branches,
-  );
+  });
 
   const base =
     input.index.sourceFilename.replace(/\.[^.]+$/, "") || schema.code;
