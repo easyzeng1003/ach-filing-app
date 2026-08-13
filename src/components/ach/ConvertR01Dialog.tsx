@@ -85,7 +85,7 @@ export function ConvertR01Dialog({
             <Typography variant="body2" color="text.secondary">
               依財金 ACHP01/ACHR01 規格：TYPE=R、對調提出／提回行與帳號，並填入退件欄位。
               輸出為整檔（分割時含全部包，非僅目前開啟的那一批），不依收受行分檔。
-              若已設定排除條件，會先排除後再轉檔（筆數如下）。
+              若已設定篩選／排除條件，會先套用後再轉檔（筆數如下）。
             </Typography>
           </Stack>
         </Stack>

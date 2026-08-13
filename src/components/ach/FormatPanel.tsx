@@ -34,6 +34,7 @@ import type { FormatSchema, FormFieldDef } from "@/lib/ach/schema";
 import { convertP01ToR01 } from "@/lib/ach/convertR01";
 import {
   filterExcludedRows,
+  resolveExcludeAction,
   type ExcludeRulesDoc,
 } from "@/lib/ach/exclude";
 import { resolveExcludeDoc, useExcludeStore } from "@/lib/ach/excludeStore";
@@ -254,8 +255,9 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
 
   const excludeConditions = useExcludeStore((s) => s.conditions);
   const excludeMatchMode = useExcludeStore((s) => s.matchMode);
+  const excludeActionMode = useExcludeStore((s) => s.actionMode);
 
-  /** 轉檔 R01 對話框顯示筆數：整檔（分割時含全部包）套用排除後 */
+  /** 轉檔 R01 對話框顯示筆數：整檔（分割時含全部包）套用篩選／排除後 */
   const convertR01DetailCount = useMemo(() => {
     const exclude = resolveExcludeDoc(schema.code);
     if (partitionSession?.formatCode === schema.code) {
@@ -270,7 +272,14 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     }
     const kept = filterExcludedRows(schema, rows, exclude).kept;
     return kept.filter((r) => !isRowEmpty(r, schema)).length;
-  }, [schema, rows, excludeConditions, excludeMatchMode, partitionSession]);
+  }, [
+    schema,
+    rows,
+    excludeConditions,
+    excludeMatchMode,
+    excludeActionMode,
+    partitionSession,
+  ]);
 
   const filtered = useMemo(() => {
     if (!filterEnabled) {
@@ -414,9 +423,11 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
 
       const lineEnding = usePrefsStore.getState().lineEnding;
       const exclude = resolveExcludeDoc(schema.code);
+      const action = resolveExcludeAction(exclude);
+      const actionVerb = action === "filter" ? "篩選" : "排除";
       const filtered = filterExcludedRows(schema, sourceRows, exclude);
       if (filtered.kept.length === 0) {
-        toast.error("排除後沒有可轉檔的明細");
+        toast.error(`${actionVerb}後沒有可轉檔的明細`);
         return;
       }
       // 單一整檔；不依收受行分檔
@@ -441,7 +452,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       }
       const excludeNote =
         filtered.excludedCount > 0
-          ? `（已排除 ${filtered.excludedCount.toLocaleString("zh-TW")} 筆）`
+          ? `（已${actionVerb}未輸出 ${filtered.excludedCount.toLocaleString("zh-TW")} 筆）`
           : "";
       toast.success(
         `已轉檔整檔（${result.detailCount} 筆${excludeNote}，RCODE=${result.rcode}）· ${describeSaveResult(saved)}`,
@@ -759,8 +770,12 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   async function handleExcludeExport(doc: ExcludeRulesDoc) {
     const lineEnding = usePrefsStore.getState().lineEnding;
     const outSchema = withLineEndingId(schema, lineEnding);
+    const action = resolveExcludeAction(doc);
+    const actionVerb = action === "filter" ? "篩選" : "排除";
+    const fileSuffix =
+      action === "filter" ? ".filtered.txt" : ".excluded.txt";
 
-    // 一律以最新 store 判斷；有分割工作區則合併「全部分割包」後再排除
+    // 一律以最新 store 判斷；有分割工作區則合併「全部分割包」後再套用條件
     const sess = usePartitionStore.getState().session;
     if (sess && sess.formatCode === schema.code) {
       if (sess.activeIndex != null && partitionFormDirty) {
@@ -781,24 +796,25 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       });
       if (merged.detailCount === 0) {
         throw new Error(
-          `全部分割包（${latest.parts.length} 包、共 ${merged.totalBeforeExclude.toLocaleString("zh-TW")} 筆）排除後沒有可輸出的明細`,
+          `全部分割包（${latest.parts.length} 包、共 ${merged.totalBeforeExclude.toLocaleString("zh-TW")} 筆）${actionVerb}後沒有可輸出的明細`,
         );
       }
       return {
-        filename: merged.filename.replace(/\.merged\.txt$/, ".excluded.txt"),
+        filename: merged.filename.replace(/\.merged\.txt$/, fileSuffix),
         content: merged.content,
         totalBefore: merged.totalBeforeExclude,
         excludedCount: merged.excludedCount,
         detailCount: merged.detailCount,
         amount: merged.amount,
         partCount: latest.parts.length,
+        action,
       };
     }
 
-    // 一般表單：篩選列後產生 TXT
+    // 一般表單：套用篩選／排除後產生 TXT
     const filtered = filterExcludedRows(schema, rows, doc);
     if (filtered.kept.length === 0) {
-      throw new Error("排除後沒有可輸出的明細");
+      throw new Error(`${actionVerb}後沒有可輸出的明細`);
     }
     const generated = generateFromSchema(
       outSchema,
@@ -816,13 +832,14 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       );
     }
     return {
-      filename: generated.filename.replace(/\.txt$/, ".excluded.txt"),
+      filename: generated.filename.replace(/\.txt$/, fileSuffix),
       content: generated.content,
       totalBefore: filtered.totalBefore,
       excludedCount: filtered.excludedCount,
       detailCount: generated.count,
       amount: generated.amount,
       partCount: null,
+      action,
     };
   }
 

@@ -841,7 +841,7 @@ function extractDetailLines(text: string, recordLength?: number): string[] {
 
 /**
  * 依 index 合併分割檔 → 單一 ACH 大檔（重算尾錄總筆數／總金額）。
- * 可選 exclude：合併後、重算尾錄前剔除符合規則的明細。
+ * 可選 exclude：合併後、重算尾錄前依 action 篩選或剔除符合規則的明細。
  */
 export function mergeAchPartitions(
   schema: FormatSchema,

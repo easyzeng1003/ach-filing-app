@@ -1,11 +1,13 @@
 /**
- * 排除規則（記憶體）：前端條件列或 JSON 載入
+ * 篩選／排除規則（記憶體）：前端條件列或 JSON 載入
  */
 import { create } from "zustand";
 import {
   buildExcludeDocFromConditions,
   newExcludeCondition,
   normalizeExcludeMatch,
+  resolveExcludeAction,
+  type ExcludeActionMode,
   type ExcludeCompareOp,
   type ExcludeMatchMode,
   type ExcludeRulesDoc,
@@ -21,16 +23,21 @@ export type ExcludeExportResult = {
   amount: number;
   /** 分割工作區套用時的包數；一般表單為 null */
   partCount: number | null;
+  /** 本次套用的動作（篩選／排除） */
+  action: ExcludeActionMode;
 };
 
 type ExcludeState = {
   conditions: ExcludeUiCondition[];
   matchMode: ExcludeMatchMode;
+  /** exclude＝剔除符合；filter＝僅保留符合 */
+  actionMode: ExcludeActionMode;
   /** 由條件列或 JSON 同步出的文件（供合併／轉檔套用） */
   doc: ExcludeRulesDoc | null;
   sourceName: string | null;
   lastResult: ExcludeExportResult | null;
   setMatchMode: (mode: ExcludeMatchMode) => void;
+  setActionMode: (mode: ExcludeActionMode) => void;
   setConditions: (conditions: ExcludeUiCondition[]) => void;
   addCondition: (key?: string, op?: ExcludeCompareOp) => void;
   updateCondition: (
@@ -48,9 +55,15 @@ function syncDoc(
   formatCode: string,
   conditions: ExcludeUiCondition[],
   matchMode: ExcludeMatchMode,
+  actionMode: ExcludeActionMode,
 ): ExcludeRulesDoc | null {
   try {
-    return buildExcludeDocFromConditions(formatCode, conditions, matchMode);
+    return buildExcludeDocFromConditions(
+      formatCode,
+      conditions,
+      matchMode,
+      actionMode,
+    );
   } catch {
     return null;
   }
@@ -78,11 +91,18 @@ function conditionsFromDoc(doc: ExcludeRulesDoc): ExcludeUiCondition[] {
 export const useExcludeStore = create<ExcludeState>((set, get) => ({
   conditions: [newExcludeCondition()],
   matchMode: "and",
+  actionMode: "exclude",
   doc: null,
   sourceName: null,
   lastResult: null,
 
   setMatchMode: (mode) => set({ matchMode: mode, sourceName: null }),
+
+  setActionMode: (mode) =>
+    set({
+      actionMode: mode === "filter" ? "filter" : "exclude",
+      sourceName: null,
+    }),
 
   setConditions: (conditions) =>
     set({
@@ -114,11 +134,12 @@ export const useExcludeStore = create<ExcludeState>((set, get) => ({
     }),
 
   syncDocFromConditions: (formatCode) => {
-    const { conditions, matchMode } = get();
+    const { conditions, matchMode, actionMode } = get();
     const doc = buildExcludeDocFromConditions(
       formatCode,
       conditions,
       matchMode,
+      actionMode,
     );
     set({ doc, sourceName: null });
     return doc;
@@ -131,6 +152,7 @@ export const useExcludeStore = create<ExcludeState>((set, get) => ({
       doc,
       sourceName: sourceName ?? null,
       matchMode: mode,
+      actionMode: resolveExcludeAction(doc),
       conditions: conditions.length ? conditions : [newExcludeCondition()],
     });
   },
@@ -141,6 +163,7 @@ export const useExcludeStore = create<ExcludeState>((set, get) => ({
     set({
       conditions: [newExcludeCondition()],
       matchMode: "and",
+      actionMode: "exclude",
       doc: null,
       sourceName: null,
       lastResult: null,
@@ -150,5 +173,7 @@ export const useExcludeStore = create<ExcludeState>((set, get) => ({
 /** 供外部讀取目前有效 doc（條件列優先同步） */
 export function resolveExcludeDoc(formatCode: string): ExcludeRulesDoc | null {
   const s = useExcludeStore.getState();
-  return syncDoc(formatCode, s.conditions, s.matchMode) ?? s.doc;
+  return (
+    syncDoc(formatCode, s.conditions, s.matchMode, s.actionMode) ?? s.doc
+  );
 }
