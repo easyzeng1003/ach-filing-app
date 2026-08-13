@@ -51,7 +51,7 @@ const converted = convertP01ToR01(
   rows,
   EMBEDDED_TXIDS,
   EMBEDDED_BRANCHES,
-  { rcode: "04", ydate: "01150803", pdate: "01150804" },
+  { rcode: "04", ydate: "01150803", pdate: "01150804", agentBank: "0040000" },
 );
 
 assert.equal(converted.files.length, 1);
@@ -68,6 +68,9 @@ const hdr = file.lines[0]!;
 assert.equal(hdr.slice(0, 3), "BOF");
 assert.equal(hdr.slice(3, 9), "ACHR01");
 assert.equal(hdr.slice(9, 17), "01150804");
+// SORG 固定 9990250；RORG＝代表行
+assert.equal(hdr.slice(23, 30), "9990250", "ACHR01 SORG fixed");
+assert.equal(hdr.slice(30, 37), "0040000", "ACHR01 RORG = agentBank");
 
 const d1 = file.lines[1]!;
 assert.equal(d1[0], "R", "TYPE=R");
@@ -112,11 +115,18 @@ const multiRows: DetailRow[] = [
 ];
 const multi = convertP01ToR01(r01, header, multiRows, EMBEDDED_TXIDS, EMBEDDED_BRANCHES, {
   rcode: "99",
+  agentBank: "8220017",
 });
 assert.equal(multi.files.length, 1);
 assert.equal(multi.detailCount, 2);
 assert.equal(multi.files[0]!.count, 2);
 assert.ok(!multi.files[0]!.filename.includes("_812"));
 assert.ok(!multi.files[0]!.filename.includes("_007"));
+const multiHdr = multi.files[0]!.lines[0]!;
+assert.equal(multiHdr.slice(23, 30), "9990250");
+assert.equal(multiHdr.slice(30, 37), "8220901", "822* → 代表行 8220901");
+const multiTrl = multi.files[0]!.lines[multi.files[0]!.lines.length - 1]!;
+assert.equal(multiTrl.slice(17, 24), "9990250", "EOF SORG");
+assert.equal(multiTrl.slice(24, 31), "8220901", "EOF RORG");
 
-console.log("OK convert P01→R01: lengths, TYPE/CDATA, bank swap, RCODE/PDATE/PSEQ/YDATE");
+console.log("OK convert P01→R01: lengths, TYPE/CDATA, bank swap, RCODE/PDATE/PSEQ/YDATE, SORG/RORG");

@@ -182,7 +182,7 @@ const converted = await convertLargeP01FileToR01(
   r01,
   EMBEDDED_TXIDS,
   EMBEDDED_BRANCHES,
-  { rcode: "04", ydate: "01150803", pdate: "01150804" },
+  { rcode: "04", ydate: "01150803", pdate: "01150804", agentBank: "0040000" },
 );
 assert.equal(converted.detailCount, 7);
 assert.equal(converted.files.length, 1); // 整檔、不依收受行分檔
@@ -192,6 +192,8 @@ for (const f of converted.files) {
   assert.ok(f.lines[0]!.includes("ACHR01"));
   assert.equal(f.lines[1]![0], "R");
   assert.ok(f.lines.every((l) => l.length === 250));
+  assert.equal(f.lines[0]!.slice(23, 30), "9990250");
+  assert.equal(f.lines[0]!.slice(30, 37), "0040000");
 }
 
 // 可編輯分割：每包 ≤ 5000

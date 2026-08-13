@@ -370,6 +370,7 @@ export function mergeSessionToFile(
   options?: {
     exclude?: import("./exclude").ExcludeRulesDoc | null;
     processDate?: string | null;
+    agentBank?: string | null;
   },
 ) {
   const index = syncIndex(session);
@@ -385,6 +386,7 @@ export function mergeSessionToFile(
     {
       exclude: options?.exclude ?? null,
       processDate: options?.processDate,
+      agentBank: options?.agentBank,
     },
   );
 }

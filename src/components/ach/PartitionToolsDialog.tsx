@@ -107,6 +107,7 @@ export function PartitionToolsDialog({
     () => prevRocDate(safeDigits(tdate)) ?? "",
   );
   const [pdate, setPdate] = useState(() => safeDigits(tdate));
+  const [agentBank, setAgentBank] = useState("");
 
   const title =
     mode === "split"
@@ -243,6 +244,11 @@ export function PartitionToolsDialog({
       toast.error("大檔轉 R01 需要 ACHP01／ACHR01 格式");
       return;
     }
+    const agentDigits = safeDigits(agentBank).slice(0, 7);
+    if (agentDigits.length !== 7) {
+      toast.error("請填寫七碼代表行代號");
+      return;
+    }
     setBusy(true);
     setProgress(null);
     try {
@@ -257,6 +263,7 @@ export function PartitionToolsDialog({
           rcode: safeDigits(rcode).padStart(2, "0").slice(-2),
           ydate: safeDigits(ydate),
           pdate: safeDigits(pdate),
+          agentBank: agentDigits,
           onProgress: setProgress,
         },
       );
@@ -431,10 +438,13 @@ export function PartitionToolsDialog({
                 rcode={rcode}
                 ydate={ydate}
                 pdate={pdate}
+                agentBank={agentBank}
+                tdate={tdate}
                 busy={busy}
                 onRcode={setRcode}
                 onYdate={setYdate}
                 onPdate={setPdate}
+                onAgentBank={setAgentBank}
               />
             </>
           )}
@@ -483,22 +493,53 @@ function ConvertFields({
   rcode,
   ydate,
   pdate,
+  agentBank,
+  tdate,
   busy,
   onRcode,
   onYdate,
   onPdate,
+  onAgentBank,
 }: {
   rcode: string;
   ydate: string;
   pdate: string;
+  agentBank: string;
+  tdate: string;
   busy: boolean;
   onRcode: (v: string) => void;
   onYdate: (v: string) => void;
   onPdate: (v: string) => void;
+  onAgentBank: (v: string) => void;
 }) {
   const rDigits = safeDigits(rcode).padStart(2, "0").slice(-2);
+  const agentDigits = safeDigits(agentBank).slice(0, 7);
   return (
     <Stack spacing={2}>
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+        <TextField
+          label="處理日期（TDATE）"
+          fullWidth
+          size="small"
+          value={safeDigits(tdate).slice(0, 8) || "（來源檔）"}
+          disabled
+          helperText="取自來源檔／表單"
+          sx={{ "& input": { fontFamily: "monospace" } }}
+        />
+        <TextField
+          label="代表行代號"
+          fullWidth
+          size="small"
+          slotProps={{ htmlInput: { maxLength: 7, inputMode: "numeric" } }}
+          value={agentBank}
+          onChange={(e) => onAgentBank(safeDigits(e.target.value).slice(0, 7))}
+          disabled={busy}
+          placeholder="0040000"
+          error={agentDigits.length > 0 && agentDigits.length !== 7}
+          helperText="七碼；BOF／EOF 接收單位（RORG）；發送單位固定 9990250"
+          sx={{ "& input": { fontFamily: "monospace" } }}
+        />
+      </Stack>
       <TextField
         select
         label="退件理由代號"

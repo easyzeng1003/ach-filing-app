@@ -9,10 +9,11 @@
  * - 退件必填：RCODE、PDATE、PSEQ、PSCHD
  * - Trailer YDATE：ACHR01 置放前一營業日（ACHP01 空白）
  *
- * 輸出：單一整檔（不依收受行分檔）；表頭 SORG 取首筆退件行銀行代號。
+ * 輸出：單一整檔（不依收受行分檔）；
+ * BOF／EOF：SORG 固定 9990250；RORG＝收受行代表行代號。
  */
 
-import { generateFromSchema } from "./engine";
+import { generateFromSchema, resolveSorg } from "./engine";
 import type {
   Branch,
   DetailRow,
@@ -21,6 +22,9 @@ import type {
   Txid,
 } from "./schema";
 import { prevRocDate, safeDigits } from "./utils";
+
+/** 財金資訊公司單位代號（ACHR01 發送單位） */
+export const ACHR01_SORG = "9990250";
 
 export type ReturnCode = {
   code: string;
@@ -68,6 +72,11 @@ export type ConvertP01ToR01Options = {
    * 實際 PSEQ = seqOffset + 塊內序號（塊內自 1 起）。
    */
   seqOffset?: number;
+  /**
+   * 收受行代表行代號（7 碼）→ 寫入 ACHR01 BOF／EOF 的 RORG。
+   * 中信 `822*` 會正規成 `8220901`。
+   */
+  agentBank: string;
 };
 
 export type ConvertedR01File = {
@@ -104,6 +113,17 @@ function requireRcode(value: string): string {
   return d.padStart(2, "0");
 }
 
+/** 正規化收受行代表行代號（7 碼；822* → 8220901） */
+export function requireAgentBank(value: string, branches: Branch[]): string {
+  const d = safeDigits(value);
+  if (d.length !== 7) {
+    throw new Error(
+      `代表行代號須為 7 碼（目前 ${d.length || 0} 碼「${value}」）`,
+    );
+  }
+  return resolveSorg(d, branches);
+}
+
 function padSeq8(seq: number | string): string {
   const d = safeDigits(String(seq));
   return d.padStart(8, "0").slice(-8);
@@ -126,6 +146,7 @@ export function convertP01ToR01(
   }
 
   const rcode = requireRcode(options.rcode);
+  const agentBank = requireAgentBank(options.agentBank, branches);
   const tdate = requireRoc8(String(p01Header.date ?? ""), "處理日期（TDATE）");
   const pdate = requireRoc8(options.pdate ?? tdate, "原提示交易日期（PDATE）");
   const ydateRaw = options.ydate?.trim()
@@ -166,6 +187,7 @@ export function convertP01ToR01(
     date: tdate,
     txid: String(p01Header.txid ?? ""),
     bankCode: headerBank,
+    agentBank,
     account: safeDigits(String(items[0]!.row.account ?? "")),
     taxId: String(p01Header.taxId ?? ""),
     ydate,

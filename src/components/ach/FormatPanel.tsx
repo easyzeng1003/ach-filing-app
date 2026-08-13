@@ -139,6 +139,8 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   const [dragOver, setDragOver] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [converting, setConverting] = useState(false);
+  /** 收受行代表行代號（輸出 ACHR01 的 RORG） */
+  const [agentBank, setAgentBank] = useState("");
   const [partitionTools, setPartitionTools] = useState<{
     mode: "split" | "convert";
   } | null>(null);
@@ -400,6 +402,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     rcode: string;
     ydate: string;
     pdate: string;
+    agentBank: string;
   }) {
     const r01 = formats.ACHR01;
     if (!r01) {
@@ -952,6 +955,8 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         setHeaderT(schema.code, schema, "date", value)
       }
       onProcessDateBlur={() => blurHeader(schema.code, schema, "date")}
+      agentBank={agentBank}
+      onAgentBankChange={setAgentBank}
       onProcess={handleExcludeExport}
       onExportR01={
         schema.code === "ACHP01"
@@ -970,6 +975,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         open={convertOpen}
         detailCount={convertR01DetailCount}
         tdate={String(header.date ?? "")}
+        agentBank={agentBank}
         busy={converting}
         onClose={() => {
           if (!converting) setConvertOpen(false);

@@ -32,8 +32,20 @@ export function controlHeaderDisplayValue(
     case "TTIME":
       return "（產生時）";
     case "SORG":
+      if (schema.code === "ACHR01") {
+        return field.value ?? "9990250";
+      }
       return resolveSorg(header.bankCode ?? "", branches) || "—";
     case "RORG":
+      if (schema.code === "ACHR01") {
+        return (
+          header.agentBank?.trim() ||
+          (field.source === "header" && field.key
+            ? header[field.key] ?? ""
+            : "") ||
+          "—"
+        );
+      }
       return field.value ?? "9990250";
     case "VERNO":
       return schema.version;
@@ -68,8 +80,20 @@ export function controlTrailerDisplayValue(
     case "TDATE":
       return header.date ?? "";
     case "SORG":
+      if (schema.code === "ACHR01") {
+        return field.value ?? "9990250";
+      }
       return resolveSorg(header.bankCode ?? "", branches) || "—";
     case "RORG":
+      if (schema.code === "ACHR01") {
+        return (
+          header.agentBank?.trim() ||
+          (field.source === "header" && field.key
+            ? header[field.key] ?? ""
+            : "") ||
+          "—"
+        );
+      }
       return field.value ?? "9990250";
     case "TCOUNT":
       return String(totalCount);
@@ -279,6 +303,8 @@ export function ControlHeaderFields({
     return edit.errors?.[f.key] ?? null;
   });
   const metaRow = fields.map((f) => {
+    if (schema.code === "ACHR01" && f.id === "SORG") return "固定 9990250";
+    if (schema.code === "ACHR01" && f.id === "RORG") return "代表行代號";
     if (f.fn === "sorg" || f.id === "SORG") return "由銀行代號推算";
     if (f.fn === "nowHms" || f.id === "TTIME") return "產生時自動填入";
     if (f.source === "header" && f.key && edit) {
@@ -361,6 +387,8 @@ export function ControlTrailerFields({
     if (f.fn === "totalCount" || f.id === "TCOUNT") return "依明細自動計算";
     if (f.fn === "totalAmount" || f.id === "TAMT") return "依明細自動計算";
     if (f.id === "YDATE" && f.source === "filler") return "提出檔空白";
+    if (schema.code === "ACHR01" && f.id === "SORG") return "固定 9990250";
+    if (schema.code === "ACHR01" && f.id === "RORG") return "代表行代號";
     if (f.fn === "sorg" || f.id === "SORG") return "由銀行代號推算";
     if (f.source === "header" && f.key && edit) {
       const ff = formFieldByKey(schema, f.key);
