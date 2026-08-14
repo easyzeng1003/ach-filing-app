@@ -16,12 +16,9 @@ import {
 } from "@mui/material";
 import {
   FileUpload as FileUpIcon,
-  WarningAmber as AlertTriangleIcon,
-  CheckCircle as CheckCircleIcon,
   FilterAltOff as FilterXIcon,
   CloudUpload as UploadIcon,
   ArrowForward as ArrowRightIcon,
-  ContentCut as ScissorsIcon,
   RestartAlt as RestartAltIcon,
 } from "@mui/icons-material";
 import { toast } from "sonner";
@@ -1252,78 +1249,27 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   return (
     <Stack spacing={2}>
       {importLoadingMask}
-      <Card>
-        <CardContent>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={2}
-            sx={{ mb: 2, justifyContent: "space-between", alignItems: { sm: "flex-start" } }}
-          >
-            <Box>
-              <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: "wrap",  mb: 1 }}>
-                <Chip size="small" color="success" label={schema.code} sx={{ fontFamily: "monospace" }} />
-                <Chip
-                  size="small"
-                  color="warning"
-                  label={`V${schema.version.replace(/^V/i, "")}`}
-                />
-                <Chip size="small" variant="outlined" label={`列長 ${schema.recordLength}`} />
-                {workspace.source === "import" && (
-                  <Chip size="small" color="success" icon={<FileUpIcon />} label="已匯入" />
-                )}
-                {partitionSession?.formatCode === schema.code && (
-                  <Chip size="small" color="warning" icon={<ScissorsIcon />} label="分割編輯" />
-                )}
-              </Stack>
-              <Typography variant="h6" component="h2">
-                {schema.shortCode} {schema.name}・檢核與加工
-              </Typography>
-            </Box>
-            <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
-              <Chip color="primary" variant="outlined" label={`總筆數 ${stats.count}`} />
-              {schema.features.sumAmount && (
-                <Chip
-                  color="primary"
-                  variant="outlined"
-                  label={`總金額 ${stats.amount.toLocaleString("zh-TW")}`}
-                />
-              )}
-              {stats.errRows > 0 ? (
-                <Chip
-                  color="error"
-                  icon={<AlertTriangleIcon />}
-                  label={`${stats.errRows} 列錯誤`}
-                />
-              ) : (
-                <Chip color="success" icon={<CheckCircleIcon />} label="明細正常" />
-              )}
-            </Stack>
-          </Stack>
-
-          {partitionSession?.formatCode !== schema.code ? (
-            <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", alignItems: "center" }}>
-              <LineEndingSelect />
-              <Button
-                variant="text"
-                color="error"
-                startIcon={<RestartAltIcon />}
-                onClick={() => returnToUpload()}
-              >
-                清除並回到上傳
-              </Button>
-            </Stack>
-          ) : null}
-        </CardContent>
-      </Card>
 
       {excludePanel}
 
       <div className="card">
         <div className="border-b border-border px-4 py-3">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <h3 className="font-bold">明細資料（檢核）</h3>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {partitionSession?.formatCode !== schema.code ? (
+              <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", alignItems: "center" }}>
+                <LineEndingSelect />
+                <Button
+                  variant="text"
+                  color="error"
+                  startIcon={<RestartAltIcon />}
+                  onClick={() => returnToUpload()}
+                >
+                  清除並回到上傳
+                </Button>
+              </Stack>
+            ) : (
+              <span />
+            )}
             <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap", alignItems: "center" }}>
               <span className="stat-pill text-xs">
                 {filtered.length === 0

@@ -54,17 +54,19 @@ export function AppShell() {
     loaded,
     loading,
     loadError,
-    txids,
-    branches,
     formatList,
     formats,
   } = useRefStore();
-  const { activeCode, setActiveCode, ensureForm } = useFormStore();
+  const { activeCode, setActiveCode, ensureForm, isWorkspaceOpen } =
+    useFormStore();
   const list = formatList();
   const activeSchema =
     formats[activeCode] ??
     formats[DEFAULT_FORMAT] ??
     formats[list[0]?.code ?? ""];
+  const workspaceOpen = activeSchema
+    ? isWorkspaceOpen(activeSchema.code)
+    : false;
 
   useEffect(() => {
     void loadRefs();
@@ -148,12 +150,13 @@ export function AppShell() {
                 sx={{ bgcolor: "rgba(255,255,255,0.12)", color: "inherit" }}
               />
             )}
-            {loaded && (
+            {loaded && workspaceOpen && activeSchema && (
               <Chip
                 size="small"
                 color="secondary"
                 variant="filled"
-                label={`${activeSchema?.shortCode ?? "ACH"} · 交易 ${txids.length} · 銀行 ${branches.length}`}
+                label={activeSchema.shortCode === "R01" ? "R01" : "P01"}
+                sx={{ fontFamily: "monospace", fontWeight: 700 }}
               />
             )}
             {loadError && (
