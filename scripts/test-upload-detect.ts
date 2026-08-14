@@ -7,7 +7,13 @@ import {
   expectedDetailType,
   parseAchText,
 } from "../src/lib/ach/import";
-import { generateFromSchema } from "../src/lib/ach/engine";
+import {
+  generateFromSchema,
+  headerHasError,
+  validateHeader,
+} from "../src/lib/ach/engine";
+import { convertP01ToR01 } from "../src/lib/ach/convertR01";
+import { buildExportControlLines } from "../src/lib/ach/partition";
 import {
   EMBEDDED_BRANCHES,
   EMBEDDED_TXIDS,
@@ -80,6 +86,64 @@ assert.ok(
   assert.equal(codes.bofCode, null);
   assert.equal(codes.eofCode, "ACHP01");
   assert.equal(codes.code, "ACHP01");
+}
+
+// 上傳 R01 後無條件重出：BOF 無 bankCode，須由首筆明細補參考欄，且不可當必填擋輸出
+{
+  const r01File = convertP01ToR01(
+    r01,
+    header,
+    rows,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+    { rcode: "04", ydate: "01150813", pdate: "01150814", agentBank: "0040000" },
+  );
+  const parsedR = parseAchText(r01File.files[0]!.content, r01, {
+    filename: "back.txt",
+  });
+  assert.equal(parsedR.errors.length, 0, parsedR.errors.join("; "));
+  assert.equal(parsedR.header.agentBank, "0040000");
+  assert.equal(parsedR.header.ydate, "01150813");
+  assert.equal(parsedR.header.bankCode, "8120053", "R01 參考 bankCode 由首筆 PBANK 補");
+  assert.equal(parsedR.header.account, "0000000987654321");
+
+  const bankField = r01.form.header.find((f) => f.key === "bankCode");
+  assert.equal(bankField?.required, false, "R01 表頭 bankCode 為參考、非必填");
+
+  const headerErrs = validateHeader(
+    r01,
+    parsedR.header,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  delete headerErrs.bankCode;
+  delete headerErrs.account;
+  assert.equal(headerErrs.date, null, "R01 處理日期允許已發生（提回檔）");
+  assert.equal(headerHasError(headerErrs), false, JSON.stringify(headerErrs));
+
+  const regenerated = generateFromSchema(
+    r01,
+    { ...parsedR.header, agentBank: "0040000" },
+    parsedR.rows,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  assert.ok(regenerated.lines.every((l) => l.length === 250));
+  const ctrl = buildExportControlLines(r01, {
+    sourceHeaderLine: parsedR.lines.find((l) => l.kind === "header")?.raw,
+    sourceTrailerLine: parsedR.lines.find((l) => l.kind === "trailer")?.raw,
+    header: { ...parsedR.header, agentBank: "0040000" },
+    processDate: parsedR.header.date,
+    agentBank: "0040000",
+    detailCount: regenerated.count,
+    totalAmount: regenerated.amount,
+    txids: EMBEDDED_TXIDS,
+    branches: EMBEDDED_BRANCHES,
+  });
+  assert.equal(ctrl.headerLine.length, 250);
+  assert.equal(ctrl.trailerLine.length, 250);
+  assert.equal(ctrl.headerLine.slice(3, 9), "ACHR01");
+  assert.equal(ctrl.trailerLine.slice(55, 63), "01150813");
 }
 
 console.log("OK upload-detect: BOF/EOF CDATA, detail TYPE gate, no full-field block on upload");
