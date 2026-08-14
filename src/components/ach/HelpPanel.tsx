@@ -154,7 +154,8 @@ export function HelpPanel() {
         </div>
         <p className="mb-2 text-sm text-muted">
           於主畫面可填<strong className="text-fg">處理日期</strong>（寫入輸出首／尾錄）與
-          <strong className="text-fg">代表行代號</strong>（輸出 R01 時寫入接收單位 RORG），
+          <strong className="text-fg">代表行代號</strong>（輸出 R01 時寫入接收單位 RORG；
+          上傳 R01 且各明細<strong className="text-fg">提回行代號</strong>相同時會自動帶入），
           選擇動作（
           <strong className="text-fg">篩選</strong>＝只留符合條件；
           <strong className="text-fg">排除</strong>＝去掉符合條件；

@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import {
   detectFormatCodesFromText,
   expectedDetailType,
+  inferUniformR01ReturnBank,
   parseAchText,
 } from "../src/lib/ach/import";
 import {
@@ -144,6 +145,101 @@ assert.ok(
   assert.equal(ctrl.trailerLine.length, 250);
   assert.equal(ctrl.headerLine.slice(3, 9), "ACHR01");
   assert.equal(ctrl.trailerLine.slice(55, 63), "01150813");
+}
+
+// 上傳 R01：各明細提回行代號（RBANK）相同 → 自動填代表行
+{
+  assert.equal(inferUniformR01ReturnBank(["0040000", "0040000"]), "0040000");
+  assert.equal(inferUniformR01ReturnBank(["0040000", "8120001"]), null);
+  assert.equal(inferUniformR01ReturnBank([]), null);
+
+  const r01File = convertP01ToR01(
+    r01,
+    header,
+    rows,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+    { rcode: "04", ydate: "01150813", pdate: "01150814", agentBank: "0040000" },
+  );
+  const lines = r01File.files[0]!.content
+    .replace(/\r\n/g, "\n")
+    .replace(/\n$/, "")
+    .split("\n");
+  const detail = lines[1]!;
+  // RBANK 在 TYPE1+TXTYPE2+TXID3+SEQ8+PBANK7+PCLNO16 = 37
+  assert.equal(detail.slice(37, 44), "0040000", "fixture RBANK = 提出行");
+
+  /** 清空 BOF（offset 30）／EOF（offset 24，無 TTIME）的 RORG */
+  const blankCtrlRorg = (line: string) =>
+    line.startsWith("BOF")
+      ? line.slice(0, 30) + "       " + line.slice(37)
+      : line.startsWith("EOF")
+        ? line.slice(0, 24) + "       " + line.slice(31)
+        : line;
+
+  // 首／尾錄 RORG 空白時，仍由明細提回行帶入
+  const blankRorg = [
+    blankCtrlRorg(lines[0]!),
+    ...lines.slice(1, -1),
+    blankCtrlRorg(lines.at(-1)!),
+  ].join("\r\n") + "\r\n";
+  const parsedBlank = parseAchText(blankRorg, r01, { filename: "blank-rorg.txt" });
+  assert.equal(parsedBlank.errors.length, 0, parsedBlank.errors.join("; "));
+  assert.equal(
+    parsedBlank.header.agentBank,
+    "0040000",
+    "R01 代表行由統一提回行代號帶入",
+  );
+
+  // 提回行不一致：保留 BOF RORG，不覆寫
+  const otherRbank = detail.slice(0, 37) + "8120001" + detail.slice(44);
+  const mixed = [lines[0]!, detail, otherRbank, lines.at(-1)!].join("\r\n") + "\r\n";
+  const parsedMixed = parseAchText(mixed, r01, { filename: "mixed-rbank.txt" });
+  assert.equal(parsedMixed.detailCount, 2);
+  assert.equal(
+    parsedMixed.header.agentBank,
+    "0040000",
+    "提回行不一致時保留 BOF 代表行",
+  );
+
+  const blankMixed = [
+    blankCtrlRorg(lines[0]!),
+    detail,
+    otherRbank,
+    blankCtrlRorg(lines.at(-1)!),
+  ].join("\r\n") + "\r\n";
+  const parsedBlankMixed = parseAchText(blankMixed, r01, {
+    filename: "blank-mixed.txt",
+  });
+  assert.equal(
+    String(parsedBlankMixed.header.agentBank ?? "").trim(),
+    "",
+    "提回行不一致且首／尾錄無 RORG 時不填代表行",
+  );
+
+  // 大檔略過欄位解析時仍掃每一列 RBANK
+  const many = [lines[0]!, ...Array(5001).fill(detail), lines.at(-1)!].join(
+    "\r\n",
+  ) + "\r\n";
+  const parsedMany = parseAchText(many, r01, { filename: "many-r01.txt" });
+  assert.equal(parsedMany.tooLargeForForm, true);
+  assert.equal(parsedMany.header.agentBank, "0040000");
+
+  const manyMixed = [
+    lines[0]!,
+    ...Array(5000).fill(detail),
+    otherRbank,
+    lines.at(-1)!,
+  ].join("\r\n") + "\r\n";
+  const parsedManyMixed = parseAchText(manyMixed, r01, {
+    filename: "many-mixed.txt",
+  });
+  assert.equal(parsedManyMixed.tooLargeForForm, true);
+  assert.equal(
+    parsedManyMixed.header.agentBank,
+    "0040000",
+    "大檔提回行不一致時不覆寫 BOF RORG",
+  );
 }
 
 console.log("OK upload-detect: BOF/EOF CDATA, detail TYPE gate, no full-field block on upload");

@@ -58,6 +58,7 @@ import {
 import {
   parseAchFile,
   resolveImportSchemaFromFile,
+  inferUniformR01ReturnBank,
   IMPORT_LIMITS,
   type ImportProgress,
   type ImportResult,
@@ -211,7 +212,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   const deferredRows = useDeferredValue(rows);
   const deferredHeader = useDeferredValue(header);
 
-  // 匯入 R01 後，從表頭／來源 BOF 帶入代表行代號
+  // 匯入 R01 後，從表頭／來源 BOF／明細提回行代號帶入代表行代號
   useEffect(() => {
     if (schema.code !== "ACHR01" || !workspaceOpen) return;
     const fromHeader = safeDigits(header.agentBank ?? "").slice(0, 7);
@@ -226,7 +227,16 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       if (rorg.length === 7) {
         setAgentBank(rorg);
         setHeader(schema.code, schema, "agentBank", rorg);
+        return;
       }
+    }
+    if (rows.length === 0) return;
+    const inferred = inferUniformR01ReturnBank(
+      rows.map((r) => String(r.origBankCode ?? "")),
+    );
+    if (inferred) {
+      setAgentBank(inferred);
+      setHeader(schema.code, schema, "agentBank", inferred);
     }
   }, [
     schema,
@@ -235,6 +245,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     workspace.source,
     workspace.sourceHeaderLine,
     header.agentBank,
+    rows,
     setHeader,
   ]);
 
