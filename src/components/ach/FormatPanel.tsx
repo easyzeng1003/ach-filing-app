@@ -392,9 +392,14 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     setFilterOpts({ hideEmpty: false, onlyErrors: false, global: "" });
   }
 
-  function validateFormData(): boolean {
-    const synced = syncHeaderFromDetails(header, rows, schema);
-    if (synced.txid !== header.txid) {
+  function validateFormData(source?: {
+    header: import("@/lib/ach/schema").HeaderValues;
+    rows: import("@/lib/ach/schema").DetailRow[];
+  }): boolean {
+    const sourceHeader = source?.header ?? header;
+    const sourceRows = source?.rows ?? rows;
+    const synced = syncHeaderFromDetails(sourceHeader, sourceRows, schema);
+    if (!source && synced.txid !== header.txid) {
       setHeaderT(schema.code, schema, "txid", synced.txid ?? "");
     }
     const syncedHeaderErrs = validateHeader(schema, synced, txids, branches);
@@ -403,9 +408,14 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       return false;
     }
     const bad: number[] = [];
-    rows.forEach((r, i) => {
+    // 輸出前完整檢核：以傳入資料或目前表單即時 validate（不依賴畫面 rowErrs 快取）
+    sourceRows.forEach((r, i) => {
       if (isRowEmpty(r, schema)) return;
-      if (rowErrorMessages(rowErrs[i] ?? {}).length) bad.push(i + 1);
+      const errs =
+        source != null
+          ? validateDetailRow(schema, r, txids, branches, synced)
+          : (rowErrs[i] ?? validateDetailRow(schema, r, txids, branches, synced));
+      if (rowErrorMessages(errs).length) bad.push(i + 1);
     });
     if (bad.length) {
       toast.error(
@@ -413,11 +423,51 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       );
       return false;
     }
-    if (stats.count === 0) {
+    const validCount = sourceRows.filter((r) => {
+      if (isRowEmpty(r, schema)) return false;
+      return true;
+    }).length;
+    // 非空列皆須通過檢核；統計用非空數
+    if (validCount === 0) {
       toast.error("尚無有效明細資料");
       return false;
     }
     return true;
+  }
+
+  /** 輸出／轉檔用來源：分割工作區則合併全包 */
+  function prepareExportSource(): {
+    header: import("@/lib/ach/schema").HeaderValues;
+    rows: import("@/lib/ach/schema").DetailRow[];
+  } | null {
+    const sess = usePartitionStore.getState().session;
+    if (sess && sess.formatCode === schema.code) {
+      if (sess.activeIndex != null && partitionFormDirty) {
+        usePartitionStore
+          .getState()
+          .saveFormToActivePart(schema, header, rows, txids, branches);
+        setPartitionFormDirty(false);
+      }
+      const latest = usePartitionStore.getState().session;
+      if (!latest || latest.formatCode !== schema.code) {
+        toast.error("分割工作區已結束");
+        return null;
+      }
+      try {
+        return collectSessionRows(schema, latest);
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "無法讀取分割工作區");
+        return null;
+      }
+    }
+    return { header, rows };
+  }
+
+  /** 輸出／轉檔前：完整檢核 R01／P01 表頭＋明細規則 */
+  function validateBeforeExport(): boolean {
+    const source = prepareExportSource();
+    if (!source) return false;
+    return validateFormData(source);
   }
 
   async function handleConvertToR01(opts: {
@@ -433,27 +483,10 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     }
     setConverting(true);
     try {
-      // 整檔輸出：分割工作區時合併全部包（非僅目前開啟的那一包）
-      let sourceHeader = header;
-      let sourceRows = rows;
-      const sess = usePartitionStore.getState().session;
-      if (sess && sess.formatCode === schema.code) {
-        if (sess.activeIndex != null && partitionFormDirty) {
-          usePartitionStore
-            .getState()
-            .saveFormToActivePart(schema, header, rows, txids, branches);
-          setPartitionFormDirty(false);
-        }
-        const latest = usePartitionStore.getState().session;
-        if (!latest || latest.formatCode !== schema.code) {
-          throw new Error("分割工作區已結束");
-        }
-        const collected = collectSessionRows(schema, latest);
-        sourceHeader = collected.header;
-        sourceRows = collected.rows;
-      } else if (!validateFormData()) {
-        return;
-      }
+      const source = prepareExportSource();
+      if (!source || !validateFormData(source)) return;
+      const sourceHeader = source.header;
+      const sourceRows = source.rows;
 
       const lineEnding = usePrefsStore.getState().lineEnding;
       const exclude = resolveExcludeDoc(schema.code);
@@ -507,26 +540,10 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     }
     setConverting(true);
     try {
-      let sourceHeader = header;
-      let sourceRows = rows;
-      const sess = usePartitionStore.getState().session;
-      if (sess && sess.formatCode === schema.code) {
-        if (sess.activeIndex != null && partitionFormDirty) {
-          usePartitionStore
-            .getState()
-            .saveFormToActivePart(schema, header, rows, txids, branches);
-          setPartitionFormDirty(false);
-        }
-        const latest = usePartitionStore.getState().session;
-        if (!latest || latest.formatCode !== schema.code) {
-          throw new Error("分割工作區已結束");
-        }
-        const collected = collectSessionRows(schema, latest);
-        sourceHeader = collected.header;
-        sourceRows = collected.rows;
-      } else if (!validateFormData()) {
-        return;
-      }
+      const source = prepareExportSource();
+      if (!source || !validateFormData(source)) return;
+      const sourceHeader = source.header;
+      const sourceRows = source.rows;
 
       const lineEnding = usePrefsStore.getState().lineEnding;
       const exclude = resolveExcludeDoc(schema.code);
@@ -1077,10 +1094,11 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         }
       }}
       onProcess={handleExcludeExport}
+      onValidateBeforeExport={validateBeforeExport}
       onExportR01={
         schema.code === "ACHP01"
           ? () => {
-              if (!validateFormData()) return;
+              if (!validateBeforeExport()) return;
               setConvertOpen(true);
             }
           : undefined
@@ -1212,13 +1230,13 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                 }}
               >
                 <Typography component="li" variant="caption">
-                  上傳既有 ACHP01（提出）或 ACHR01（提回／退件）.txt
+                  依 BOF／EOF 判定 P01／R01，並檢核明細 TYPE
                 </Typography>
                 <Typography component="li" variant="caption">
                   預覽並確認表頭／明細／列長
                 </Typography>
                 <Typography component="li" variant="caption">
-                  檢核錯誤、修正後重新產生上傳檔（P01⇄R01 可互相轉檔）
+                  進入編輯後輸出前才完整檢核格式（P01⇄R01 可互相轉檔）
                 </Typography>
               </Stack>
             </Paper>

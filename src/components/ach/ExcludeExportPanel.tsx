@@ -55,6 +55,10 @@ type Props = {
   /** 執行篩選／排除（條件可為 null＝整檔輸出） */
   onProcess: (doc: ExcludeRulesDoc | null) => Promise<ExcludeExportResult>;
   /**
+   * 輸出前完整格式檢核（表頭＋明細規則）。回傳 false 時中止輸出。
+   */
+  onValidateBeforeExport?: () => boolean;
+  /**
    * 篩選／排除後輸出 R01：開啟 P01→R01 轉檔對話框並套用目前條件。
    * 不提供時隱藏 R01 按鈕。
    */
@@ -76,6 +80,7 @@ export function ExcludeExportPanel({
   agentBank = "",
   onAgentBankChange,
   onProcess,
+  onValidateBeforeExport,
   onExportR01,
   onExportP01,
 }: Props) {
@@ -153,6 +158,9 @@ export function ExcludeExportPanel({
     }
     if (schema.code === "ACHR01" && agentBankError) {
       toast.error(agentBankError);
+      return;
+    }
+    if (onValidateBeforeExport && !onValidateBeforeExport()) {
       return;
     }
     setBusy(true);

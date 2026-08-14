@@ -15,13 +15,14 @@ export function HelpPanel() {
           以財金 ACH <strong className="text-fg">P01 代收／代付</strong>與
           <strong className="text-fg">R01 提回／退件</strong>
           固定長度檔為主，進行<strong className="text-fg">檢核與加工</strong>。
-          開啟後請先上傳既有 P01 或 R01 檔（上傳時自動辨識檔案代號）。
+          開啟後請先上傳既有 P01 或 R01 檔（上傳時依 BOF／EOF 自動辨識檔案代號，並檢核明細 TYPE 是否符合）。
           ACHP01 明細<strong className="text-fg">交易類別</strong>依交易代號帶入：
           <strong className="text-fg">SD＝代收</strong>、
           <strong className="text-fg">SC＝代付</strong>。
           於 P01 可<strong className="text-fg">轉檔 R01</strong>
           （TYPE=R、對調提出／提回行與帳號、填入退件理由）；
           於 R01 亦可<strong className="text-fg">轉回 P01</strong>。
+          完整欄位規則於<strong className="text-fg">編輯頁輸出前</strong>檢核。
           大檔請按<strong className="text-fg">編輯</strong>整合分割邏輯：切成多包後在網頁
           <strong className="text-fg">逐包載入修改</strong>，存回後以
           <strong className="text-fg">篩選／排除後輸出</strong>合併全部分割包；
@@ -133,8 +134,7 @@ export function HelpPanel() {
             <code className="font-mono text-xs">.txt</code>
           </li>
           <li>
-            依 BOF 列 CDATA（檔案代號）自動對應 JSON 格式，並以
-            <code className="font-mono text-xs">records</code> 欄位定義切片預覽
+            依 BOF／EOF 列 CDATA（檔案代號）自動對應 JSON 格式；上傳僅檢明細 TYPE（N＝P01／R＝R01），完整欄位規則於編輯頁輸出前檢核
           </li>
           <li>
             預覽可切換「表單欄位／固定長度欄位／原始列」；確認後「套用到表單」進入檢核與加工
