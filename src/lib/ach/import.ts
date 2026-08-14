@@ -584,6 +584,9 @@ function finalizeHeader(acc: ParseAcc): HeaderValues {
     const fromDetail = {
       ...fromDetailHeader,
       ...(fromDetailBody.txid ? { txid: fromDetailBody.txid } : {}),
+      // ACHR01 BOF 無 bankCode／account；參考欄由首筆明細 PBANK／PCLNO 補
+      ...(fromDetailBody.bankCode ? { bankCode: fromDetailBody.bankCode } : {}),
+      ...(fromDetailBody.account ? { account: fromDetailBody.account } : {}),
     };
     for (const [k, v] of Object.entries(fromDetail)) {
       if (!v) continue;

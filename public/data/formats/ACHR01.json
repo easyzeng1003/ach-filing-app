@@ -41,8 +41,7 @@
               "message": "日期長度請輸入八碼"
             },
             {
-              "type": "rocDate",
-              "notPast": true
+              "type": "rocDate"
             }
           ]
         },
@@ -120,16 +119,12 @@
         "inputType": "text",
         "length": 7,
         "charset": "digit",
-        "required": true,
+        "required": false,
         "pad": {
           "side": "none"
         },
         "validation": {
           "rules": [
-            {
-              "type": "required",
-              "message": "未輸入"
-            },
             {
               "type": "branchCode",
               "message": "銀行代號錯誤"

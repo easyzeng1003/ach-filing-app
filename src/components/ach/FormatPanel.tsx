@@ -400,6 +400,11 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       setHeaderT(schema.code, schema, "txid", synced.txid ?? "");
     }
     const syncedHeaderErrs = validateHeader(schema, synced, txids, branches);
+    // ACHR01 表頭 bankCode／account 為參考（BOF 無此欄、畫面已隱藏），不阻擋輸出
+    if (schema.code === "ACHR01") {
+      delete syncedHeaderErrs.bankCode;
+      delete syncedHeaderErrs.account;
+    }
     if (headerHasError(syncedHeaderErrs)) {
       toast.error("控制首錄／表頭資料輸入有誤");
       return false;
