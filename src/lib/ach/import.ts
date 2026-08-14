@@ -110,16 +110,84 @@ function splitLines(text: string): string[] {
 
 /** 從首筆 BOF 列的 CDATA（第 4–9 碼）偵測檔案代號（僅掃前幾列） */
 export function detectFormatCode(text: string): string | null {
-  const lines = splitLines(text.slice(0, 2048));
-  const header = lines.find((l) => l.startsWith("BOF"));
-  if (!header || header.length < 9) return null;
-  const code = header.slice(3, 9).trim();
+  return detectFormatCodesFromText(text).bofCode;
+}
+
+export type DetectedFormatCodes = {
+  bofCode: string | null;
+  eofCode: string | null;
+  /** 優先 BOF，其次 EOF */
+  code: string | null;
+};
+
+function cdataFromControlLine(line: string | undefined): string | null {
+  if (!line || line.length < 9) return null;
+  if (!(line.startsWith("BOF") || line.startsWith("EOF"))) return null;
+  const code = line.slice(3, 9).trim();
   return code || null;
 }
 
+/** 自文字掃描 BOF／EOF 的 CDATA（檔案代號） */
+export function detectFormatCodesFromText(text: string): DetectedFormatCodes {
+  const head = splitLines(text.slice(0, 4096));
+  const bof = head.find((l) => l.startsWith("BOF"));
+  const bofCode = cdataFromControlLine(bof);
+
+  // 尾端亦掃 EOF（大檔呼叫端應傳入 head+tail 拼接或全文）
+  const tailSlice =
+    text.length > 8192 ? text.slice(-4096) : text;
+  const tailLines = splitLines(tailSlice);
+  let eofCode: string | null = null;
+  for (let i = tailLines.length - 1; i >= 0; i--) {
+    const line = tailLines[i]!;
+    if (line.startsWith("EOF")) {
+      eofCode = cdataFromControlLine(line);
+      break;
+    }
+  }
+
+  return {
+    bofCode,
+    eofCode,
+    code: bofCode ?? eofCode,
+  };
+}
+
 export async function detectFormatCodeFromFile(file: File): Promise<string | null> {
-  const head = await file.slice(0, 2048).text();
-  return detectFormatCode(head);
+  const detected = await detectFormatCodesFromFile(file);
+  return detected.code;
+}
+
+/** 讀檔首／尾各約 4KB，依 BOF／EOF CDATA 判定 P01／R01 */
+export async function detectFormatCodesFromFile(
+  file: File,
+): Promise<DetectedFormatCodes> {
+  const headBytes = Math.min(file.size, 4096);
+  const tailStart = Math.max(0, file.size - 4096);
+  const head = await file.slice(0, headBytes).text();
+  const tail =
+    tailStart > 0 ? await file.slice(tailStart).text() : head;
+  const fromHead = detectFormatCodesFromText(head);
+  const fromTail = detectFormatCodesFromText(tail);
+  const bofCode = fromHead.bofCode;
+  const eofCode = fromTail.eofCode ?? fromHead.eofCode;
+  return {
+    bofCode,
+    eofCode,
+    code: bofCode ?? eofCode,
+  };
+}
+
+/** 依 schema 明細 TYPE 字面值（N／R）判斷期望交易型態 */
+export function expectedDetailType(schema: FormatSchema): "N" | "R" | null {
+  const typeField = schema.records.detail.fields.find((f) => f.id === "TYPE");
+  if (typeField?.source === "literal") {
+    const v = String(typeField.value ?? "").trim();
+    if (v === "N" || v === "R") return v;
+  }
+  if (schema.code === "ACHP01") return "N";
+  if (schema.code === "ACHR01") return "R";
+  return null;
 }
 
 function unpadField(raw: string, def: RecordFieldDef): string {
@@ -276,6 +344,12 @@ type ParseAcc = {
   detailCount: number;
   matchedCount: number;
   lengthErrorCount: number;
+  /** 明細 TYPE 與 schema 期望不符筆數（上傳僅檢此結構規則） */
+  detailTypeMismatchCount: number;
+  /** 明細首字非 N／R 筆數 */
+  detailTypeOtherCount: number;
+  bofCode: string | null;
+  eofCode: string | null;
   tooLargeForForm: boolean;
   collectingRows: boolean;
   sawNonEmpty: boolean;
@@ -303,6 +377,10 @@ function createAcc(
     detailCount: 0,
     matchedCount: 0,
     lengthErrorCount: 0,
+    detailTypeMismatchCount: 0,
+    detailTypeOtherCount: 0,
+    bofCode: null,
+    eofCode: null,
     tooLargeForForm: false,
     collectingRows: true,
     sawNonEmpty: false,
@@ -402,13 +480,25 @@ function consumeLine(acc: ParseAcc, raw: string, index: number): void {
       lengthOk,
       fields,
     };
-    if (kind === "header") acc.headerLine = sample;
-    else acc.trailerLine = sample;
+    if (kind === "header") {
+      acc.headerLine = sample;
+      if (!acc.bofCode) acc.bofCode = cdataFromControlLine(raw);
+    } else {
+      acc.trailerLine = sample;
+      acc.eofCode = cdataFromControlLine(raw);
+    }
     return;
   }
 
-  // detail
+  // detail — 上傳階段僅檢 TYPE（N＝P01／R＝R01），完整欄位規則延至編輯／輸出
   acc.detailCount += 1;
+  const expectedType = expectedDetailType(acc.schema);
+  const typeChar = raw.charAt(0);
+  if (expectedType && (typeChar === "N" || typeChar === "R")) {
+    if (typeChar !== expectedType) acc.detailTypeMismatchCount += 1;
+  } else if (raw.trim()) {
+    acc.detailTypeOtherCount += 1;
+  }
 
   const needParse =
     acc.filterActive ||
@@ -418,7 +508,7 @@ function consumeLine(acc: ParseAcc, raw: string, index: number): void {
     acc.detailSamples.length < IMPORT_LIMITS.maxDetailLineSamples;
 
   if (!needParse) {
-    // 未篩選且已超過收集上限：只計數／列長，並丟掉已物化的 rows
+    // 未篩選且已超過收集上限：只計數／列長／TYPE，並丟掉已物化的 rows
     if (
       !acc.filterActive &&
       acc.detailCount > IMPORT_LIMITS.maxFormDetailRows
@@ -528,6 +618,32 @@ function buildResult(
     pushWarning(acc.warnings, "沒有明細列");
   }
 
+  const bofCode = acc.bofCode ?? cdataFromControlLine(acc.headerLine?.raw);
+  const eofCode = acc.eofCode ?? cdataFromControlLine(acc.trailerLine?.raw);
+  if (bofCode && eofCode && bofCode !== eofCode) {
+    acc.errors.push(
+      `BOF 檔案代號為 ${bofCode}，EOF 為 ${eofCode}，兩者不一致`,
+    );
+  }
+
+  const expectedType = expectedDetailType(acc.schema);
+  if (expectedType && acc.detailCount > 0) {
+    if (acc.detailTypeMismatchCount > 0) {
+      const got = expectedType === "N" ? "R" : "N";
+      const label =
+        expectedType === "N" ? "ACHP01（TYPE=N）" : "ACHR01（TYPE=R）";
+      acc.errors.push(
+        `明細 TYPE 與 ${label} 不符：有 ${acc.detailTypeMismatchCount.toLocaleString("zh-TW")} 筆為 TYPE=${got}`,
+      );
+    }
+    if (acc.detailTypeOtherCount > 0) {
+      pushWarning(
+        acc.warnings,
+        `有 ${acc.detailTypeOtherCount.toLocaleString("zh-TW")} 筆明細首字非 N／R（略過完整欄位檢核；請於編輯頁修正）`,
+      );
+    }
+  }
+
   const matchedCount = acc.filterActive ? acc.matchedCount : acc.detailCount;
 
   if (acc.tooLargeForForm) {
@@ -593,20 +709,16 @@ export function parseAchText(
 ): ImportResult {
   const filename = opts?.filename ?? "";
   const fileSize = opts?.fileSize ?? text.length;
-  const detectedCode = detectFormatCode(text);
+  const detected = detectFormatCodesFromText(text);
+  const detectedCode = detected.code;
   const acc = createAcc(schema, {
     filters: opts?.filters,
     filterGlobal: opts?.filterGlobal,
   });
+  acc.bofCode = detected.bofCode;
+  acc.eofCode = detected.eofCode;
 
-  if (detectedCode && detectedCode !== schema.code) {
-    pushWarning(
-      acc.warnings,
-      `檔案代號為 ${detectedCode}，目前以 ${schema.code} 格式解析`,
-    );
-  } else if (!detectedCode) {
-    pushWarning(acc.warnings, "無法從 BOF 列辨識檔案代號（CDATA）");
-  }
+  applyUploadDetectWarnings(acc, schema, detected);
 
   const rawLines = splitLines(text);
   if (!rawLines.length) {
@@ -632,20 +744,16 @@ export async function parseAchFile(
   opts?: ImportParseOptions,
 ): Promise<ImportResult> {
   const filename = opts?.filename ?? file.name;
-  const detectedCode = await detectFormatCodeFromFile(file);
+  const detected = await detectFormatCodesFromFile(file);
+  const detectedCode = detected.code;
   const acc = createAcc(schema, {
     filters: opts?.filters,
     filterGlobal: opts?.filterGlobal,
   });
+  acc.bofCode = detected.bofCode;
+  acc.eofCode = detected.eofCode;
 
-  if (detectedCode && detectedCode !== schema.code) {
-    pushWarning(
-      acc.warnings,
-      `檔案代號為 ${detectedCode}，目前以 ${schema.code} 格式解析`,
-    );
-  } else if (!detectedCode) {
-    pushWarning(acc.warnings, "無法從 BOF 列辨識檔案代號（CDATA）");
-  }
+  applyUploadDetectWarnings(acc, schema, detected);
 
   const reader = file.stream().getReader();
   // ACH 固定長度以 byte 定位；用 latin1 讓 1 byte = 1 JS char，避免 UTF-8 多位元組位移
@@ -755,14 +863,30 @@ export async function parseAchFile(
   });
 }
 
-/** 在多個格式中選出最適合解析的 schema（優先 CDATA 代號，其次列長） */
+/** 上傳頁：僅提示 BOF／EOF 判定結果（完整欄位規則不在此檢） */
+function applyUploadDetectWarnings(
+  acc: ParseAcc,
+  schema: FormatSchema,
+  detected: DetectedFormatCodes,
+): void {
+  if (detected.code && detected.code !== schema.code) {
+    pushWarning(
+      acc.warnings,
+      `檔案代號為 ${detected.code}（BOF／EOF），目前以 ${schema.code} 格式解析`,
+    );
+  } else if (!detected.code) {
+    pushWarning(acc.warnings, "無法從 BOF／EOF 列辨識檔案代號（CDATA）");
+  }
+}
+
+/** 在多個格式中選出最適合解析的 schema（優先 BOF／EOF CDATA，其次列長） */
 export function resolveImportSchema(
   text: string,
   formats: Record<string, FormatSchema>,
   preferred?: FormatSchema,
 ): FormatSchema | null {
-  const code = detectFormatCode(text);
-  if (code && formats[code]) return formats[code];
+  const detected = detectFormatCodesFromText(text);
+  if (detected.code && formats[detected.code]) return formats[detected.code];
 
   const lines = splitLines(text.slice(0, 4096));
   const sample = lines.find((l) => l.startsWith("BOF")) ?? lines[0] ?? "";
@@ -779,6 +903,9 @@ export async function resolveImportSchemaFromFile(
   formats: Record<string, FormatSchema>,
   preferred?: FormatSchema,
 ): Promise<FormatSchema | null> {
+  const detected = await detectFormatCodesFromFile(file);
+  if (detected.code && formats[detected.code]) return formats[detected.code];
+
   const head = await file.slice(0, 4096).text();
   return resolveImportSchema(head, formats, preferred);
 }
