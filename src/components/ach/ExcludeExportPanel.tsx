@@ -68,6 +68,8 @@ type Props = {
    * 不提供時隱藏轉回 P01 按鈕。
    */
   onExportP01?: () => void;
+  /** 輸出／轉檔進行中（父層全畫面 mask） */
+  exporting?: boolean;
 };
 
 /** 前端條件：篩選（僅保留符合）／排除（剔除符合）；可無條件整檔輸出 */
@@ -81,8 +83,10 @@ export function ExcludeExportPanel({
   onAgentBankChange,
   onExportR01,
   onExportP01,
+  exporting = false,
 }: Props) {
   const [busy, setBusy] = useState(false);
+  const buttonsBusy = busy || exporting;
   const conditions = useExcludeStore((s) => s.conditions);
   const matchMode = useExcludeStore((s) => s.matchMode);
   const actionMode = useExcludeStore((s) => s.actionMode);
@@ -390,7 +394,7 @@ export function ExcludeExportPanel({
           <Button
             variant="outlined"
             color="primary"
-            disabled={busy}
+            disabled={buttonsBusy}
             startIcon={<SwapHorizIcon />}
             onClick={() => {
               if (!guardDate()) return;
@@ -403,7 +407,7 @@ export function ExcludeExportPanel({
           <Button
             variant="contained"
             color="primary"
-            disabled={busy}
+            disabled={buttonsBusy}
             startIcon={<SwapHorizIcon />}
             onClick={() => {
               if (!guardDate()) return;
