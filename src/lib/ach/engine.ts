@@ -537,7 +537,7 @@ export type GenerateResult = {
 
 /**
  * ACHR01 明細 1-based 第 15–37 碼（PBANK+PCLNO）與第 38–60 碼（RBANK+RCLNO）對調。
- * 產生時先依 P01 同位置寫入，再對調；匯入時先對調再解析。
+ * 僅輸出時對調；上傳 R01 依檔案原樣解析，不對調。
  */
 export function swapR01DetailBankAccountBlocks(line: string): string {
   if (line.length < 60) return line;

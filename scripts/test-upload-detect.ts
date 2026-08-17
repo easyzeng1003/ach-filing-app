@@ -12,6 +12,7 @@ import {
 import {
   generateFromSchema,
   headerHasError,
+  swapR01DetailBankAccountBlocks,
   validateBuiltControlDates,
   validateExportControlDates,
   validateHeader,
@@ -108,9 +109,23 @@ assert.ok(
   });
   assert.equal(parsedR.errors.length, 0, parsedR.errors.join("; "));
   assert.equal(parsedR.header.agentBank, "8120053");
-  assert.equal(parsedR.header.ydate, "01150813");
-  assert.equal(parsedR.header.bankCode, "8120053", "R01 參考 bankCode 由首筆 PBANK（退件行）補");
-  assert.equal(parsedR.header.account, "0000000987654321");
+  assert.equal(parsedR.header.ydate, "01150803", "R01 YDATE＝TDATE 前一日");
+  assert.equal(
+    parsedR.rows[0]!.origBankCode,
+    "8120053",
+    "上傳不對調：檔案 PBANK→origBankCode",
+  );
+  assert.equal(
+    parsedR.rows[0]!.bankCode,
+    "0040000",
+    "上傳不對調：檔案 RBANK→bankCode",
+  );
+  assert.equal(
+    parsedR.header.bankCode,
+    "0040000",
+    "R01 參考 bankCode 由首筆 RBANK（檔案原樣）補",
+  );
+  assert.equal(parsedR.header.account, "0000001234567890");
 
   const bankField = r01.form.header.find((f) => f.key === "bankCode");
   assert.equal(bankField?.required, false, "R01 表頭 bankCode 為參考、非必填");
@@ -154,7 +169,34 @@ assert.ok(
   assert.equal(ctrl.headerLine.length, 250);
   assert.equal(ctrl.trailerLine.length, 250);
   assert.equal(ctrl.headerLine.slice(3, 9), "ACHR01");
-  assert.equal(ctrl.trailerLine.slice(55, 63), "01150813");
+  assert.equal(ctrl.trailerLine.slice(55, 63), "01150803");
+}
+
+// 上傳未對調 R01（15–37＝提示、38–60＝提回）依檔案原樣對到欄位
+{
+  const r01File = convertP01ToR01(
+    r01,
+    header,
+    rows,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+    { rcode: "04", ydate: "01150813", pdate: "01150814", agentBank: "0040000" },
+  );
+  const lines = r01File.files[0]!.content
+    .replace(/\r\n/g, "\n")
+    .replace(/\n$/, "")
+    .split("\n");
+  const unswapped = [
+    lines[0]!,
+    swapR01DetailBankAccountBlocks(lines[1]!),
+    lines.at(-1)!,
+  ].join("\r\n") + "\r\n";
+  const parsed = parseAchText(unswapped, r01, { filename: "r01-unswapped.txt" });
+  assert.equal(parsed.errors.length, 0, parsed.errors.join("; "));
+  assert.equal(parsed.rows[0]!.origBankCode, "0040000", "未對調檔 PBANK＝提示行");
+  assert.equal(parsed.rows[0]!.origAccount, "0000001234567890");
+  assert.equal(parsed.rows[0]!.bankCode, "8120053", "未對調檔 RBANK＝提回行");
+  assert.equal(parsed.rows[0]!.account, "0000000987654321");
 }
 
 // 上傳 R01：各明細提回行代號（RBANK）相同 → 自動填代表行
@@ -255,10 +297,21 @@ assert.ok(
 
 // 上傳 R01 且提回行相同 → 應改以 P01 模式編輯（提出行＝原提示行）
 {
+  const twoRows: DetailRow[] = [
+    ...rows,
+    {
+      id: "r2",
+      bankCode: "8120053",
+      account: "0000000111222333",
+      taxId: "B987654321",
+      userNo: "USER002",
+      amount: "200",
+    },
+  ];
   const r01File = convertP01ToR01(
     r01,
     header,
-    rows,
+    twoRows,
     EMBEDDED_TXIDS,
     EMBEDDED_BRANCHES,
     { rcode: "04", ydate: "01150813", pdate: "01150814", agentBank: "0040000" },
@@ -268,6 +321,10 @@ assert.ok(
   });
   assert.equal(parsedR.uniformReturnBank, "8120053");
   assert.equal(shouldOpenR01AsP01(parsedR), false, "編輯畫面只留 R01");
+  assert.equal(parsedR.rows[0]!.origBankCode, "8120053");
+  assert.equal(parsedR.rows[1]!.origAccount, "0000000111222333");
+  assert.equal(parsedR.rows[0]!.bankCode, "0040000");
+  assert.equal(parsedR.rows[1]!.bankCode, "0040000");
 
   const asP01 = convertR01ToP01(
     p01,
