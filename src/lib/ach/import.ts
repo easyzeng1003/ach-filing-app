@@ -98,7 +98,7 @@ export type ImportResult = {
   appliedGlobal: string;
   fileSize: number;
   /**
-   * ACHR01：所有明細提回行代號（RBANK）相同時為該 7 碼；
+   * ACHR01：所有明細提回行／退件行代號（PBANK）相同時為該 7 碼；
    * 不一致、缺碼或非 R01 為 null。大檔略過欄位解析時仍會掃描。
    */
   uniformReturnBank: string | null;
@@ -284,7 +284,7 @@ export function detailFieldOffset(
 }
 
 /**
- * 若所有明細「提回行代號」（ACHR01 RBANK／bankCode）皆為同一組 7 碼，回傳該代號；
+ * 若所有明細「提回行／退件行代號」（ACHR01 PBANK／bankCode）皆為同一組 7 碼，回傳該代號；
  * 否則（空、缺碼、不一致）回傳 null。
  */
 export function inferUniformR01ReturnBank(
@@ -401,7 +401,7 @@ type ParseAcc = {
   filterActive: boolean;
   filters: DetailFilters;
   filterGlobal: string;
-  /** ACHR01 明細 RBANK 偏移；非 R01 為 null */
+  /** ACHR01 明細 PBANK（退件行）偏移；非 R01 為 null */
   returnBankOffset: number | null;
   /** 串流所見第一個有效提回行代號 */
   uniformReturnBank: string | null;
@@ -439,7 +439,7 @@ function createAcc(
     filters,
     filterGlobal,
     returnBankOffset:
-      schema.code === "ACHR01" ? detailFieldOffset(schema, "RBANK") : null,
+      schema.code === "ACHR01" ? detailFieldOffset(schema, "PBANK") : null,
     uniformReturnBank: null,
     returnBankConflict: false,
   };
@@ -573,7 +573,7 @@ function consumeLine(acc: ParseAcc, raw: string, index: number): void {
     acc.detailTypeOtherCount += 1;
   }
 
-  // R01：每列提回行代號（RBANK）都掃，即使大檔略過欄位解析
+  // R01：每列提回行／退件行代號（PBANK）都掃，即使大檔略過欄位解析
   noteDetailReturnBank(acc, raw);
 
   const needParse =
@@ -660,7 +660,7 @@ function finalizeHeader(acc: ParseAcc): HeaderValues {
     const fromDetail = {
       ...fromDetailHeader,
       ...(fromDetailBody.txid ? { txid: fromDetailBody.txid } : {}),
-      // ACHR01 BOF 無 bankCode／account；參考欄由首筆明細 RBANK／RCLNO（收受者）補
+      // ACHR01 BOF 無 bankCode／account；參考欄由首筆明細 PBANK／PCLNO（退件行）補
       ...(fromDetailBody.bankCode ? { bankCode: fromDetailBody.bankCode } : {}),
       ...(fromDetailBody.account ? { account: fromDetailBody.account } : {}),
     };

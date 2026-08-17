@@ -5,7 +5,7 @@
  * - 提出／提回共用 250 bytes／錄
  * - Header/Trailer CDATA：ACHP01 ⇄ ACHR01
  * - Detail TYPE：N ⇄ R
- * - 明細對位與 P01 相同：PBANK/PCLNO＝發動者（原提示行）；RBANK/RCLNO＝收受者（提回行）
+ * - 退件時對調：PBANK/PCLNO ← 原 RBANK/RCLNO（收受者）；RBANK/RCLNO ← 原 PBANK/PCLNO（提出行）
  * - 退件必填：RCODE、PDATE、PSEQ、PSCHD（轉回 P01 時清空為 filler）
  * - Trailer YDATE：ACHR01 為 TDATE 前一日（ACHP01 空白）
  *
@@ -285,7 +285,7 @@ export type ConvertedP01File = {
   filename: string;
   count: number;
   amount: number;
-  /** 提出行（R01 PBANK／origBankCode，原提示行） */
+  /** 提出行（R01 RBANK／origBankCode，原提示行） */
   presenterBank: string;
   lines: string[];
 };
@@ -293,17 +293,17 @@ export type ConvertedP01File = {
 export type ConvertR01ToP01Result = {
   files: ConvertedP01File[];
   detailCount: number;
-  /** 轉成 P01 後的表頭（提出行＝R01 原提示行 PBANK） */
+  /** 轉成 P01 後的表頭（提出行＝R01 原提示行 RBANK） */
   header: HeaderValues;
-  /** 轉成 P01 後的明細（收受行＝R01 提回行 RBANK） */
+  /** 轉成 P01 後的明細（收受行＝R01 退件行 PBANK） */
   rows: DetailRow[];
 };
 
 /**
  * 將 ACHR01 提回／退件表單資料轉回 ACHP01 提出檔。
  * - TYPE R→N；CDATA ACHR01→ACHP01
- * - 對位：P01 PBANK/PCLNO ← R01 PBANK/PCLNO（原提示行／發動者）；
- *   P01 RBANK/RCLNO ← R01 RBANK/RCLNO（收受者／提回行）
+ * - 對調：P01 PBANK/PCLNO ← R01 RBANK/RCLNO（原提示行）；
+ *   P01 RBANK/RCLNO ← R01 PBANK/PCLNO（退件行／收受者）
  * - 清除 RCODE／PDATE／PSEQ／PSCHD／YDATE
  * - 一律輸出單一整檔
  */
@@ -335,10 +335,10 @@ export function convertR01ToP01(
   const presenterBank = safeDigits(String(first.origBankCode ?? ""));
   const presenterAccount = safeDigits(String(first.origAccount ?? ""));
   if (presenterBank.length !== 7) {
-    throw new Error("原提示行銀行代號（PBANK）須為 7 碼");
+    throw new Error("原提示行銀行代號（RBANK）須為 7 碼");
   }
   if (!presenterAccount) {
-    throw new Error("原發動者帳號（PCLNO）未輸入");
+    throw new Error("原發動者帳號（RCLNO）未輸入");
   }
 
   let seq = 0;

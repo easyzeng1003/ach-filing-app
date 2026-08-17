@@ -607,10 +607,23 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         toast.error(`${actionVerb}後沒有可轉檔的明細`);
         return;
       }
-      // 單一整檔；不依收受行分檔
+      // 單一整檔；不依收受行分檔。R01 來源：原提示行在 origBankCode，當提出行傳入轉檔。
+      const first = filtered.kept[0];
+      const convertHeader =
+        schema.code === "ACHR01"
+          ? {
+              ...sourceHeader,
+              bankCode:
+                String(first?.origBankCode ?? "").trim() ||
+                String(sourceHeader.bankCode ?? ""),
+              account:
+                String(first?.origAccount ?? "").trim() ||
+                String(sourceHeader.account ?? ""),
+            }
+          : sourceHeader;
       const result = convertP01ToR01(
         withLineEndingId(r01, lineEnding),
-        sourceHeader,
+        convertHeader,
         filtered.kept,
         txids,
         branches,
@@ -1239,12 +1252,8 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         void exportCurrentAsFile();
       }}
       onExportR01={() => {
-        if (schema.code === "ACHP01") {
-          if (!validateBeforeExport()) return;
-          setConvertOpen(true);
-          return;
-        }
-        void exportCurrentAsFile();
+        if (!validateBeforeExport()) return;
+        setConvertOpen(true);
       }}
     />
   );
@@ -1253,6 +1262,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       <ConvertR01Dialog
         open={convertOpen}
         detailCount={convertR01DetailCount}
+        sourceIsR01={schema.code === "ACHR01"}
         tdate={String(header.date ?? "")}
         agentBank={agentBank}
         busy={converting}
