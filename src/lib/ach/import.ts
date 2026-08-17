@@ -320,6 +320,23 @@ function fieldText(f: ParsedRecordField): string {
     .trim();
 }
 
+/** ACHP01 明細 PBANK/PCLNO 標為 header.source，仍寫入列供逐筆對調 */
+export function attachP01PresenterFromFields(
+  row: DetailRow,
+  fields: ParsedRecordField[],
+): void {
+  for (const f of fields) {
+    if (f.id === "PBANK") {
+      const v = fieldText(f);
+      if (v) row.origBankCode = v;
+    }
+    if (f.id === "PCLNO") {
+      const v = fieldText(f);
+      if (v) row.origAccount = v;
+    }
+  }
+}
+
 function detailRowFromFields(
   schema: FormatSchema,
   fields: ParsedRecordField[],
@@ -328,6 +345,9 @@ function detailRowFromFields(
   const row = emptyDetailRow(schema, newRowId());
   for (const f of schema.form.detail) {
     row[f.key] = values[f.key] ?? "";
+  }
+  if (schema.code === "ACHP01") {
+    attachP01PresenterFromFields(row, fields);
   }
   // 以欄位 ID／key 再對一次，避免 source/key 對應疏漏（CNO／USERNO→userNo）
   for (const f of fields) {

@@ -607,7 +607,8 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         toast.error(`${actionVerb}後沒有可轉檔的明細`);
         return;
       }
-      // 單一整檔；不依收受行分檔。R01 來源：原提示行在 origBankCode，當提出行傳入轉檔。
+      // 單一整檔。每列用自己的 origBankCode／origAccount 對調；
+      // R01 缺列值時才回退表頭（以首筆原提示行當提出行後備）。
       const first = filtered.kept[0];
       const convertHeader =
         schema.code === "ACHR01"

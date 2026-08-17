@@ -5,7 +5,8 @@
  * - 提出／提回共用 250 bytes／錄
  * - Header/Trailer CDATA：ACHP01 ⇄ ACHR01
  * - Detail TYPE：N ⇄ R
- * - 退件時對調：PBANK/PCLNO ← 原 RBANK/RCLNO（收受者）；RBANK/RCLNO ← 原 PBANK/PCLNO（提出行）
+ * - 退件時逐筆對調：PBANK/PCLNO ← 該列 RBANK/RCLNO（收受者）；
+ *   RBANK/RCLNO ← 該列 PBANK/PCLNO（提出行；無列值時回退表頭）
  * - 退件必填：RCODE、PDATE、PSEQ、PSCHD（轉回 P01 時清空為 filler）
  * - Trailer YDATE：ACHR01 為 TDATE 前一日（ACHP01 空白）
  *
@@ -151,14 +152,8 @@ export function convertP01ToR01(
   const pdate = requireRoc8(options.pdate ?? tdate, "原提示交易日期（PDATE）");
   const ydate = resolveR01Ydate(options.ydate, tdate);
 
-  const presenterBank = safeDigits(String(p01Header.bankCode ?? ""));
-  const presenterAccount = safeDigits(String(p01Header.account ?? ""));
-  if (presenterBank.length !== 7) {
-    throw new Error("提出行銀行代號須為 7 碼");
-  }
-  if (!presenterAccount) {
-    throw new Error("發動者帳號未輸入");
-  }
+  const headerPresenterBank = safeDigits(String(p01Header.bankCode ?? ""));
+  const headerPresenterAccount = safeDigits(String(p01Header.account ?? ""));
 
   const nonEmpty = p01Rows.filter((r) => !isP01DetailEmpty(r));
   if (nonEmpty.length === 0) {
@@ -167,8 +162,13 @@ export function convertP01ToR01(
 
   const seqOffset = Math.max(0, Math.floor(options.seqOffset ?? 0));
 
-  const items: Array<{ row: DetailRow; origSeq: number; returnBank: string }> =
-    [];
+  const items: Array<{
+    row: DetailRow;
+    origSeq: number;
+    returnBank: string;
+    presenterBank: string;
+    presenterAccount: string;
+  }> = [];
   let seq = 0;
   for (const row of nonEmpty) {
     seq += 1;
@@ -176,7 +176,24 @@ export function convertP01ToR01(
     if (returnBank.length !== 7) {
       throw new Error(`第 ${seqOffset + seq} 筆收受者銀行代號須為 7 碼`);
     }
-    items.push({ row, origSeq: seqOffset + seq, returnBank });
+    const rowPresBank = safeDigits(String(row.origBankCode ?? ""));
+    const rowPresAcct = safeDigits(String(row.origAccount ?? ""));
+    const presenterBank =
+      rowPresBank.length === 7 ? rowPresBank : headerPresenterBank;
+    const presenterAccount = rowPresAcct || headerPresenterAccount;
+    if (presenterBank.length !== 7) {
+      throw new Error(`第 ${seqOffset + seq} 筆提出行銀行代號須為 7 碼`);
+    }
+    if (!presenterAccount) {
+      throw new Error(`第 ${seqOffset + seq} 筆發動者帳號未輸入`);
+    }
+    items.push({
+      row,
+      origSeq: seqOffset + seq,
+      returnBank,
+      presenterBank,
+      presenterAccount,
+    });
   }
 
   const headerBank = items[0]!.returnBank;
@@ -190,30 +207,32 @@ export function convertP01ToR01(
     ydate,
   };
 
-  const rows: DetailRow[] = items.map(({ row, origSeq, returnBank }) => {
-    const recvAccount = safeDigits(String(row.account ?? ""));
-    if (recvAccount.length === 0) {
-      throw new Error(`原提示序號 ${padSeq8(origSeq)} 收受者帳號未輸入`);
-    }
-    return {
-      id: row.id,
-      bankCode: returnBank,
-      account:
-        recvAccount.length < 16 ? recvAccount.padStart(16, "0") : recvAccount,
-      taxId: String(row.taxId ?? ""),
-      userNo: String(row.userNo ?? ""),
-      amount: String(row.amount ?? ""),
-      origBankCode: presenterBank,
-      origAccount:
-        presenterAccount.length < 16
-          ? presenterAccount.padStart(16, "0")
-          : presenterAccount,
-      rcode,
-      pdate,
-      pseq: padSeq8(origSeq),
-      pschd: "B",
-    };
-  });
+  const rows: DetailRow[] = items.map(
+    ({ row, origSeq, returnBank, presenterBank, presenterAccount }) => {
+      const recvAccount = safeDigits(String(row.account ?? ""));
+      if (recvAccount.length === 0) {
+        throw new Error(`原提示序號 ${padSeq8(origSeq)} 收受者帳號未輸入`);
+      }
+      return {
+        id: row.id,
+        bankCode: returnBank,
+        account:
+          recvAccount.length < 16 ? recvAccount.padStart(16, "0") : recvAccount,
+        taxId: String(row.taxId ?? ""),
+        userNo: String(row.userNo ?? ""),
+        amount: String(row.amount ?? ""),
+        origBankCode: presenterBank,
+        origAccount:
+          presenterAccount.length < 16
+            ? presenterAccount.padStart(16, "0")
+            : presenterAccount,
+        rcode,
+        pdate,
+        pseq: padSeq8(origSeq),
+        pschd: "B",
+      };
+    },
+  );
 
   const generated = generateFromSchema(
     r01Schema,
