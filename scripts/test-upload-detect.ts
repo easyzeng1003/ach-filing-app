@@ -7,13 +7,14 @@ import {
   expectedDetailType,
   inferUniformR01ReturnBank,
   parseAchText,
+  shouldOpenR01AsP01,
 } from "../src/lib/ach/import";
 import {
   generateFromSchema,
   headerHasError,
   validateHeader,
 } from "../src/lib/ach/engine";
-import { convertP01ToR01 } from "../src/lib/ach/convertR01";
+import { convertP01ToR01, convertR01ToP01 } from "../src/lib/ach/convertR01";
 import { buildExportControlLines } from "../src/lib/ach/partition";
 import {
   EMBEDDED_BRANCHES,
@@ -240,6 +241,51 @@ assert.ok(
     "0040000",
     "大檔提回行不一致時不覆寫 BOF RORG",
   );
+}
+
+// 上傳 R01 且提回行相同 → 應改以 P01 模式編輯（對調後提出行＝原提回行）
+{
+  const r01File = convertP01ToR01(
+    r01,
+    header,
+    rows,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+    { rcode: "04", ydate: "01150813", pdate: "01150814", agentBank: "0040000" },
+  );
+  const parsedR = parseAchText(r01File.files[0]!.content, r01, {
+    filename: "r01-uniform.txt",
+  });
+  assert.equal(parsedR.uniformReturnBank, "0040000");
+  assert.equal(shouldOpenR01AsP01(parsedR), true);
+
+  const asP01 = convertR01ToP01(
+    p01,
+    parsedR.header,
+    parsedR.rows,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  assert.equal(asP01.files[0]!.presenterBank, "0040000");
+  assert.equal(asP01.header.bankCode, "0040000", "P01 提出行＝R01 提回行");
+  assert.equal(asP01.header.account, "0000001234567890");
+  assert.equal(asP01.rows[0]!.bankCode, "8120053", "P01 收受行＝R01 退件行");
+  assert.equal(asP01.files[0]!.lines[0]!.slice(0, 9), "BOFACHP01");
+  const parsedP = parseAchText(asP01.files[0]!.content, p01, {
+    filename: "from-r01.txt",
+  });
+  assert.equal(parsedP.schema.code, "ACHP01");
+  assert.equal(shouldOpenR01AsP01(parsedP), false);
+
+  const lines = r01File.files[0]!.content
+    .replace(/\r\n/g, "\n")
+    .replace(/\n$/, "")
+    .split("\n");
+  const other = lines[1]!.slice(0, 37) + "0120001" + lines[1]!.slice(44);
+  const mixed = [lines[0]!, lines[1]!, other, lines.at(-1)!].join("\r\n") + "\r\n";
+  const parsedMixed = parseAchText(mixed, r01, { filename: "r01-mixed.txt" });
+  assert.equal(parsedMixed.uniformReturnBank, null);
+  assert.equal(shouldOpenR01AsP01(parsedMixed), false);
 }
 
 console.log("OK upload-detect: BOF/EOF CDATA, detail TYPE gate, no full-field block on upload");

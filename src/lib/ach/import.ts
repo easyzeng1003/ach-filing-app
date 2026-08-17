@@ -97,6 +97,11 @@ export type ImportResult = {
   appliedFilters: DetailFilters;
   appliedGlobal: string;
   fileSize: number;
+  /**
+   * ACHR01：所有明細提回行代號（RBANK）相同時為該 7 碼；
+   * 不一致、缺碼或非 R01 為 null。大檔略過欄位解析時仍會掃描。
+   */
+  uniformReturnBank: string | null;
 };
 
 function splitLines(text: string): string[] {
@@ -293,6 +298,16 @@ export function inferUniformR01ReturnBank(
     else if (found !== d) return null;
   }
   return found;
+}
+
+/** 上傳 R01 且提回行一致時，改以 P01 模式編輯 */
+export function shouldOpenR01AsP01(result: ImportResult): boolean {
+  if (result.schema.code !== "ACHR01") return false;
+  if (result.tooLargeForForm) return Boolean(result.uniformReturnBank);
+  if (!result.rows.length) return false;
+  return Boolean(
+    inferUniformR01ReturnBank(result.rows.map((r) => r.origBankCode)),
+  );
 }
 
 function fieldText(f: ParsedRecordField): string {
@@ -769,6 +784,12 @@ function buildResult(
     appliedFilters: { ...acc.filters },
     appliedGlobal: acc.filterGlobal,
     fileSize: opts.fileSize,
+    uniformReturnBank:
+      acc.schema.code === "ACHR01" &&
+      !acc.returnBankConflict &&
+      acc.uniformReturnBank
+        ? acc.uniformReturnBank
+        : null,
   };
 }
 

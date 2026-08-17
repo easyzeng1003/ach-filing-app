@@ -59,6 +59,7 @@ import {
   parseAchFile,
   resolveImportSchemaFromFile,
   inferUniformR01ReturnBank,
+  shouldOpenR01AsP01,
   IMPORT_LIMITS,
   type ImportProgress,
   type ImportResult,
@@ -82,6 +83,7 @@ import {
 } from "@/lib/ach/partitionStore";
 import {
   buildExportControlLines,
+  convertLargeR01FileToP01,
   headerFromLine,
   type PartitionProgress,
 } from "@/lib/ach/partition";
@@ -601,6 +603,58 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     }
   }
 
+  /** R01 且提回行一致：轉成 P01 表單並切到 P01 編輯 */
+  function applyR01ImportAsP01(result: ImportResult): boolean {
+    const p01 = formats.ACHP01;
+    const r01 = formats.ACHR01;
+    if (!p01 || result.schema.code !== "ACHR01" || !result.rows.length) {
+      return false;
+    }
+    const returnBank = inferUniformR01ReturnBank(
+      result.rows.map((r) => r.origBankCode),
+    );
+    if (!returnBank) return false;
+    try {
+      const converted = convertR01ToP01(
+        p01,
+        result.header,
+        result.rows,
+        txids,
+        branches,
+      );
+      const file = converted.files[0];
+      if (!file) return false;
+      if (r01) closeWorkspace(r01);
+      if (usePartitionStore.getState().session?.formatCode === "ACHR01") {
+        clearPartitionSession();
+      }
+      resetEditSessionUi();
+      loadFromImport(
+        p01,
+        { header: converted.header, rows: converted.rows },
+        {
+          fileName: result.filename,
+          sourceHeaderLine: file.lines[0],
+          sourceTrailerLine: file.lines[file.lines.length - 1],
+        },
+      );
+      onSelectFormat?.("ACHP01");
+      const bytes = Uint8Array.from(file.content, (c) => c.charCodeAt(0) & 0xff);
+      setImportFile(
+        new File([bytes], file.filename || result.filename, {
+          type: "text/plain",
+        }),
+      );
+      setImportResult(null);
+      toast.success(
+        `已匯入 R01，改以 P01 模式編輯（提回行 ${returnBank}，${converted.detailCount.toLocaleString("zh-TW")} 筆）`,
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function handleImportFile(file: File) {
     // 新上傳：清掉上一輪編輯暫存（篩選／排除條件／代表行等）與分割工作區
     if (partitionSession?.formatCode === schema.code) {
@@ -638,8 +692,95 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         return;
       }
 
+      // R01 且各明細提回行相同：直接以 P01 模式編輯（略過 R01 預覽）
+      if (!result.tooLargeForForm && shouldOpenR01AsP01(result)) {
+        if (applyR01ImportAsP01(result)) return;
+      }
+
       // >5000 筆：不開預覽，自動分割後進入編輯
       if (result.tooLargeForForm) {
+        const p01 = formats.ACHP01;
+        if (
+          target.code === "ACHR01" &&
+          result.uniformReturnBank &&
+          p01
+        ) {
+          try {
+            toast.message(
+              `檔案 ${result.detailCount.toLocaleString("zh-TW")} 筆超過可編輯上限，提回行皆為 ${result.uniformReturnBank}，轉成 P01 後分割編輯`,
+            );
+            const converted = await convertLargeR01FileToP01(
+              file,
+              target,
+              p01,
+              txids,
+              branches,
+              {
+                onProgress: (p: PartitionProgress) => {
+                  setImportProgress({
+                    bytesRead: p.bytesRead,
+                    totalBytes: p.totalBytes || file.size,
+                    linesRead: p.linesRead,
+                    detailCount: p.detailCount,
+                    matchedCount: p.matchedCount,
+                  });
+                },
+              },
+            );
+            const p01Out = converted.files[0];
+            if (p01Out) {
+              const bytes = Uint8Array.from(p01Out.content, (c) =>
+                c.charCodeAt(0) & 0xff,
+              );
+              const p01File = new File([bytes], p01Out.filename, {
+                type: "text/plain",
+              });
+              const split = await splitFileAndStartEdit({
+                file: p01File,
+                schema: p01,
+                txids,
+                branches,
+                detailCount: converted.detailCount,
+                onProgress: (p: PartitionProgress) => {
+                  setImportProgress({
+                    bytesRead: p.bytesRead,
+                    totalBytes: p.totalBytes || file.size,
+                    linesRead: p.linesRead,
+                    detailCount: p.detailCount,
+                    matchedCount: p.matchedCount,
+                  });
+                },
+              });
+              if (formats.ACHR01) closeWorkspace(formats.ACHR01);
+              loadFromImport(
+                p01,
+                {
+                  header: {
+                    ...split.first.header,
+                    // P01 解析可能用首筆明細 PBANK 當 bankCode；提出行應為原提回行
+                    bankCode: result.uniformReturnBank,
+                  },
+                  rows: split.first.rows,
+                },
+                {
+                  fileName: split.first.fileName,
+                  sourceHeaderLine: split.sourceHeaderLine,
+                  sourceTrailerLine: split.sourceTrailerLine,
+                },
+              );
+              onSelectFormat?.("ACHP01");
+              setImportFile(p01File);
+              setPartitionFormDirty(false);
+              setImportResult(null);
+              toast.success(
+                `已將 R01 轉為 P01 並分割 ${split.partCount} 包（提回行 ${result.uniformReturnBank}，共 ${split.totalDetailCount.toLocaleString("zh-TW")} 筆），已載入第 1 包`,
+              );
+              return;
+            }
+          } catch {
+            // 轉 P01 失敗（例如原發動者帳號不一致）→ 仍以 R01 分割
+          }
+        }
         if (target.code !== schema.code) {
           onSelectFormat?.(target.code);
         }
@@ -751,6 +892,9 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       clearPartitionSession();
     }
     resetEditSessionUi();
+    if (shouldOpenR01AsP01(result) && applyR01ImportAsP01(result)) {
+      return;
+    }
     const sourceHeaderLine = result.lines.find((l) => l.kind === "header")?.raw;
     const sourceTrailerLine = result.lines.find((l) => l.kind === "trailer")?.raw;
     loadFromImport(
