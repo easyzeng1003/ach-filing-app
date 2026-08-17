@@ -27,11 +27,13 @@ localStorage.removeItem(STORAGE_KEY);
 localStorage.removeItem("ach-filing-forms-v1");
 
 const { loadEmbeddedFormats } = await import("../src/data/embedded");
-const { flushFormPersist, useFormStore } = await import("../src/lib/ach/store");
+const { flushFormPersist, isHiddenStandaloneFormat, useFormStore } = await import("../src/lib/ach/store");
 
 const formats = loadEmbeddedFormats();
 const p01 = formats.ACHP01!;
 assert.ok(p01);
+assert.equal(isHiddenStandaloneFormat("ACHP01"), true);
+assert.equal(isHiddenStandaloneFormat("ACHR01"), false);
 
 useFormStore.setState({
   activeCode: "ACHP01",

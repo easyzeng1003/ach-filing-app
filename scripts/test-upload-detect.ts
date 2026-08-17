@@ -267,7 +267,7 @@ assert.ok(
     filename: "r01-uniform.txt",
   });
   assert.equal(parsedR.uniformReturnBank, "8120053");
-  assert.equal(shouldOpenR01AsP01(parsedR), true);
+  assert.equal(shouldOpenR01AsP01(parsedR), false, "編輯畫面只留 R01");
 
   const asP01 = convertR01ToP01(
     p01,

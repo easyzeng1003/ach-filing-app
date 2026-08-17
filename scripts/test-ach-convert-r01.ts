@@ -7,7 +7,7 @@ import {
   generateFromSchema,
   swapR01DetailBankAccountBlocks,
 } from "../src/lib/ach/engine";
-import { parseAchText } from "../src/lib/ach/import";
+import { adaptP01ImportToR01, parseAchText } from "../src/lib/ach/import";
 import { loadEmbeddedFormats, EMBEDDED_TXIDS, EMBEDDED_BRANCHES } from "../src/data/embedded";
 import type { DetailRow, HeaderValues } from "../src/lib/ach/schema";
 
@@ -405,6 +405,18 @@ assert.equal(multiTrl.slice(24, 31), "8220901", "EOF RORG");
   assert.equal(rd1.slice(37, 44), "8120053", "round-trip P01 RBANK＝收受者");
   assert.equal(rd1.slice(44, 60), "0000000987654321");
   assert.equal(rd1.slice(60, 70), "0000001500");
+}
+
+{
+  const parsedP = parseAchText(p01Out.content, p01, { filename: "p01.txt" });
+  const asR01 = adaptP01ImportToR01(parsedP, r01);
+  assert.equal(asR01.schema.code, "ACHR01");
+  assert.equal(asR01.sourceFormatCode, "ACHP01");
+  assert.equal(asR01.rows[0]!.origBankCode, "0040000", "P01 提出行→提示行");
+  assert.equal(asR01.rows[0]!.origAccount, "0000001234567890");
+  assert.equal(asR01.rows[0]!.bankCode, "8120053", "P01 收受者→提回行");
+  assert.equal(asR01.rows[1]!.bankCode, "8120053");
+  assert.equal(asR01.rows[1]!.account, "0000000111222333");
 }
 
 console.log("OK convert P01⇄R01: lengths, TYPE/CDATA, bank swap, RCODE/PDATE/PSEQ/YDATE, SORG/RORG, round-trip");

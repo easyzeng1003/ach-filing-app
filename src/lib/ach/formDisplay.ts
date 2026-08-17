@@ -1,52 +1,56 @@
-import { loadEmbeddedFormats } from "@/data/embedded";
 import type { FormatSchema, FormFieldDef } from "./schema";
 
 /** 明細表不顯示的 form.detail key（仍寫入固定長度檔） */
 const HIDDEN_DETAIL_KEYS = new Set(["pschd"]);
 
-let cachedP01: FormatSchema | null | undefined;
-
-function p01Schema(): FormatSchema | null {
-  if (cachedP01 !== undefined) return cachedP01;
-  cachedP01 = loadEmbeddedFormats().ACHP01 ?? null;
-  return cachedP01;
-}
-
 /**
- * 依 ACHP01 `form.detail` 重排顯示欄：共用 key 用 P01 標籤，
- * 來源格式多出的欄位接在後面。不改 `records.detail`（檔案位元組配置）。
+ * R01 編輯欄序：提示行（提出）在前，提回行（收受）在後。
+ * 不改 `records.detail`（檔案位元組配置）。
  */
-export function orderDetailFieldsLikeP01(
-  schema: FormatSchema,
-  p01: FormatSchema,
-): FormFieldDef[] {
-  if (schema.code === p01.code) {
-    return schema.form.detail.filter((f) => !HIDDEN_DETAIL_KEYS.has(f.key));
-  }
-  const ownByKey = new Map(schema.form.detail.map((f) => [f.key, f]));
-  const seen = new Set<string>();
+const R01_DISPLAY_ORDER = [
+  "seq",
+  "txid",
+  "origBankCode",
+  "origAccount",
+  "bankCode",
+  "account",
+  "taxId",
+  "userNo",
+  "amount",
+  "rcode",
+  "pdate",
+  "pseq",
+] as const;
+
+export function orderDetailFieldsForEdit(schema: FormatSchema): FormFieldDef[] {
+  const visible = schema.form.detail.filter(
+    (f) => !HIDDEN_DETAIL_KEYS.has(f.key),
+  );
+  if (schema.code !== "ACHR01") return visible;
+  const byKey = new Map(visible.map((f) => [f.key, f]));
   const out: FormFieldDef[] = [];
-  for (const p of p01.form.detail) {
-    const own = ownByKey.get(p.key);
-    if (!own || HIDDEN_DETAIL_KEYS.has(own.key)) continue;
-    out.push({
-      ...own,
-      label: p.label,
-      placeholder: p.placeholder ?? own.placeholder,
-    });
-    seen.add(p.key);
+  const seen = new Set<string>();
+  for (const key of R01_DISPLAY_ORDER) {
+    const f = byKey.get(key);
+    if (!f) continue;
+    out.push(f);
+    seen.add(key);
   }
-  for (const f of schema.form.detail) {
-    if (!seen.has(f.key) && !HIDDEN_DETAIL_KEYS.has(f.key)) out.push(f);
+  for (const f of visible) {
+    if (!seen.has(f.key)) out.push(f);
   }
   return out;
 }
 
-/** 明細表／預覽／篩選下拉的顯示欄位（以 P01 為準） */
+/** @deprecated 改用 orderDetailFieldsForEdit */
+export function orderDetailFieldsLikeP01(
+  schema: FormatSchema,
+  _p01?: FormatSchema,
+): FormFieldDef[] {
+  return orderDetailFieldsForEdit(schema);
+}
+
+/** 明細表／預覽／篩選下拉的顯示欄位 */
 export function detailFieldsForDisplay(schema: FormatSchema): FormFieldDef[] {
-  const p01 = p01Schema();
-  if (!p01) {
-    return schema.form.detail.filter((f) => !HIDDEN_DETAIL_KEYS.has(f.key));
-  }
-  return orderDetailFieldsLikeP01(schema, p01);
+  return orderDetailFieldsForEdit(schema);
 }

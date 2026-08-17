@@ -82,10 +82,9 @@ function createDebouncedJSONStorage<S>(
 }
 
 /**
- * 保留給未來「僅轉檔、不提供獨立上傳」的檔案代號。
- * ACHR01（R01）已支援獨立上傳／檢核／輸出。
+ * ACHP01 不提供獨立編輯工作區：上傳 P01 後轉成 R01 表單編輯。
  */
-const HIDDEN_STANDALONE_FORMATS = new Set<string>();
+const HIDDEN_STANDALONE_FORMATS = new Set<string>(["ACHP01"]);
 
 /** 是否為「不提供獨立工作區」的檔案代號。 */
 export function isHiddenStandaloneFormat(code: string): boolean {
@@ -224,7 +223,7 @@ export const useRefStore = create<RefState>((set, get) => ({
 export const useFormStore = create<FormState>()(
   persist(
     (set, get) => ({
-      activeCode: "ACHP01",
+      activeCode: "ACHR01",
       forms: {},
       workspaces: {},
       setActiveCode: (code) => set({ activeCode: code }),

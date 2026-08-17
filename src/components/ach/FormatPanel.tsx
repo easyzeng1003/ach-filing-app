@@ -64,6 +64,7 @@ import {
   parseAchFile,
   resolveImportSchemaFromFile,
   inferUniformR01ReturnBank,
+  adaptP01ImportToR01,
   IMPORT_LIMITS,
   type ImportProgress,
   type ImportResult,
@@ -82,6 +83,8 @@ import { PartitionWorkspaceBar } from "./PartitionWorkspaceBar";
 import {
   collectSessionRows,
   mergeSessionToFile,
+  parsePartToForm,
+  rewriteSessionPartsFromP01ToR01,
   splitFileAndStartEdit,
   usePartitionStore,
 } from "@/lib/ach/partitionStore";
@@ -749,7 +752,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         setImportProgress(null);
         return;
       }
-      const result = await parseAchFile(file, target, {
+      let result = await parseAchFile(file, target, {
         filename: file.name,
         onProgress: setImportProgress,
       });
@@ -763,11 +766,20 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         return;
       }
 
-      // >5000 筆：不開預覽，自動分割後進入編輯（不依 P01／R01 切換編輯模式）
+      const r01 = formats.ACHR01;
+      const sourceCode = result.schema.code;
+      if (sourceCode === "ACHP01" && r01) {
+        result = adaptP01ImportToR01(result, r01);
+      }
+
+      // >5000 筆：不開預覽，自動分割後進入 R01 編輯
       if (result.tooLargeForForm) {
-        if (target.code !== schema.code) {
-          onSelectFormat?.(target.code);
+        if (!r01) {
+          toast.error("找不到 ACHR01 格式定義");
+          setImportFile(null);
+          return;
         }
+        onSelectFormat?.("ACHR01");
         toast.message(
           `檔案 ${result.detailCount.toLocaleString("zh-TW")} 筆超過可編輯上限（${IMPORT_LIMITS.maxFormDetailRows.toLocaleString("zh-TW")}），自動分割後進入編輯`,
         );
@@ -799,11 +811,24 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
             `已自動調整為 ${split.partCount} 包（每包 ≤ ${IMPORT_LIMITS.maxFormDetailRows.toLocaleString("zh-TW")} 筆）`,
           );
         }
+        if (sourceCode === "ACHP01") {
+          rewriteSessionPartsFromP01ToR01(target, r01, txids, branches);
+        }
+        const sess = usePartitionStore.getState().session;
+        const firstPart = sess?.parts[0];
+        const loaded =
+          firstPart && sourceCode === "ACHP01"
+            ? parsePartToForm(r01, firstPart.content, firstPart.filename)
+            : {
+                header: split.first.header,
+                rows: split.first.rows,
+                fileName: split.first.fileName,
+              };
         loadFromImport(
-          target,
-          { header: split.first.header, rows: split.first.rows },
+          r01,
+          { header: loaded.header, rows: loaded.rows },
           {
-            fileName: split.first.fileName,
+            fileName: firstPart?.filename ?? split.first.fileName,
             sourceHeaderLine: split.sourceHeaderLine,
             sourceTrailerLine: split.sourceTrailerLine,
           },
@@ -841,12 +866,19 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       matchedCount: 0,
     });
     try {
-      const result = await parseAchFile(importFile, importResult.schema, {
+      const parseSchema =
+        importResult.sourceFormatCode === "ACHP01" && formats.ACHP01
+          ? formats.ACHP01
+          : importResult.schema;
+      let result = await parseAchFile(importFile, parseSchema, {
         filename: importFile.name,
         filters,
         filterGlobal: global,
         onProgress: setImportProgress,
       });
+      if (result.schema.code === "ACHP01" && formats.ACHR01) {
+        result = adaptP01ImportToR01(result, formats.ACHR01);
+      }
       setImportResult(result);
       if (result.tooLargeForForm) {
         toast.error(
@@ -890,16 +922,14 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         sourceTrailerLine,
       },
     );
-    if (result.schema.code !== schema.code) {
-      onSelectFormat?.(result.schema.code);
-    }
+    onSelectFormat?.("ACHR01");
     await new Promise<void>((resolve) => {
       window.setTimeout(resolve, 180);
     });
     setImportResult(null);
     // 保留 importFile，供「編輯」分割邏輯繼續使用
     toast.success(
-      `已匯入 ${result.schema.code}（${result.matchedCount.toLocaleString("zh-TW")} 筆明細），可進行檢核與加工`,
+      `已匯入 ${result.sourceFormatCode ?? result.schema.code}（${result.matchedCount.toLocaleString("zh-TW")} 筆明細），以 R01 編輯`,
     );
   }
 
@@ -987,6 +1017,11 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       open={!!partitionTools}
       mode={partitionTools?.mode ?? "split"}
       schema={schema}
+      sourceSchema={
+        importResult?.sourceFormatCode
+          ? formats[importResult.sourceFormatCode]
+          : undefined
+      }
       formats={formats}
       txids={txids}
       branches={branches}
@@ -998,8 +1033,10 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       onClose={() => setPartitionTools(null)}
       onOpenPartitionEdit={(payload) => {
         const sess = usePartitionStore.getState().session;
+        const editSchema = formats.ACHR01 ?? schema;
+        onSelectFormat?.("ACHR01");
         loadFromImport(
-          schema,
+          editSchema,
           { header: payload.header, rows: payload.rows },
           {
             fileName: payload.fileName,
@@ -1329,7 +1366,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                 <UploadIcon fontSize="large" color="primary" />
               </Box>
               <Typography variant="h6" gutterBottom>
-                請先上傳既有 ACH 檔（P01／R01）
+                請先上傳既有 ACH 檔（P01 或 R01）
               </Typography>
               <Button
                 variant="contained"
@@ -1355,7 +1392,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                 }}
               >
                 <Typography component="li" variant="caption">
-                  依 BOF／EOF 判定 P01／R01，並檢核明細 TYPE
+                  依 BOF／EOF 判定 P01／R01；皆進入 R01 編輯畫面
                 </Typography>
                 <Typography component="li" variant="caption">
                   預覽並確認表頭／明細／列長

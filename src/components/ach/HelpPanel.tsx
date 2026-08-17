@@ -16,8 +16,9 @@ export function HelpPanel() {
           <strong className="text-fg">R01 提回／退件</strong>
           固定長度檔為主，進行<strong className="text-fg">檢核與加工</strong>。
           開啟後請先上傳既有 P01 或 R01 檔（上傳時依 BOF／EOF 自動辨識檔案代號，並檢核明細 TYPE 是否符合）。
-          編輯頁不區分 P01／R01 模式；按<strong className="text-fg">輸出 P01</strong>或
-          <strong className="text-fg">輸出 R01</strong>時才做該格式的完整檢核（提出／收受行對位與 P01 相同）。
+          <strong className="text-fg">編輯畫面只留 R01</strong>：上傳 P01 會轉成 R01 表單（提示行在前、提回行在後）。
+          按<strong className="text-fg">輸出 P01</strong>或
+          <strong className="text-fg">輸出 R01</strong>時才做該格式的完整檢核。
           ACHP01 明細<strong className="text-fg">交易類別</strong>依交易代號帶入：
           <strong className="text-fg">SD＝代收</strong>、
           <strong className="text-fg">SC＝代付</strong>。
