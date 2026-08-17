@@ -39,12 +39,15 @@ import {
   generateFromSchema,
   headerHasError,
   isRowEmpty,
-  lookupBranch,
   rowErrorMessages,
   syncHeaderFromDetails,
   validateDetailRow,
   validateHeader,
 } from "@/lib/ach/engine";
+import {
+  buildExportErrorReport,
+  downloadExportErrorReport,
+} from "@/lib/ach/exportErrorReport";
 import { safeDigits } from "@/lib/ach/utils";
 import {
   emptyDetailFilters,
@@ -411,11 +414,21 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       delete syncedHeaderErrs.bankCode;
       delete syncedHeaderErrs.account;
     }
+    const headerErrors = schema.form.header
+      .map((f) => {
+        const msg = syncedHeaderErrs[f.key];
+        return msg ? `${f.label}：${msg}` : null;
+      })
+      .filter((m): m is string => Boolean(m));
     if (headerHasError(syncedHeaderErrs)) {
-      toast.error("控制首錄／表頭資料輸入有誤");
+      downloadExportErrorReport(
+        schema,
+        buildExportErrorReport({ schema, headerErrors }),
+      );
+      toast.error("控制首錄／表頭資料輸入有誤（已下載錯誤說明）");
       return false;
     }
-    const bad: number[] = [];
+    const badRows: { row: number; messages: string[] }[] = [];
     // 輸出前完整檢核：以傳入資料或目前表單即時 validate（不依賴畫面 rowErrs 快取）
     sourceRows.forEach((r, i) => {
       if (isRowEmpty(r, schema)) return;
@@ -423,11 +436,17 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         source != null
           ? validateDetailRow(schema, r, txids, branches, synced)
           : (rowErrs[i] ?? validateDetailRow(schema, r, txids, branches, synced));
-      if (rowErrorMessages(errs).length) bad.push(i + 1);
+      const messages = rowErrorMessages(errs);
+      if (messages.length) badRows.push({ row: i + 1, messages });
     });
-    if (bad.length) {
+    if (badRows.length) {
+      downloadExportErrorReport(
+        schema,
+        buildExportErrorReport({ schema, rows: badRows }),
+      );
+      const bad = badRows.map((r) => r.row);
       toast.error(
-        `第 ${bad.slice(0, 12).join("、")}${bad.length > 12 ? "…" : ""} 列資料仍有錯誤！`,
+        `第 ${bad.slice(0, 12).join("、")}${bad.length > 12 ? "…" : ""} 列資料仍有錯誤（已下載錯誤說明）`,
       );
       return false;
     }
@@ -437,7 +456,14 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     }).length;
     // 非空列皆須通過檢核；統計用非空數
     if (validCount === 0) {
-      toast.error("尚無有效明細資料");
+      downloadExportErrorReport(
+        schema,
+        buildExportErrorReport({
+          schema,
+          extra: ["尚無有效明細資料"],
+        }),
+      );
+      toast.error("尚無有效明細資料（已下載錯誤說明）");
       return false;
     }
     return true;
@@ -1388,12 +1414,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                     </th>
                   );
                 })}
-                <th className="min-w-32">
-                  <span className="th-label">銀行名稱</span>
-                  {filterEnabled ? (
-                    <span className="block h-[1.7rem]" aria-hidden />
-                  ) : null}
-                </th>
                 <th className="min-w-40">
                   <span className="th-label">錯誤訊息</span>
                   {filterEnabled ? (
@@ -1418,7 +1438,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
               {pagedDetails.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={detailFields.length + 3}
+                    colSpan={detailFields.length + 2}
                     className="py-10 text-center text-muted"
                   >
                     {filtersActive
@@ -1428,8 +1448,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                 </tr>
               ) : (
                 pagedDetails.map(({ row, index: idx }) => {
-                  const bankName =
-                    lookupBranch(row.bankCode ?? "", branches)?.name || "";
                   return (
                     <tr key={row.id}>
                       <td className="text-center text-faint">{idx + 1}</td>
@@ -1468,12 +1486,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                           </div>
                         </td>
                       ))}
-                      <td
-                        className="max-w-36 truncate text-muted"
-                        title={bankName}
-                      >
-                        {bankName}
-                      </td>
                       <td className="whitespace-pre-line text-xs text-muted">
                         {filterOpts.onlyErrors
                           ? rowErrorMessages(rowErrs[idx] ?? {}).join("\n")
