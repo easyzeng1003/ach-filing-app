@@ -143,7 +143,7 @@
       {
         "key": "taxId",
         "label": "公司／機關統編",
-        "placeholder": "8或10碼",
+        "placeholder": "最多10碼",
         "inputType": "text",
         "length": 10,
         "charset": "alnum",
@@ -158,12 +158,9 @@
               "message": "未輸入"
             },
             {
-              "type": "oneOfLengths",
-              "lengths": [
-                8,
-                10
-              ],
-              "message": "統編應為8或10碼"
+              "type": "maxLength",
+              "length": 10,
+              "message": "統編最多10碼"
             }
           ]
         },
@@ -327,12 +324,9 @@
               "message": "收受者統一編號未輸入"
             },
             {
-              "type": "oneOfLengths",
-              "lengths": [
-                8,
-                10
-              ],
-              "message": "統編應為8或10碼"
+              "type": "maxLength",
+              "length": 10,
+              "message": "統編最多10碼"
             }
           ]
         },
