@@ -318,11 +318,45 @@ export type ConvertR01ToP01Result = {
   rows: DetailRow[];
 };
 
+function r01BankAcct(
+  row: DetailRow,
+  side: "orig" | "recv",
+): { bank: string; acct: string } {
+  if (side === "orig") {
+    return {
+      bank: safeDigits(String(row.origBankCode ?? "")),
+      acct: safeDigits(String(row.origAccount ?? "")),
+    };
+  }
+  return {
+    bank: safeDigits(String(row.bankCode ?? "")),
+    acct: safeDigits(String(row.account ?? "")),
+  };
+}
+
+function r01SideUniform(rows: DetailRow[], side: "orig" | "recv"): boolean {
+  const first = r01BankAcct(rows[0]!, side);
+  if (first.bank.length !== 7 || !first.acct) return false;
+  return rows.every((row) => {
+    const p = r01BankAcct(row, side);
+    return p.bank === first.bank && p.acct === first.acct;
+  });
+}
+
+/**
+ * 輸出後的 R01 依檔案原樣解析時：schema orig*＝檔案 PBANK（提回，各列可能不同），
+ * schema bank*＝檔案 RBANK（原提示，同一提出單位）。
+ * 表單／未對調檔則相反（orig*＝提示且一致）。
+ */
+function r01RowsLookLikeExportedFile(rows: DetailRow[]): boolean {
+  return r01SideUniform(rows, "recv") && !r01SideUniform(rows, "orig");
+}
+
 /**
  * 將 ACHR01 提回／退件表單資料轉回 ACHP01 提出檔。
  * - TYPE R→N；CDATA ACHR01→ACHP01
- * - 對調：P01 PBANK/PCLNO ← R01 RBANK/RCLNO（原提示行）；
- *   P01 RBANK/RCLNO ← R01 PBANK/PCLNO（退件行／收受者）
+ * - 表單／未對調檔：P01 提出行 ← orig*（提示行）；收受者 ← bank*（提回行）
+ * - 已輸出 R01 原樣列（提回在 orig*、提示在 bank* 且提示一致）：對調回來
  * - 清除 RCODE／PDATE／PSEQ／PSCHD／YDATE
  * - 一律輸出單一整檔
  */
@@ -350,29 +384,36 @@ export function convertR01ToP01(
     throw new Error("沒有明細列可轉檔");
   }
 
-  const first = nonEmpty[0]!;
-  const presenterBank = safeDigits(String(first.origBankCode ?? ""));
-  const presenterAccount = safeDigits(String(first.origAccount ?? ""));
+  const fromExportedFile = r01RowsLookLikeExportedFile(nonEmpty);
+  const firstPair = r01BankAcct(
+    nonEmpty[0]!,
+    fromExportedFile ? "recv" : "orig",
+  );
+  const presenterBank = firstPair.bank;
+  const presenterAccount = firstPair.acct;
   if (presenterBank.length !== 7) {
-    throw new Error("原提示行銀行代號（RBANK）須為 7 碼");
+    throw new Error("原提示行銀行代號須為 7 碼");
   }
   if (!presenterAccount) {
-    throw new Error("原發動者帳號（RCLNO）未輸入");
+    throw new Error("原發動者帳號未輸入");
   }
 
   let seq = 0;
   const rows: DetailRow[] = [];
   for (const row of nonEmpty) {
     seq += 1;
-    const rowPresenter = safeDigits(String(row.origBankCode ?? ""));
-    const rowPresenterAcct = safeDigits(String(row.origAccount ?? ""));
-    if (rowPresenter !== presenterBank || rowPresenterAcct !== presenterAccount) {
+    const presenter = r01BankAcct(row, fromExportedFile ? "recv" : "orig");
+    if (
+      presenter.bank !== presenterBank ||
+      presenter.acct !== presenterAccount
+    ) {
       throw new Error(
         `第 ${seq} 筆原提示行／帳號與首筆不一致（須同一提出單位）`,
       );
     }
-    const recvBank = safeDigits(String(row.bankCode ?? ""));
-    const recvAccount = safeDigits(String(row.account ?? ""));
+    const recv = r01BankAcct(row, fromExportedFile ? "orig" : "recv");
+    const recvBank = recv.bank;
+    const recvAccount = recv.acct;
     if (recvBank.length !== 7) {
       throw new Error(`第 ${seq} 筆收受者銀行代號須為 7 碼`);
     }

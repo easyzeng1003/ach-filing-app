@@ -23,7 +23,6 @@ import {
   isRowEmpty,
   lookupTxid,
   resolveR01Ydate,
-  swapR01DetailBankAccountBlocks,
   validateBuiltControlDates,
 } from "./engine";
 import {
@@ -492,9 +491,7 @@ export function mergeHeaderFromTrailerLine(
 }
 
 function detailRowFromLine(line: string, schema: FormatSchema): DetailRow {
-  const parseLine =
-    schema.code === "ACHR01" ? swapR01DetailBankAccountBlocks(line) : line;
-  const fields = parseRecordFields(parseLine, schema.records.detail.fields);
+  const fields = parseRecordFields(line, schema.records.detail.fields);
   const row: DetailRow = { id: newRowId() };
   for (const f of schema.form.detail) {
     row[f.key] = "";
@@ -1566,10 +1563,7 @@ export async function convertLargeR01FileToP01(
         return;
       }
 
-      const fields = parseRecordFields(
-        swapR01DetailBankAccountBlocks(line),
-        r01Schema.records.detail.fields,
-      );
+      const fields = parseRecordFields(line, r01Schema.records.detail.fields);
       if (globalSeq === 0) {
         for (const f of fields) {
           if (f.source === "header" && f.key && !header[f.key]) {

@@ -166,7 +166,8 @@ export function HelpPanel() {
           （<strong className="text-fg">SORG／RORG 固定為原檔值</strong>；尾錄總筆數／總金額依實際輸出明細重算；處理日期可覆寫）。
           輸出 R01（ACHR01）時<strong className="text-fg">發送單位 SORG 固定 9990250</strong>，
           <strong className="text-fg">接收單位 RORG＝代表行代號</strong>。
-          輸出 R01 時開啟對話框填入退件理由（RCODE），並將每個明細列第 15–37 碼與第 38–60 碼對調（PBANK+PCLNO ↔ RBANK+RCLNO）。來源為提回檔時，輸出 P01 再對調回提出檔。
+          輸出 R01 時開啟對話框填入退件理由（RCODE），並將每個明細列第 15–37 碼與第 38–60 碼對調（PBANK+PCLNO ↔ RBANK+RCLNO）。
+          上傳 R01 依檔案原樣解析，不先對調 P／R。來源為提回檔時，輸出 P01 再對調回提出檔。
           「包含」只要欄位值含輸入字串即命中（類似{" "}
           <code className="font-mono text-xs">String.includes</code>
           ，不區分大小寫；JSON 運算子仍為{" "}

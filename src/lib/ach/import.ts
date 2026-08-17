@@ -4,11 +4,7 @@ import type {
   HeaderValues,
   RecordFieldDef,
 } from "./schema";
-import {
-  emptyDetailRow,
-  emptyHeader,
-  swapR01DetailBankAccountBlocks,
-} from "./engine";
+import { emptyDetailRow, emptyHeader } from "./engine";
 import { newRowId, safeDigits, toHalfWidthAlnum } from "./utils";
 import {
   emptyDetailFilters,
@@ -674,11 +670,7 @@ function consumeLine(acc: ParseAcc, raw: string, index: number): void {
     line = line + " ".repeat(acc.schema.recordLength - line.length);
   }
 
-  const parseLine =
-    acc.schema.code === "ACHR01"
-      ? swapR01DetailBankAccountBlocks(line)
-      : line;
-  const fields = section ? parseRecordFields(parseLine, section) : [];
+  const fields = section ? parseRecordFields(line, section) : [];
   if (acc.detailSamples.length < IMPORT_LIMITS.maxDetailLineSamples) {
     acc.detailSamples.push({
       index,
@@ -736,7 +728,7 @@ function finalizeHeader(acc: ParseAcc): HeaderValues {
     const fromDetail = {
       ...fromDetailHeader,
       ...(fromDetailBody.txid ? { txid: fromDetailBody.txid } : {}),
-      // ACHR01 BOF 無 bankCode／account；參考欄由首筆明細 PBANK／PCLNO（退件行）補
+      // ACHR01 BOF 無 bankCode／account；參考欄由首筆明細 RBANK／RCLNO（檔案原樣）補
       ...(fromDetailBody.bankCode ? { bankCode: fromDetailBody.bankCode } : {}),
       ...(fromDetailBody.account ? { account: fromDetailBody.account } : {}),
     };
