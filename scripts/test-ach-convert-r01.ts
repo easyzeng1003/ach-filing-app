@@ -162,7 +162,7 @@ assert.equal(multiTrl.slice(24, 31), "8220901", "EOF RORG");
     EMBEDDED_BRANCHES,
   );
   assert.ok(emptyY.lines.every((l) => l.length === 250), "empty YDATE trailer/header length");
-  assert.equal(emptyY.lines.at(-1)!.slice(55, 63), "01150804", "empty YDATE → 套用 TDATE");
+  assert.equal(emptyY.lines.at(-1)!.slice(55, 63), "01150803", "empty YDATE → TDATE-1");
 
   const viaConvert = convertP01ToR01(
     r01,
@@ -172,8 +172,8 @@ assert.equal(multiTrl.slice(24, 31), "8220901", "EOF RORG");
     EMBEDDED_BRANCHES,
     { rcode: "04", ydate: "01159999", pdate: "01150804", agentBank: "0040000" },
   );
-  assert.equal(viaConvert.ydate, "01150804", "轉檔非法 YDATE → TDATE");
-  assert.equal(viaConvert.files[0]!.lines.at(-1)!.slice(55, 63), "01150804");
+  assert.equal(viaConvert.ydate, "01150803", "轉檔非法 YDATE → TDATE-1");
+  assert.equal(viaConvert.files[0]!.lines.at(-1)!.slice(55, 63), "01150803");
 }
 
 // —— R01 → P01 往返 ——

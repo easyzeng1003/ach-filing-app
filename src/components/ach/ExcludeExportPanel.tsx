@@ -36,7 +36,7 @@ import {
 import type { FormatSchema } from "@/lib/ach/schema";
 import { detailFieldsForDisplay } from "@/lib/ach/formDisplay";
 import { describeSaveResult, saveAchFiles } from "@/lib/ach/desktop";
-import { normalizeSubmitDate, safeDigits } from "@/lib/ach/utils";
+import { normalizeSubmitDate, rocToDate, safeDigits, todayRoc } from "@/lib/ach/utils";
 
 type Props = {
   schema: FormatSchema;
@@ -98,9 +98,15 @@ export function ExcludeExportPanel({
   const fields = detailFieldsForDisplay(schema);
   const showAgentBank = Boolean(onAgentBankChange) || Boolean(onExportR01);
   const dateDigits = safeDigits(processDate).slice(0, 8);
-  // 編輯中只做長度提示；過去日期等完整規則於輸出 P01／R01 時檢核
-  const processDateError =
-    dateDigits && dateDigits.length !== 8 ? "日期長度請輸入八碼" : null;
+  const processDateError = !dateDigits
+    ? null
+    : dateDigits.length !== 8
+      ? "日期長度請輸入八碼"
+      : !rocToDate(dateDigits)
+        ? "非合法日期"
+        : dateDigits !== todayRoc()
+          ? "處理日期須為今日"
+          : null;
   const agentBankDigits = safeDigits(agentBank).slice(0, 7);
   const agentBankError =
     !showAgentBank || !agentBankDigits

@@ -41,7 +41,8 @@
               "message": "日期長度請輸入八碼"
             },
             {
-              "type": "rocDate"
+              "type": "rocDate",
+              "notPast": true
             }
           ]
         },

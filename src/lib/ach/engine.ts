@@ -9,7 +9,7 @@ import type {
   ValidationRule,
 } from "./schema";
 import { applyPad, filterByCharset, formatExportField, sanitizeInput } from "./field";
-import { nowHms, rocToDate, safeDigits } from "./utils";
+import { nowHms, prevRocDate, rocToDate, safeDigits, todayRoc } from "./utils";
 
 export function lookupTxid(code: string, txids: Txid[]): Txid | undefined {
   return txids.find((t) => t.code === code);
@@ -285,9 +285,8 @@ function controlDateFieldError(
 }
 
 /**
- * 輸出前檢核將寫入 BOF／EOF 的日期。
- * TDATE＝處理日期（P01 另禁過去日）。
- * ACHR01 YDATE 空白或非法時改用 TDATE，不單獨擋輸出。
+ * 輸出前檢核將寫入 BOF／EOF 的處理日期：八碼、合法民國日、須為今日。
+ * 上傳原檔 TDATE 非今日時在此擋下（P01／R01 相同）。
  */
 export function validateExportControlDates(
   schema: FormatSchema,
@@ -297,15 +296,23 @@ export function validateExportControlDates(
 ): string[] {
   const errors: string[] = [];
   const dateField = schema.form.header.find((f) => f.key === "date");
+  const raw = header.date ?? "";
   const dateErr = controlDateFieldError(
     dateField,
-    header.date ?? "",
+    raw,
     schema,
     header,
     txids,
     branches,
   );
-  if (dateErr) errors.push(`BOF／EOF 處理日期（TDATE）：${dateErr}`);
+  if (dateErr) {
+    errors.push(`BOF／EOF 處理日期（TDATE）：${dateErr}`);
+    return errors;
+  }
+  const digits = safeDigits(raw).slice(0, 8);
+  if (digits !== todayRoc()) {
+    errors.push("BOF／EOF 處理日期（TDATE）：處理日期須為今日");
+  }
   return errors;
 }
 
@@ -325,14 +332,15 @@ export function legalRoc8(value: string | undefined): string {
 }
 
 /**
- * R01 EOF YDATE：空白或非合法民國日時改用 TDATE。
- * TDATE 亦不合法時回傳其數字（可能為空），由 TDATE 檢核負責擋下。
+ * R01 EOF YDATE＝TDATE 的前一日（簡易日曆日）。
+ * 不論原 YDATE 是否有值，輸出一律套用此原則。
  */
 export function resolveR01Ydate(
-  ydate: string | undefined,
+  _ydate: string | undefined,
   tdate: string | undefined,
 ): string {
-  return legalRoc8(ydate) || safeDigits(tdate ?? "").slice(0, 8);
+  const t = legalRoc8(tdate);
+  return (t && prevRocDate(t)) || "";
 }
 
 /** 檢核已組出的 BOF／EOF 列上的 TDATE（及 R01 YDATE）為合法民國日期 */
@@ -369,7 +377,17 @@ export function validateBuiltControlDates(
       "YDATE",
     );
     const yErr = legalRocDateError(yRaw);
-    if (yErr) errors.push(`EOF 前一營業日（YDATE）：${yErr}`);
+    if (yErr) {
+      errors.push(`EOF 前一營業日（YDATE）：${yErr}`);
+    } else {
+      const expected = prevRocDate(eofDigits || bofDigits);
+      const yDigits = safeDigits(yRaw).slice(0, 8);
+      if (expected && yDigits !== expected) {
+        errors.push(
+          `EOF 前一營業日（YDATE）須為處理日期前一日（${expected}）`,
+        );
+      }
+    }
   }
   return errors;
 }

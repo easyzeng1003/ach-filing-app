@@ -7,7 +7,7 @@
  * - Detail TYPE：N ⇄ R
  * - 明細對位與 P01 相同：PBANK/PCLNO＝發動者（原提示行）；RBANK/RCLNO＝收受者（提回行）
  * - 退件必填：RCODE、PDATE、PSEQ、PSCHD（轉回 P01 時清空為 filler）
- * - Trailer YDATE：ACHR01 前一營業日；空白或非法時改用 TDATE（ACHP01 空白）
+ * - Trailer YDATE：ACHR01 為 TDATE 前一日（ACHP01 空白）
  *
  * 輸出：單一整檔（不依收受行分檔）；
  * P01→R01 BOF／EOF：SORG 固定 9990250；RORG＝收受行代表行代號。
@@ -62,8 +62,7 @@ export type ConvertP01ToR01Options = {
   /** 退件理由代號（2 碼），套用至所有明細 */
   rcode: string;
   /**
-   * Trailer YDATE（前一營業日，民國年 8 碼）。
-   * 空白或非法時改用 TDATE。
+   * Trailer YDATE：輸出一律為 TDATE 前一日。
    */
   ydate?: string;
   /** 原提示交易日期 PDATE（8 碼）。未指定時使用提出檔處理日期。 */
