@@ -452,7 +452,7 @@ export function PartitionToolsDialog({
                   ? ` · ${detailCount.toLocaleString("zh-TW")} 筆`
                   : ""}
                 {convertToP01
-                  ? "。將 TYPE=R 提回檔對調提出／收受行後轉回 ACHP01。"
+                  ? "。將 TYPE=R 提回檔依 P01 欄位對位轉回 ACHP01。"
                   : ""}
               </Alert>
               {convertToR01 ? (

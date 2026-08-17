@@ -33,6 +33,7 @@ assert.ok(
   displayedKeys.indexOf("origBankCode") > displayedKeys.indexOf("amount"),
   "R01 專屬欄接在金額之後",
 );
+assert.ok(!displayedKeys.includes("pschd"), "不顯示原提示交換次序");
 
 const bank = displayed.find((f) => f.key === "bankCode");
 const account = displayed.find((f) => f.key === "account");
