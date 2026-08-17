@@ -23,6 +23,7 @@ import {
   EMBEDDED_TXIDS,
   loadEmbeddedFormats,
 } from "../src/data/embedded";
+import { prevRocDate, todayRoc } from "../src/lib/ach/utils";
 import type { DetailRow, HeaderValues } from "../src/lib/ach/schema";
 
 const formats = loadEmbeddedFormats();
@@ -123,7 +124,12 @@ assert.ok(
   delete headerErrs.bankCode;
   delete headerErrs.account;
   delete headerErrs.agentBank;
-  assert.equal(headerErrs.date, null, "R01 處理日期允許已發生（提回檔）");
+  assert.equal(
+    headerErrs.date,
+    "不允許輸入過去日期",
+    "R01 處理日期不可為過去（上傳原檔非今日）",
+  );
+  delete headerErrs.date;
   assert.equal(headerHasError(headerErrs), false, JSON.stringify(headerErrs));
 
   const regenerated = generateFromSchema(
@@ -313,28 +319,42 @@ assert.ok(
     illegal.some((m) => m.includes("TDATE") && m.includes("非合法")),
     illegal.join("; "),
   );
+  const today = todayRoc();
   const okP01 = validateExportControlDates(
+    p01,
+    { ...header, date: today },
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  assert.deepEqual(okP01, []);
+  const notToday = validateExportControlDates(
     p01,
     { ...header, date: "01151231" },
     EMBEDDED_TXIDS,
     EMBEDDED_BRANCHES,
   );
-  assert.deepEqual(okP01, []);
+  assert.ok(
+    notToday.some((m) => m.includes("TDATE") && m.includes("今日")),
+    notToday.join("; "),
+  );
 
-  const r01PastOk = validateExportControlDates(
+  const r01Past = validateExportControlDates(
     r01,
     { ...header, date: "01150101", ydate: "01141231", agentBank: "0040000" },
     EMBEDDED_TXIDS,
     EMBEDDED_BRANCHES,
   );
-  assert.deepEqual(r01PastOk, [], r01PastOk.join("; "));
+  assert.ok(
+    r01Past.some((m) => m.includes("TDATE") && (m.includes("過去") || m.includes("今日"))),
+    r01Past.join("; "),
+  );
   const r01BadY = validateExportControlDates(
     r01,
-    { ...header, date: "01150804", ydate: "01159999", agentBank: "0040000" },
+    { ...header, date: today, ydate: "01159999", agentBank: "0040000" },
     EMBEDDED_TXIDS,
     EMBEDDED_BRANCHES,
   );
-  assert.deepEqual(r01BadY, [], "YDATE 非法時改用 TDATE，不擋輸出");
+  assert.deepEqual(r01BadY, [], "YDATE 非法時改寫 TDATE-1，不擋輸出");
 
   const r01EmptyY = generateFromSchema(
     r01,
@@ -353,7 +373,11 @@ assert.ok(
     EMBEDDED_TXIDS,
     EMBEDDED_BRANCHES,
   );
-  assert.equal(r01EmptyY.lines.at(-1)!.slice(55, 63), "01150804", "空 YDATE → TDATE");
+  assert.equal(
+    r01EmptyY.lines.at(-1)!.slice(55, 63),
+    prevRocDate("01150804"),
+    "空 YDATE → TDATE-1",
+  );
   const r01IllegalY = generateFromSchema(
     r01,
     { ...header, date: "01150804", ydate: "01159999", agentBank: "0040000" },
@@ -371,7 +395,11 @@ assert.ok(
     EMBEDDED_TXIDS,
     EMBEDDED_BRANCHES,
   );
-  assert.equal(r01IllegalY.lines.at(-1)!.slice(55, 63), "01150804", "非法 YDATE → TDATE");
+  assert.equal(
+    r01IllegalY.lines.at(-1)!.slice(55, 63),
+    prevRocDate("01150804"),
+    "非法 YDATE → TDATE-1",
+  );
   assert.deepEqual(
     validateBuiltControlDates(r01, r01IllegalY.lines[0]!, r01IllegalY.lines.at(-1)!),
     [],
