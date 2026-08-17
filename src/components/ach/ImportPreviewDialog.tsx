@@ -32,16 +32,14 @@ import type {
   RecordFieldDef,
   Txid,
 } from "@/lib/ach/schema";
+import { detailFieldsForDisplay } from "@/lib/ach/formDisplay";
 import {
   IMPORT_LIMITS,
   type ImportProgress,
   type ImportResult,
   type ParsedLine,
 } from "@/lib/ach/import";
-import {
-  formatTxTypeLabel,
-  lookupBranch,
-} from "@/lib/ach/engine";
+import { lookupBranch } from "@/lib/ach/engine";
 import {
   emptyDetailFilters,
   hasActiveFilters,
@@ -507,11 +505,12 @@ function FormPreview({
   const trailerAmount = Number(
     (result.trailer.TAMT || "0").replace(/^0+/, "") || "0",
   );
+  const detailFields = detailFieldsForDisplay(schema);
   const filtersReady = hasActiveFilters(draftFilters, { global: draftGlobal });
   const filtersDirty =
     filterEnabled &&
     (draftGlobal !== (result.filterActive ? result.appliedGlobal : "") ||
-      schema.form.detail.some((f) => {
+      detailFields.some((f) => {
         if (!isFieldFilterable(f)) return false;
         const draft = (draftFilters[f.key] ?? "").trim();
         const applied = result.filterActive
@@ -592,19 +591,9 @@ function FormPreview({
                     <span className="block h-[1.7rem]" aria-hidden />
                   ) : null}
                 </th>
-                <th style={{ minWidth: "4.5rem" }}>
-                  <span className="th-label">交易類別</span>
-                  {filterEnabled ? (
-                    <span className="block h-[1.7rem]" aria-hidden />
-                  ) : null}
-                </th>
-                {schema.form.detail.map((f) => {
+                {detailFields.map((f) => {
                   const canFilter = filterEnabled && isFieldFilterable(f);
                   const active = Boolean((draftFilters[f.key] ?? "").trim());
-                  const shortLabel =
-                    schema.records.detail.fields.find(
-                      (rf) => rf.key === f.key && rf.source === "detail",
-                    )?.label || f.label;
                   return (
                     <th
                       key={f.key}
@@ -616,7 +605,7 @@ function FormPreview({
                       }}
                     >
                       <span className="th-label" title={f.label}>
-                        {shortLabel}
+                        {f.label}
                       </span>
                       {canFilter ? (
                         <input
@@ -653,7 +642,7 @@ function FormPreview({
               {result.previewRows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={schema.form.detail.length + 3}
+                    colSpan={detailFields.length + 2}
                     className="py-8 text-center text-muted"
                   >
                     {result.tooLargeForForm && !result.filterActive
@@ -665,10 +654,7 @@ function FormPreview({
                 result.previewRows.map((row, i) => (
                   <tr key={row.id}>
                     <td className="text-center text-faint">{i + 1}</td>
-                    <td className="font-mono">
-                      {row.txType ? formatTxTypeLabel(row.txType) : ""}
-                    </td>
-                    {schema.form.detail.map((f) => (
+                    {detailFields.map((f) => (
                       <td
                         key={f.key}
                         className={`font-mono ${f.ui?.align === "right" ? "text-right" : ""}`}
