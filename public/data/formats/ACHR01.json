@@ -296,7 +296,7 @@
       },
       {
         "key": "bankCode",
-        "label": "退件行代號（原提回行）",
+        "label": "收受者銀行代號",
         "inputType": "text",
         "length": 7,
         "charset": "digit",
@@ -332,7 +332,7 @@
       },
       {
         "key": "account",
-        "label": "原收受者帳號",
+        "label": "收受者帳號",
         "inputType": "text",
         "length": 16,
         "charset": "digit",
@@ -836,10 +836,10 @@
         {
           "id": "PBANK",
           "source": "detail",
-          "key": "bankCode",
+          "key": "origBankCode",
           "length": 7,
           "charset": "digit",
-          "label": "提出行代號（退件行）",
+          "label": "提出行代號（原提示行）",
           "pad": {
             "side": "none"
           }
@@ -847,10 +847,10 @@
         {
           "id": "PCLNO",
           "source": "detail",
-          "key": "account",
+          "key": "origAccount",
           "length": 16,
           "charset": "digit",
-          "label": "發動者帳號（原收受者帳號）",
+          "label": "發動者帳號",
           "pad": {
             "side": "none"
           }
@@ -858,24 +858,24 @@
         {
           "id": "RBANK",
           "source": "detail",
-          "key": "origBankCode",
+          "key": "bankCode",
           "length": 7,
           "charset": "digit",
           "pad": {
             "side": "none"
           },
-          "label": "提回行代號（原提示行）"
+          "label": "提回行代號（收受者）"
         },
         {
           "id": "RCLNO",
           "source": "detail",
-          "key": "origAccount",
+          "key": "account",
           "length": 16,
           "charset": "digit",
           "pad": {
             "side": "none"
           },
-          "label": "收受者帳號（原發動者帳號）"
+          "label": "收受者帳號"
         },
         {
           "id": "AMT",

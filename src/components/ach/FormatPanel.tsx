@@ -232,7 +232,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     }
     if (rows.length === 0) return;
     const inferred = inferUniformR01ReturnBank(
-      rows.map((r) => String(r.origBankCode ?? "")),
+      rows.map((r) => String(r.bankCode ?? "")),
     );
     if (inferred) {
       setAgentBank(inferred);
