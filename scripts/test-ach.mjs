@@ -92,6 +92,18 @@ assert.ok(
   achr01.form.detail.some((f) => f.key === "rcode"),
   "ACHR01 form 應含 rcode",
 );
+const p01DetailKeys = achp01.form.detail.map((f) => f.key);
+const r01SharedKeys = p01DetailKeys.filter((k) =>
+  achr01.form.detail.some((f) => f.key === k),
+);
+const r01Prefix = achr01.form.detail
+  .map((f) => f.key)
+  .filter((k) => r01SharedKeys.includes(k));
+assert.deepEqual(
+  r01Prefix,
+  r01SharedKeys,
+  "ACHR01 form.detail 共用欄順序應與 ACHP01 相同",
+);
 console.log("OK ACHR01 return schema: TYPE=R, RCODE/PDATE/PSEQ, YDATE from header");
 
 console.log("ACH JSON schema smoke tests passed");

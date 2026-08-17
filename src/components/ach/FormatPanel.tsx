@@ -25,6 +25,7 @@ import {
   useRefStore,
 } from "@/lib/ach/store";
 import type { FormatSchema } from "@/lib/ach/schema";
+import { detailFieldsForDisplay } from "@/lib/ach/formDisplay";
 import { convertP01ToR01, convertR01ToP01 } from "@/lib/ach/convertR01";
 import {
   filterExcludedRows,
@@ -206,6 +207,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   const form = getForm(schema.code) ?? { header: {}, rows: [] };
   const header = form.header;
   const rows = form.rows;
+  const detailFields = useMemo(() => detailFieldsForDisplay(schema), [schema]);
   /** 驗證／統計延後，避免每鍵重算卡住輸入 */
   const deferredRows = useDeferredValue(rows);
   const deferredHeader = useDeferredValue(header);
@@ -1366,7 +1368,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                     <span className="block h-[1.7rem]" aria-hidden />
                   ) : null}
                 </th>
-                {schema.form.detail.map((f) => {
+                {detailFields.map((f) => {
                   const canFilter = filterEnabled && isFieldFilterable(f);
                   const active = Boolean((filters[f.key] ?? "").trim());
                   return (
@@ -1416,7 +1418,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
               {pagedDetails.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={schema.form.detail.length + 3}
+                    colSpan={detailFields.length + 3}
                     className="py-10 text-center text-muted"
                   >
                     {filtersActive
@@ -1431,7 +1433,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                   return (
                     <tr key={row.id}>
                       <td className="text-center text-faint">{idx + 1}</td>
-                      {schema.form.detail.map((field) => (
+                      {detailFields.map((field) => (
                         <td key={field.key}>
                           <div className="flex gap-0.5">
                             <DetailCellInput
@@ -1451,7 +1453,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                                 blurRow(schema.code, schema, row.id, field.key)
                               }
                               onPasteMulti={
-                                field.key === schema.form.detail[0]?.key
+                                field.key === detailFields[0]?.key
                                   ? (text) => {
                                       pasteRows(
                                         schema.code,

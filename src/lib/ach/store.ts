@@ -15,6 +15,7 @@ import type {
   Txid,
 } from "./schema";
 import { applyFieldBlur, emptyDetailRow, emptyHeader, sanitizeFieldInput } from "./engine";
+import { detailFieldsForDisplay } from "./formDisplay";
 import { newRowId, todayRoc } from "./utils";
 import {
   EMBEDDED_BRANCHES,
@@ -378,7 +379,7 @@ export const useFormStore = create<FormState>()(
           .split("\n")
           .filter((l) => l.trim().length > 0);
         if (!lines.length) return;
-        const keys = schema.form.detail.map((f) => f.key);
+        const keys = detailFieldsForDisplay(schema).map((f) => f.key);
         set((s) => {
           const form = s.forms[code] ?? initBundle(schema);
           let rows = [...form.rows];

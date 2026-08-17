@@ -34,6 +34,7 @@ import {
   type ExcludeExportResult,
 } from "@/lib/ach/excludeStore";
 import type { FormatSchema } from "@/lib/ach/schema";
+import { detailFieldsForDisplay } from "@/lib/ach/formDisplay";
 import { describeSaveResult, saveAchFiles } from "@/lib/ach/desktop";
 import { normalizeSubmitDate, safeDigits } from "@/lib/ach/utils";
 
@@ -94,7 +95,7 @@ export function ExcludeExportPanel({
   const setLastResult = useExcludeStore((s) => s.setLastResult);
   const clear = useExcludeStore((s) => s.clear);
 
-  const fields = schema.form.detail;
+  const fields = detailFieldsForDisplay(schema);
   const showAgentBank = Boolean(onAgentBankChange) || Boolean(onExportR01);
   const dateDigits = safeDigits(processDate).slice(0, 8);
   // 編輯中只做長度提示；過去日期等完整規則於輸出 P01／R01 時檢核

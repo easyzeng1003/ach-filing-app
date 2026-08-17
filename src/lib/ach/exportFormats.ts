@@ -1,4 +1,5 @@
 import type { DetailRow, FormatSchema, HeaderValues } from "./schema";
+import { detailFieldsForDisplay } from "./formDisplay";
 import type { GenerateResult } from "./engine";
 import {
   formatTxTypeLabel,
@@ -103,13 +104,14 @@ function buildHtmlReport(
     })
     .join("\n");
 
-  const detailHead = schema.form.detail
+  const detailFields = detailFieldsForDisplay(schema);
+  const detailHead = detailFields
     .map((f) => "<th>" + escapeHtml(f.label) + "</th>")
     .join("");
 
   const detailBody = nonEmpty
     .map((row, i) => {
-      const cells = schema.form.detail
+      const cells = detailFields
         .map((f) => {
           const align =
             f.ui?.align === "right" ? ' class="num"' : ' class="mono"';
@@ -152,7 +154,7 @@ function buildHtmlReport(
 
   const emptyDetail =
     '<tr><td colspan="' +
-    (schema.form.detail.length + 2) +
+    (detailFields.length + 2) +
     '" class="muted">無明細</td></tr>';
 
   return (
@@ -235,7 +237,7 @@ function buildJsModule(
     .filter((r) => !isRowEmpty(r, schema))
     .map((r) => {
       const o: Record<string, string> = {};
-      for (const f of schema.form.detail) {
+      for (const f of detailFieldsForDisplay(schema)) {
         o[f.key] = r[f.key] ?? "";
       }
       return o;
