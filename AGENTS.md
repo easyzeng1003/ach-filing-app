@@ -19,11 +19,20 @@
   - `release/ACH-Filing-*-customer.zip` — zip package
 - `release/` is gitignored; do not commit build outputs into the repo.
 
-### Checks (see `package.json` scripts)
+### Skip self-testing; push PR
+- Unless the user **explicitly** asks to test, **skip self-testing** and go straight to the PR.
+- Do **not** run `npm run lint`, `npm run typecheck`, or `npm run test:ach`.
+- Do **not** do GUI / browser / computerUse walkthroughs, extra verification loops, or demo screen recordings.
+- When the change set is done: `git add` / `git commit` / `git push`, then open or update the PR.
+- Customer HTML/zip under **Delivery after each change** is packaging, not self-testing — still do that for feature/fix work.
+- Run checks or manual tests **only** when the user explicitly asks.
+
+### Checks (only when the user asks to test)
 - `npm run lint` (eslint), `npm run typecheck` (tsc), `npm run test:ach` (JSON schema smoke test).
 - Note: `npm run lint` currently reports pre-existing errors (mostly `require()` imports in `electron/*.cjs` plus a `prefer-const`). These exist on `main` and are unrelated to environment setup — don't treat them as newly introduced.
 
 ### Non-obvious gotchas when testing file generation
+- Only relevant if the user asked you to test. Default is **skip self-testing** (see above).
 - The detail-row **收受者帳號 (account)** must be exactly **16 digits**. The export `RCLNO` field has `pad: none`, so a shorter account produces a record shorter than `recordLength` (e.g. 244 vs 250) and generation fails with a red toast "…列長度 244 與定義 250 不符…". The account input pads left with `0` on blur, so enter a 16-digit value (e.g. `0000001234567890`).
 - **用戶號碼 (userNo)** is required on detail rows when the header txid is **代收 SD**; for **代付 SC** it may be blank (exported as spaces, matching 代付建檔小程式).
 - The header **日期 (rocDate)** must not be in the past (ROC format, e.g. `01150804` = 2026-08-04).
