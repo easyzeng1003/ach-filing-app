@@ -5,7 +5,7 @@ import type {
   RecordFieldDef,
 } from "./schema";
 import { emptyDetailRow, emptyHeader } from "./engine";
-import { newRowId, toHalfWidthAlnum } from "./utils";
+import { newRowId, safeDigits, toHalfWidthAlnum } from "./utils";
 import {
   emptyDetailFilters,
   hasActiveFilters,
@@ -265,6 +265,36 @@ function collectKeyedValues(
   return out;
 }
 
+/** 明細指定欄位的固定長度偏移（依 schema records.detail 累加） */
+export function detailFieldOffset(
+  schema: FormatSchema,
+  fieldId: string,
+): number | null {
+  let offset = 0;
+  for (const f of schema.records.detail.fields) {
+    if (f.id === fieldId) return offset;
+    offset += f.length;
+  }
+  return null;
+}
+
+/**
+ * 若所有明細「提回行代號」（ACHR01 RBANK／origBankCode）皆為同一組 7 碼，回傳該代號；
+ * 否則（空、缺碼、不一致）回傳 null。
+ */
+export function inferUniformR01ReturnBank(
+  codes: Array<string | null | undefined>,
+): string | null {
+  let found: string | null = null;
+  for (const raw of codes) {
+    const d = safeDigits(String(raw ?? "")).slice(0, 7);
+    if (d.length !== 7) return null;
+    if (found == null) found = d;
+    else if (found !== d) return null;
+  }
+  return found;
+}
+
 function fieldText(f: ParsedRecordField): string {
   const primary = (f.value ?? "").trim();
   if (primary) return primary;
@@ -356,6 +386,12 @@ type ParseAcc = {
   filterActive: boolean;
   filters: DetailFilters;
   filterGlobal: string;
+  /** ACHR01 明細 RBANK 偏移；非 R01 為 null */
+  returnBankOffset: number | null;
+  /** 串流所見第一個有效提回行代號 */
+  uniformReturnBank: string | null;
+  /** 提回行代號不一致或有列非 7 碼 */
+  returnBankConflict: boolean;
 };
 
 function createAcc(
@@ -387,7 +423,29 @@ function createAcc(
     filterActive,
     filters,
     filterGlobal,
+    returnBankOffset:
+      schema.code === "ACHR01" ? detailFieldOffset(schema, "RBANK") : null,
+    uniformReturnBank: null,
+    returnBankConflict: false,
   };
+}
+
+function noteDetailReturnBank(acc: ParseAcc, raw: string): void {
+  if (acc.returnBankOffset == null || acc.returnBankConflict) return;
+  const code = raw
+    .slice(acc.returnBankOffset, acc.returnBankOffset + 7)
+    .trim();
+  if (!/^\d{7}$/.test(code)) {
+    acc.returnBankConflict = true;
+    return;
+  }
+  if (acc.uniformReturnBank == null) {
+    acc.uniformReturnBank = code;
+    return;
+  }
+  if (acc.uniformReturnBank !== code) {
+    acc.returnBankConflict = true;
+  }
 }
 
 function collectMatchedRow(acc: ParseAcc, row: DetailRow): void {
@@ -500,6 +558,9 @@ function consumeLine(acc: ParseAcc, raw: string, index: number): void {
     acc.detailTypeOtherCount += 1;
   }
 
+  // R01：每列提回行代號（RBANK）都掃，即使大檔略過欄位解析
+  noteDetailReturnBank(acc, raw);
+
   const needParse =
     acc.filterActive ||
     acc.previewRows.length < IMPORT_LIMITS.maxPreviewDetailRows ||
@@ -595,6 +656,15 @@ function finalizeHeader(acc: ParseAcc): HeaderValues {
         header[k] = v;
       }
     }
+  }
+
+  // R01：所有明細提回行代號相同時，自動填入代表行（可覆寫空白／不一致的 BOF RORG）
+  if (
+    acc.schema.code === "ACHR01" &&
+    !acc.returnBankConflict &&
+    acc.uniformReturnBank
+  ) {
+    header.agentBank = acc.uniformReturnBank;
   }
 
   const headerKeys = new Set(acc.schema.form.header.map((f) => f.key));
