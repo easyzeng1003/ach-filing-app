@@ -5,8 +5,8 @@
  * - 提出／提回共用 250 bytes／錄
  * - Header/Trailer CDATA：ACHP01 ⇄ ACHR01
  * - Detail TYPE：N ⇄ R
- * - 退件時逐筆對調：PBANK/PCLNO ← 該列 RBANK/RCLNO（收受者）；
- *   RBANK/RCLNO ← 該列 PBANK/PCLNO（提出行；無列值時回退表頭）
+ * - 退件時每個明細列 1-based 第 15–37 碼與第 38–60 碼對調
+ *   （PBANK+PCLNO ↔ RBANK+RCLNO）
  * - 退件必填：RCODE、PDATE、PSEQ、PSCHD（轉回 P01 時清空為 filler）
  * - Trailer YDATE：ACHR01 為 TDATE 前一日（ACHP01 空白）
  *
