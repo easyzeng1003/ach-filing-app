@@ -5,7 +5,7 @@
  * - 提出／提回共用 250 bytes／錄
  * - Header/Trailer CDATA：ACHP01 ⇄ ACHR01
  * - Detail TYPE：N ⇄ R
- * - 退件時對調：PBANK/PCLNO ← 原 RBANK/RCLNO；RBANK/RCLNO ← 原 PBANK/PCLNO
+ * - 明細對位與 P01 相同：PBANK/PCLNO＝發動者（原提示行）；RBANK/RCLNO＝收受者（提回行）
  * - 退件必填：RCODE、PDATE、PSEQ、PSCHD（轉回 P01 時清空為 filler）
  * - Trailer YDATE：ACHR01 置放前一營業日（ACHP01 空白）
  *
@@ -289,7 +289,7 @@ export type ConvertedP01File = {
   filename: string;
   count: number;
   amount: number;
-  /** 提出行（原 R01 RBANK／origBankCode） */
+  /** 提出行（R01 PBANK／origBankCode，原提示行） */
   presenterBank: string;
   lines: string[];
 };
@@ -297,16 +297,17 @@ export type ConvertedP01File = {
 export type ConvertR01ToP01Result = {
   files: ConvertedP01File[];
   detailCount: number;
-  /** 轉成 P01 後的表頭（提出行＝原提回行） */
+  /** 轉成 P01 後的表頭（提出行＝R01 原提示行 PBANK） */
   header: HeaderValues;
-  /** 轉成 P01 後的明細（收受行＝原退件行） */
+  /** 轉成 P01 後的明細（收受行＝R01 提回行 RBANK） */
   rows: DetailRow[];
 };
 
 /**
  * 將 ACHR01 提回／退件表單資料轉回 ACHP01 提出檔。
  * - TYPE R→N；CDATA ACHR01→ACHP01
- * - 對調：P01 PBANK/PCLNO ← R01 RBANK/RCLNO；P01 RBANK/RCLNO ← R01 PBANK/PCLNO
+ * - 對位：P01 PBANK/PCLNO ← R01 PBANK/PCLNO（原提示行／發動者）；
+ *   P01 RBANK/RCLNO ← R01 RBANK/RCLNO（收受者／提回行）
  * - 清除 RCODE／PDATE／PSEQ／PSCHD／YDATE
  * - 一律輸出單一整檔
  */
@@ -338,10 +339,10 @@ export function convertR01ToP01(
   const presenterBank = safeDigits(String(first.origBankCode ?? ""));
   const presenterAccount = safeDigits(String(first.origAccount ?? ""));
   if (presenterBank.length !== 7) {
-    throw new Error("原提示行銀行代號（RBANK）須為 7 碼");
+    throw new Error("原提示行銀行代號（PBANK）須為 7 碼");
   }
   if (!presenterAccount) {
-    throw new Error("原發動者帳號（RCLNO）未輸入");
+    throw new Error("原發動者帳號（PCLNO）未輸入");
   }
 
   let seq = 0;
@@ -358,10 +359,10 @@ export function convertR01ToP01(
     const recvBank = safeDigits(String(row.bankCode ?? ""));
     const recvAccount = safeDigits(String(row.account ?? ""));
     if (recvBank.length !== 7) {
-      throw new Error(`第 ${seq} 筆退件行銀行代號須為 7 碼`);
+      throw new Error(`第 ${seq} 筆收受者銀行代號須為 7 碼`);
     }
     if (!recvAccount) {
-      throw new Error(`第 ${seq} 筆原收受者帳號未輸入`);
+      throw new Error(`第 ${seq} 筆收受者帳號未輸入`);
     }
     const txid =
       String(row.txid ?? "").trim() || String(r01Header.txid ?? "").trim();

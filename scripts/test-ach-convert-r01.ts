@@ -78,14 +78,14 @@ assert.equal(d1.slice(1, 3), "SD", "TXTYPE from txid 704");
 assert.equal(d1.slice(3, 6), "704");
 // SEQ
 assert.equal(d1.slice(6, 14), "00000001");
-// PBANK = 原 RBANK（退件行）
-assert.equal(d1.slice(14, 21), "8120053");
-// PCLNO = 原 RCLNO
-assert.equal(d1.slice(21, 37), "0000000987654321");
-// RBANK = 原 PBANK
-assert.equal(d1.slice(37, 44), "0040000");
-// RCLNO = 原 PCLNO
-assert.equal(d1.slice(44, 60), "0000001234567890");
+// PBANK = 原提示行／發動者（與 P01 同欄）
+assert.equal(d1.slice(14, 21), "0040000");
+// PCLNO = 發動者帳號
+assert.equal(d1.slice(21, 37), "0000001234567890");
+// RBANK = 收受者／提回行（與 P01 同欄）
+assert.equal(d1.slice(37, 44), "8120053");
+// RCLNO = 收受者帳號
+assert.equal(d1.slice(44, 60), "0000000987654321");
 // AMT
 assert.equal(d1.slice(60, 70), "0000001500");
 // RCODE

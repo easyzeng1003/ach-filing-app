@@ -104,9 +104,9 @@ assert.ok(
     filename: "back.txt",
   });
   assert.equal(parsedR.errors.length, 0, parsedR.errors.join("; "));
-  assert.equal(parsedR.header.agentBank, "0040000");
+  assert.equal(parsedR.header.agentBank, "8120053");
   assert.equal(parsedR.header.ydate, "01150813");
-  assert.equal(parsedR.header.bankCode, "8120053", "R01 參考 bankCode 由首筆 PBANK 補");
+  assert.equal(parsedR.header.bankCode, "8120053", "R01 參考 bankCode 由首筆 RBANK 補");
   assert.equal(parsedR.header.account, "0000000987654321");
 
   const bankField = r01.form.header.find((f) => f.key === "bankCode");
@@ -120,6 +120,7 @@ assert.ok(
   );
   delete headerErrs.bankCode;
   delete headerErrs.account;
+  delete headerErrs.agentBank;
   assert.equal(headerErrs.date, null, "R01 處理日期允許已發生（提回檔）");
   assert.equal(headerHasError(headerErrs), false, JSON.stringify(headerErrs));
 
@@ -168,7 +169,7 @@ assert.ok(
     .split("\n");
   const detail = lines[1]!;
   // RBANK 在 TYPE1+TXTYPE2+TXID3+SEQ8+PBANK7+PCLNO16 = 37
-  assert.equal(detail.slice(37, 44), "0040000", "fixture RBANK = 提出行");
+  assert.equal(detail.slice(37, 44), "8120053", "fixture RBANK = 收受者／提回行");
 
   /** 清空 BOF（offset 30）／EOF（offset 24，無 TTIME）的 RORG */
   const blankCtrlRorg = (line: string) =>
@@ -188,7 +189,7 @@ assert.ok(
   assert.equal(parsedBlank.errors.length, 0, parsedBlank.errors.join("; "));
   assert.equal(
     parsedBlank.header.agentBank,
-    "0040000",
+    "8120053",
     "R01 代表行由統一提回行代號帶入",
   );
 
@@ -224,7 +225,7 @@ assert.ok(
   ) + "\r\n";
   const parsedMany = parseAchText(many, r01, { filename: "many-r01.txt" });
   assert.equal(parsedMany.tooLargeForForm, true);
-  assert.equal(parsedMany.header.agentBank, "0040000");
+  assert.equal(parsedMany.header.agentBank, "8120053");
 
   const manyMixed = [
     lines[0]!,
@@ -243,7 +244,7 @@ assert.ok(
   );
 }
 
-// 上傳 R01 且提回行相同 → 應改以 P01 模式編輯（對調後提出行＝原提回行）
+// 上傳 R01 且提回行相同 → 應改以 P01 模式編輯（提出行＝原提示行）
 {
   const r01File = convertP01ToR01(
     r01,
@@ -256,7 +257,7 @@ assert.ok(
   const parsedR = parseAchText(r01File.files[0]!.content, r01, {
     filename: "r01-uniform.txt",
   });
-  assert.equal(parsedR.uniformReturnBank, "0040000");
+  assert.equal(parsedR.uniformReturnBank, "8120053");
   assert.equal(shouldOpenR01AsP01(parsedR), true);
 
   const asP01 = convertR01ToP01(
@@ -267,9 +268,9 @@ assert.ok(
     EMBEDDED_BRANCHES,
   );
   assert.equal(asP01.files[0]!.presenterBank, "0040000");
-  assert.equal(asP01.header.bankCode, "0040000", "P01 提出行＝R01 提回行");
+  assert.equal(asP01.header.bankCode, "0040000", "P01 提出行＝R01 原提示行");
   assert.equal(asP01.header.account, "0000001234567890");
-  assert.equal(asP01.rows[0]!.bankCode, "8120053", "P01 收受行＝R01 退件行");
+  assert.equal(asP01.rows[0]!.bankCode, "8120053", "P01 收受行＝R01 提回行");
   assert.equal(asP01.files[0]!.lines[0]!.slice(0, 9), "BOFACHP01");
   const parsedP = parseAchText(asP01.files[0]!.content, p01, {
     filename: "from-r01.txt",

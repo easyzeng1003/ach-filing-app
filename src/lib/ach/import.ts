@@ -284,7 +284,7 @@ export function detailFieldOffset(
 }
 
 /**
- * 若所有明細「提回行代號」（ACHR01 RBANK／origBankCode）皆為同一組 7 碼，回傳該代號；
+ * 若所有明細「提回行代號」（ACHR01 RBANK／bankCode）皆為同一組 7 碼，回傳該代號；
  * 否則（空、缺碼、不一致）回傳 null。
  */
 export function inferUniformR01ReturnBank(
@@ -306,7 +306,7 @@ export function shouldOpenR01AsP01(result: ImportResult): boolean {
   if (result.tooLargeForForm) return Boolean(result.uniformReturnBank);
   if (!result.rows.length) return false;
   return Boolean(
-    inferUniformR01ReturnBank(result.rows.map((r) => r.origBankCode)),
+    inferUniformR01ReturnBank(result.rows.map((r) => r.bankCode)),
   );
 }
 
@@ -660,7 +660,7 @@ function finalizeHeader(acc: ParseAcc): HeaderValues {
     const fromDetail = {
       ...fromDetailHeader,
       ...(fromDetailBody.txid ? { txid: fromDetailBody.txid } : {}),
-      // ACHR01 BOF 無 bankCode／account；參考欄由首筆明細 PBANK／PCLNO 補
+      // ACHR01 BOF 無 bankCode／account；參考欄由首筆明細 RBANK／RCLNO（收受者）補
       ...(fromDetailBody.bankCode ? { bankCode: fromDetailBody.bankCode } : {}),
       ...(fromDetailBody.account ? { account: fromDetailBody.account } : {}),
     };

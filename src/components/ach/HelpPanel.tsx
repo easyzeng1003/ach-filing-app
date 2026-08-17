@@ -17,7 +17,7 @@ export function HelpPanel() {
           固定長度檔為主，進行<strong className="text-fg">檢核與加工</strong>。
           開啟後請先上傳既有 P01 或 R01 檔（上傳時依 BOF／EOF 自動辨識檔案代號，並檢核明細 TYPE 是否符合）。
           編輯頁不區分 P01／R01 模式；按<strong className="text-fg">輸出 P01</strong>或
-          <strong className="text-fg">輸出 R01</strong>時才做該格式的完整檢核（轉檔時對調提出／收受行）。
+          <strong className="text-fg">輸出 R01</strong>時才做該格式的完整檢核（提出／收受行對位與 P01 相同）。
           ACHP01 明細<strong className="text-fg">交易類別</strong>依交易代號帶入：
           <strong className="text-fg">SD＝代收</strong>、
           <strong className="text-fg">SC＝代付</strong>。
@@ -165,7 +165,7 @@ export function HelpPanel() {
           （<strong className="text-fg">SORG／RORG 固定為原檔值</strong>；尾錄總筆數／總金額依實際輸出明細重算；處理日期可覆寫）。
           輸出 R01（ACHR01）時<strong className="text-fg">發送單位 SORG 固定 9990250</strong>，
           <strong className="text-fg">接收單位 RORG＝代表行代號</strong>。
-          來源為提出檔時，輸出 R01 再開啟轉檔對話框填入退件理由；來源為提回檔時，輸出 P01 會對調提出／收受行。
+          來源為提出檔時，輸出 R01 再開啟轉檔對話框填入退件理由；來源為提回檔時，輸出 P01 依同一欄位對位轉回提出檔。
           「包含」只要欄位值含輸入字串即命中（類似{" "}
           <code className="font-mono text-xs">String.includes</code>
           ，不區分大小寫；JSON 運算子仍為{" "}
