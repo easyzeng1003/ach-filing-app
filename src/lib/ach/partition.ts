@@ -27,6 +27,7 @@ import {
 } from "./engine";
 import {
   IMPORT_LIMITS,
+  attachP01PresenterFromFields,
   parseRecordFields,
   type ImportProgress,
 } from "./import";
@@ -507,6 +508,9 @@ function detailRowFromLine(line: string, schema: FormatSchema): DetailRow {
       const parsed = fields.find((x) => x.id === def.id);
       if (parsed) row[def.key] = parsed.value;
     }
+  }
+  if (schema.code === "ACHP01") {
+    attachP01PresenterFromFields(row, fields);
   }
   return row;
 }

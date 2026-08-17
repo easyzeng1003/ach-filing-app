@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { convertP01ToR01, convertR01ToP01 } from "../src/lib/ach/convertR01";
 import { generateFromSchema } from "../src/lib/ach/engine";
+import { parseAchText } from "../src/lib/ach/import";
 import { loadEmbeddedFormats, EMBEDDED_TXIDS, EMBEDDED_BRANCHES } from "../src/data/embedded";
 import type { DetailRow, HeaderValues } from "../src/lib/ach/schema";
 
@@ -100,10 +101,98 @@ assert.equal(d1.slice(107, 115), "00000001");
 // PSCHD
 assert.equal(d1.slice(115, 116), "B");
 
+const d2 = file.lines[2]!;
+assert.equal(d2[0], "R");
+assert.equal(d2.slice(14, 21), "8120053", "第2列 PBANK＝該列收受者");
+assert.equal(d2.slice(21, 37), "0000000111222333", "第2列 PCLNO＝該列收受者帳號");
+assert.equal(d2.slice(37, 44), "0040000", "第2列 RBANK＝提出行（表頭後備）");
+assert.equal(d2.slice(44, 60), "0000001234567890", "第2列 RCLNO＝發動者帳號（表頭後備）");
+
 const trl = file.lines[3]!;
 assert.equal(trl.slice(0, 3), "EOF");
 assert.equal(trl.slice(3, 9), "ACHR01");
 assert.equal(trl.slice(55, 63), "01150803", "YDATE");
+
+// 每列自帶 orig（R01 再輸出／P01 列上 PBANK 不同）不可被首列蓋掉
+{
+  const mixedOrig: DetailRow[] = [
+    {
+      id: "m1",
+      bankCode: "8120053",
+      account: "0000000987654321",
+      taxId: "A123456789",
+      userNo: "USER001",
+      amount: "1500",
+      origBankCode: "0040000",
+      origAccount: "0000001234567890",
+    },
+    {
+      id: "m2",
+      bankCode: "0070000",
+      account: "0000000555666777",
+      taxId: "B987654321",
+      userNo: "USER002",
+      amount: "200",
+      origBankCode: "8120001",
+      origAccount: "0000001111222333",
+    },
+  ];
+  const mixedOut = convertP01ToR01(
+    r01,
+    header,
+    mixedOrig,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+    { rcode: "04", pdate: "01150804", agentBank: "0040000" },
+  );
+  const md1 = mixedOut.files[0]!.lines[1]!;
+  const md2 = mixedOut.files[0]!.lines[2]!;
+  assert.equal(md1.slice(14, 21), "8120053");
+  assert.equal(md1.slice(37, 44), "0040000");
+  assert.equal(md1.slice(44, 60), "0000001234567890");
+  assert.equal(md2.slice(14, 21), "0070000", "第2列 PBANK＝該列收受者");
+  assert.equal(md2.slice(21, 37), "0000000555666777");
+  assert.equal(md2.slice(37, 44), "8120001", "第2列 RBANK＝該列提出行，不可抄第1列");
+  assert.equal(md2.slice(44, 60), "0000001111222333", "第2列 RCLNO＝該列發動者帳號");
+}
+
+// 匯入 P01：每列 PBANK/PCLNO 留下，轉 R01 時逐筆對調
+{
+  const p01Gen = generateFromSchema(
+    p01,
+    header,
+    [
+      { ...rows[0]!, id: "p1", bankCode: "0070000", account: "0000000555666777" },
+      { ...rows[1]!, id: "p2", bankCode: "8120053", account: "0000000111222333" },
+    ],
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  const pLines = p01Gen.lines.slice();
+  // 第2列提出行／帳號改成與表頭不同（模擬檔內逐列 PBANK）
+  pLines[2] =
+    pLines[2]!.slice(0, 14) + "8120001" + "0000001111222333" + pLines[2]!.slice(37);
+  const parsedP = parseAchText(pLines.join("\r\n") + "\r\n", p01, {
+    filename: "p01-mixed-pbank.txt",
+  });
+  assert.equal(parsedP.rows[0]!.origBankCode, "0040000");
+  assert.equal(parsedP.rows[0]!.origAccount, "0000001234567890");
+  assert.equal(parsedP.rows[1]!.origBankCode, "8120001", "P01 第2列 PBANK 須留下");
+  assert.equal(parsedP.rows[1]!.origAccount, "0000001111222333");
+  const fromParsed = convertP01ToR01(
+    r01,
+    parsedP.header,
+    parsedP.rows,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+    { rcode: "99", pdate: "01150804", agentBank: "0040000" },
+  );
+  const pd2 = fromParsed.files[0]!.lines[2]!;
+  assert.equal(pd2.slice(14, 21), "8120053", "第2列對調後 PBANK＝原 RBANK");
+  assert.equal(pd2.slice(21, 37), "0000000111222333", "第2列對調後 PCLNO＝原 RCLNO");
+  assert.equal(pd2.slice(37, 44), "8120001", "第2列對調後 RBANK＝該列原 PBANK");
+  assert.equal(pd2.slice(44, 60), "0000001111222333", "第2列對調後 RCLNO＝該列原 PCLNO");
+}
 
 // 多收受行：仍輸出單一檔（不依收受行分檔）
 const multiRows: DetailRow[] = [
@@ -291,8 +380,10 @@ assert.equal(multiTrl.slice(24, 31), "8220901", "EOF RORG");
     EMBEDDED_BRANCHES,
   );
   const rd1 = round.files[0]!.lines[1]!;
-  assert.equal(rd1.slice(14, 21), "8120053", "round-trip R01 PBANK＝收受者");
-  assert.equal(rd1.slice(37, 44), "0040000", "round-trip R01 RBANK＝提出行");
+  assert.equal(rd1.slice(14, 21), "0040000", "round-trip P01 PBANK＝原提示行");
+  assert.equal(rd1.slice(21, 37), "0000001234567890");
+  assert.equal(rd1.slice(37, 44), "8120053", "round-trip P01 RBANK＝收受者");
+  assert.equal(rd1.slice(44, 60), "0000000987654321");
   assert.equal(rd1.slice(60, 70), "0000001500");
 }
 
