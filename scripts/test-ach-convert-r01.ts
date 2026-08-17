@@ -129,7 +129,7 @@ const multiTrl = multi.files[0]!.lines[multi.files[0]!.lines.length - 1]!;
 assert.equal(multiTrl.slice(17, 24), "9990250", "EOF SORG");
 assert.equal(multiTrl.slice(24, 31), "8220901", "EOF RORG");
 
-// 空 YDATE 時尾錄仍須固定 250（pad 空白，不可因 pad:none 變 242）
+// 空／非法 YDATE 時套用 TDATE，尾錄仍須固定 250
 {
   const emptyY = generateFromSchema(
     r01,
@@ -162,7 +162,18 @@ assert.equal(multiTrl.slice(24, 31), "8220901", "EOF RORG");
     EMBEDDED_BRANCHES,
   );
   assert.ok(emptyY.lines.every((l) => l.length === 250), "empty YDATE trailer/header length");
-  assert.equal(emptyY.lines.at(-1)!.slice(55, 63), "        ", "empty YDATE → 8 spaces");
+  assert.equal(emptyY.lines.at(-1)!.slice(55, 63), "01150804", "empty YDATE → 套用 TDATE");
+
+  const viaConvert = convertP01ToR01(
+    r01,
+    header,
+    rows,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+    { rcode: "04", ydate: "01159999", pdate: "01150804", agentBank: "0040000" },
+  );
+  assert.equal(viaConvert.ydate, "01150804", "轉檔非法 YDATE → TDATE");
+  assert.equal(viaConvert.files[0]!.lines.at(-1)!.slice(55, 63), "01150804");
 }
 
 // —— R01 → P01 往返 ——

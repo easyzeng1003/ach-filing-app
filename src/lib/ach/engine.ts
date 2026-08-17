@@ -286,7 +286,8 @@ function controlDateFieldError(
 
 /**
  * 輸出前檢核將寫入 BOF／EOF 的日期。
- * TDATE＝處理日期（P01 另禁過去日）；ACHR01 EOF 另檢 YDATE。
+ * TDATE＝處理日期（P01 另禁過去日）。
+ * ACHR01 YDATE 空白或非法時改用 TDATE，不單獨擋輸出。
  */
 export function validateExportControlDates(
   schema: FormatSchema,
@@ -305,19 +306,6 @@ export function validateExportControlDates(
     branches,
   );
   if (dateErr) errors.push(`BOF／EOF 處理日期（TDATE）：${dateErr}`);
-
-  if (schema.code === "ACHR01") {
-    const yField = schema.form.header.find((f) => f.key === "ydate");
-    const yErr = controlDateFieldError(
-      yField,
-      header.ydate ?? "",
-      schema,
-      header,
-      txids,
-      branches,
-    );
-    if (yErr) errors.push(`EOF 前一營業日（YDATE）：${yErr}`);
-  }
   return errors;
 }
 
@@ -327,6 +315,24 @@ function legalRocDateError(value: string): string | null {
   if (digits.length !== 8) return "日期長度請輸入八碼";
   if (!rocToDate(digits)) return "非合法日期";
   return null;
+}
+
+/** 八碼且為合法民國年月日時回傳數字，否則空字串 */
+export function legalRoc8(value: string | undefined): string {
+  const digits = safeDigits(value ?? "").slice(0, 8);
+  if (digits.length === 8 && rocToDate(digits)) return digits;
+  return "";
+}
+
+/**
+ * R01 EOF YDATE：空白或非合法民國日時改用 TDATE。
+ * TDATE 亦不合法時回傳其數字（可能為空），由 TDATE 檢核負責擋下。
+ */
+export function resolveR01Ydate(
+  ydate: string | undefined,
+  tdate: string | undefined,
+): string {
+  return legalRoc8(ydate) || safeDigits(tdate ?? "").slice(0, 8);
 }
 
 /** 檢核已組出的 BOF／EOF 列上的 TDATE（及 R01 YDATE）為合法民國日期 */
@@ -520,7 +526,13 @@ export function generateFromSchema(
 ): GenerateResult {
   const amountKey = schema.features.amountKey;
   const nonEmpty = rows.filter((r) => !isRowEmpty(r, schema));
-  const effectiveHeader = syncHeaderFromDetails(header, nonEmpty, schema);
+  let effectiveHeader = syncHeaderFromDetails(header, nonEmpty, schema);
+  if (schema.code === "ACHR01") {
+    effectiveHeader = {
+      ...effectiveHeader,
+      ydate: resolveR01Ydate(effectiveHeader.ydate, effectiveHeader.date),
+    };
+  }
 
   let totalAmount = 0;
   if (amountKey) {
