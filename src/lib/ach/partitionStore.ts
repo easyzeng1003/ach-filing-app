@@ -3,8 +3,8 @@
  * 大檔分割後逐包載入表單編輯 → 存回 → 合併輸出
  */
 import { create } from "zustand";
-import { isRowEmpty } from "./engine";
-import { parseAchText } from "./import";
+import { generateFromSchema, isRowEmpty } from "./engine";
+import { adaptP01ImportToR01, parseAchText } from "./import";
 import { withLineEndingId } from "./lineEnding";
 import { usePrefsStore } from "./prefsStore";
 import {
@@ -258,6 +258,36 @@ export const usePartitionStore = create<PartitionStore>((set, get) => ({
     };
   },
 }));
+
+/** 分割後的 P01 包改寫成 R01，供唯一編輯工作區載入 */
+export function rewriteSessionPartsFromP01ToR01(
+  p01: FormatSchema,
+  r01: FormatSchema,
+  txids: Txid[],
+  branches: Branch[],
+): void {
+  const sess = usePartitionStore.getState().session;
+  if (!sess || sess.formatCode === "ACHR01") return;
+  const parts = sess.parts.map((p) => {
+    const parsed = parseAchText(p.content, p01, { filename: p.filename });
+    const adapted = adaptP01ImportToR01(parsed, r01);
+    const gen = generateFromSchema(
+      r01,
+      adapted.header,
+      adapted.rows,
+      txids,
+      branches,
+    );
+    return { filename: p.filename, content: gen.content };
+  });
+  usePartitionStore.getState().startSession({
+    formatCode: "ACHR01",
+    sourceFilename: sess.sourceFilename,
+    index: { ...sess.index, formatCode: "ACHR01" },
+    parts,
+  });
+  usePartitionStore.getState().setActiveIndex(0);
+}
 
 /** 將分割檔內容解析為表單資料（須 ≤ 可編輯上限） */
 export function parsePartToForm(

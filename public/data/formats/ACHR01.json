@@ -293,8 +293,8 @@
         "filterable": true
       },
       {
-        "key": "bankCode",
-        "label": "收受者銀行代號",
+        "key": "origBankCode",
+        "label": "提示行代號",
         "inputType": "text",
         "length": 7,
         "charset": "digit",
@@ -306,11 +306,86 @@
           "rules": [
             {
               "type": "requiredIfAny",
-              "message": "收受者銀行代號未輸入"
+              "message": "提示行代號未輸入"
             },
             {
               "type": "branchCode",
-              "message": "收受者銀行代號錯誤"
+              "message": "提示行代號錯誤"
+            }
+          ]
+        },
+        "picker": null,
+        "export": {
+          "charset": "digit",
+          "length": 7,
+          "pad": {
+            "side": "none"
+          }
+        },
+        "ui": {
+          "mono": true,
+          "minWidth": "7rem"
+        },
+        "filterable": true
+      },
+      {
+        "key": "origAccount",
+        "label": "提示行帳號",
+        "inputType": "text",
+        "length": 16,
+        "charset": "digit",
+        "required": true,
+        "pad": {
+          "side": "left",
+          "char": "0",
+          "onBlur": true
+        },
+        "validation": {
+          "rules": [
+            {
+              "type": "requiredIfAny",
+              "message": "提示行帳號未輸入"
+            },
+            {
+              "type": "maxLength",
+              "length": 16,
+              "message": "帳號長度不符"
+            }
+          ]
+        },
+        "picker": null,
+        "export": {
+          "charset": "digit",
+          "length": 16,
+          "pad": {
+            "side": "none"
+          }
+        },
+        "ui": {
+          "mono": true,
+          "minWidth": "9rem"
+        },
+        "filterable": true
+      },
+      {
+        "key": "bankCode",
+        "label": "提回行代號",
+        "inputType": "text",
+        "length": 7,
+        "charset": "digit",
+        "required": true,
+        "pad": {
+          "side": "none"
+        },
+        "validation": {
+          "rules": [
+            {
+              "type": "requiredIfAny",
+              "message": "提回行代號未輸入"
+            },
+            {
+              "type": "branchCode",
+              "message": "提回行代號錯誤"
             }
           ]
         },
@@ -330,7 +405,7 @@
       },
       {
         "key": "account",
-        "label": "收受者帳號",
+        "label": "提回行帳號",
         "inputType": "text",
         "length": 16,
         "charset": "digit",
@@ -344,12 +419,12 @@
           "rules": [
             {
               "type": "requiredIfAny",
-              "message": "收受者帳號未輸入"
+              "message": "提回行帳號未輸入"
             },
             {
               "type": "maxLength",
               "length": 16,
-              "message": "收受者帳號長度不符"
+              "message": "提回行帳號長度不符"
             }
           ]
         },
@@ -487,81 +562,6 @@
           "mono": true,
           "minWidth": "6rem",
           "align": "right"
-        },
-        "filterable": true
-      },
-      {
-        "key": "origBankCode",
-        "label": "原提示行代號",
-        "inputType": "text",
-        "length": 7,
-        "charset": "digit",
-        "required": true,
-        "pad": {
-          "side": "none"
-        },
-        "validation": {
-          "rules": [
-            {
-              "type": "requiredIfAny",
-              "message": "原提示行代號未輸入"
-            },
-            {
-              "type": "branchCode",
-              "message": "原提示行代號錯誤"
-            }
-          ]
-        },
-        "picker": null,
-        "export": {
-          "charset": "digit",
-          "length": 7,
-          "pad": {
-            "side": "none"
-          }
-        },
-        "ui": {
-          "mono": true,
-          "minWidth": "7rem"
-        },
-        "filterable": true
-      },
-      {
-        "key": "origAccount",
-        "label": "原發動者帳號",
-        "inputType": "text",
-        "length": 16,
-        "charset": "digit",
-        "required": true,
-        "pad": {
-          "side": "left",
-          "char": "0",
-          "onBlur": true
-        },
-        "validation": {
-          "rules": [
-            {
-              "type": "requiredIfAny",
-              "message": "原發動者帳號未輸入"
-            },
-            {
-              "type": "maxLength",
-              "length": 16,
-              "message": "帳號長度不符"
-            }
-          ]
-        },
-        "picker": null,
-        "export": {
-          "charset": "digit",
-          "length": 16,
-          "pad": {
-            "side": "none"
-          }
-        },
-        "ui": {
-          "mono": true,
-          "minWidth": "9rem"
         },
         "filterable": true
       },

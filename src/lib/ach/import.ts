@@ -70,6 +70,8 @@ export type ImportProgress = {
 
 export type ImportResult = {
   detectedCode: string | null;
+  /** 檔案原始格式（P01 匯入後 schema 會改為 R01 供編輯） */
+  sourceFormatCode?: string;
   schema: FormatSchema;
   filename: string;
   header: HeaderValues;
@@ -304,14 +306,60 @@ export function inferUniformR01ReturnBank(
   return found;
 }
 
-/** 上傳 R01 且提回行一致時，改以 P01 模式編輯 */
-export function shouldOpenR01AsP01(result: ImportResult): boolean {
-  if (result.schema.code !== "ACHR01") return false;
-  if (result.tooLargeForForm) return Boolean(result.uniformReturnBank);
-  if (!result.rows.length) return false;
-  return Boolean(
-    inferUniformR01ReturnBank(result.rows.map((r) => r.bankCode)),
-  );
+/** 上傳 R01 且提回行一致時，改以 P01 模式編輯（已停用：編輯畫面只留 R01） */
+export function shouldOpenR01AsP01(_result: ImportResult): boolean {
+  return false;
+}
+
+/** 將 P01 匯入結果轉成 R01 表單（提出行→orig*，收受者→bankCode/account） */
+export function adaptP01ImportToR01(
+  result: ImportResult,
+  r01: FormatSchema,
+): ImportResult {
+  if (result.schema.code !== "ACHP01") return result;
+  if (r01.code !== "ACHR01") return result;
+
+  const mapRow = (row: DetailRow): DetailRow => {
+    const next = emptyDetailRow(r01, row.id || newRowId());
+    next.seq = String(row.seq ?? "");
+    next.txid = String(row.txid ?? result.header.txid ?? "");
+    next.bankCode = String(row.bankCode ?? "");
+    next.account = String(row.account ?? "");
+    next.taxId = String(row.taxId ?? "");
+    next.userNo = String(row.userNo ?? "");
+    next.amount = String(row.amount ?? "");
+    next.origBankCode = String(
+      row.origBankCode ?? result.header.bankCode ?? "",
+    );
+    next.origAccount = String(row.origAccount ?? result.header.account ?? "");
+    return next;
+  };
+
+  const rows = result.rows.map(mapRow);
+  const previewRows = result.previewRows.map(mapRow);
+  const first = rows[0] ?? previewRows[0];
+  const header = emptyHeader(r01);
+  header.date = String(result.header.date ?? "");
+  header.txid = String(result.header.txid ?? first?.txid ?? "");
+  header.taxId = String(result.header.taxId ?? "");
+  header.bankCode = String(first?.bankCode ?? "");
+  header.account = String(first?.account ?? "");
+  header.agentBank =
+    result.uniformReturnBank ??
+    inferUniformR01ReturnBank(
+      (rows.length ? rows : previewRows).map((r) => r.bankCode),
+    ) ??
+    "";
+  header.ydate = String(result.header.ydate ?? "");
+
+  return {
+    ...result,
+    sourceFormatCode: result.sourceFormatCode ?? "ACHP01",
+    schema: r01,
+    header,
+    rows,
+    previewRows,
+  };
 }
 
 function fieldText(f: ParsedRecordField): string {
@@ -812,6 +860,7 @@ function buildResult(
     appliedFilters: { ...acc.filters },
     appliedGlobal: acc.filterGlobal,
     fileSize: opts.fileSize,
+    sourceFormatCode: acc.schema.code,
     uniformReturnBank:
       acc.schema.code === "ACHR01" &&
       !acc.returnBankConflict &&

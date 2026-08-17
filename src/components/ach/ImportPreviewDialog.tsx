@@ -328,7 +328,9 @@ export function ImportPreviewDialog({
               編輯（分割）
             </Button>
           ) : null}
-          {sourceFile && onLargeConvertR01 && schema.code === "ACHP01" ? (
+          {sourceFile &&
+          onLargeConvertR01 &&
+          (schema.code === "ACHP01" || result.sourceFormatCode === "ACHP01") ? (
             <Button
               variant="outlined"
               startIcon={<ArrowRightLeftIcon />}

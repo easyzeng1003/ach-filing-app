@@ -40,6 +40,8 @@ import {
   type PartitionProgress,
 } from "@/lib/ach/partition";
 import {
+  parsePartToForm,
+  rewriteSessionPartsFromP01ToR01,
   splitFileAndStartEdit,
   usePartitionStore,
 } from "@/lib/ach/partitionStore";
@@ -56,6 +58,8 @@ type Props = {
   open: boolean;
   mode: Mode;
   schema: FormatSchema;
+  /** 來源檔實際格式（上傳 P01 時與編輯用 R01 不同） */
+  sourceSchema?: FormatSchema;
   formats: Record<string, FormatSchema>;
   txids: Txid[];
   branches: Branch[];
@@ -76,6 +80,7 @@ export function PartitionToolsDialog({
   open,
   mode,
   schema,
+  sourceSchema,
   formats,
   txids,
   branches,
@@ -110,8 +115,9 @@ export function PartitionToolsDialog({
   const [pdate, setPdate] = useState(() => safeDigits(tdate));
   const [agentBank, setAgentBank] = useState("");
 
-  const convertToR01 = mode === "convert" && schema.code === "ACHP01";
-  const convertToP01 = mode === "convert" && schema.code === "ACHR01";
+  const fileSchema = sourceSchema ?? schema;
+  const convertToR01 = mode === "convert" && fileSchema.code === "ACHP01";
+  const convertToP01 = mode === "convert" && fileSchema.code === "ACHR01";
 
   const title =
     mode === "split"
@@ -146,13 +152,17 @@ export function PartitionToolsDialog({
 
         const result = await splitFileAndStartEdit({
           file: sourceFile,
-          schema,
+          schema: fileSchema,
           txids,
           branches,
           detailCount: detailCount || 1,
           preferredPartCount: y,
           onProgress: setProgress,
         });
+        const r01 = formats.ACHR01;
+        if (fileSchema.code === "ACHP01" && r01) {
+          rewriteSessionPartsFromP01ToR01(fileSchema, r01, txids, branches);
+        }
 
         if (alsoDownload) {
           const sess = usePartitionStore.getState().session;
@@ -181,11 +191,31 @@ export function PartitionToolsDialog({
           }
         }
 
-        onOpenPartitionEdit?.({
-          header: result.first.header,
-          rows: result.first.rows,
-          fileName: result.first.fileName,
-        });
+        const r01Edit = formats.ACHR01;
+        if (fileSchema.code === "ACHP01" && r01Edit) {
+          const sess = usePartitionStore.getState().session;
+          const first = sess?.parts[0];
+          if (first) {
+            const parsed = parsePartToForm(r01Edit, first.content, first.filename);
+            onOpenPartitionEdit?.({
+              header: parsed.header,
+              rows: parsed.rows,
+              fileName: first.filename,
+            });
+          } else {
+            onOpenPartitionEdit?.({
+              header: result.first.header,
+              rows: result.first.rows,
+              fileName: result.first.fileName,
+            });
+          }
+        } else {
+          onOpenPartitionEdit?.({
+            header: result.first.header,
+            rows: result.first.rows,
+            fileName: result.first.fileName,
+          });
+        }
         toast.success(
           `已分割 ${result.partCount} 包（共 ${result.totalDetailCount.toLocaleString("zh-TW")} 筆），已載入第 1 包供編輯`,
         );
@@ -195,7 +225,7 @@ export function PartitionToolsDialog({
 
       const partFiles: { filename: string; content: string }[] = [];
       const outSchema = withLineEndingId(
-        schema,
+        fileSchema,
         usePrefsStore.getState().lineEnding,
       );
       const index = await partitionAchFile(
@@ -245,13 +275,13 @@ export function PartitionToolsDialog({
       return;
     }
     const r01 = formats.ACHR01;
-    const p01 = formats.ACHP01 ?? (schema.code === "ACHP01" ? schema : null);
+    const p01 = formats.ACHP01 ?? (fileSchema.code === "ACHP01" ? fileSchema : null);
     if (!r01 || !p01 || p01.code !== "ACHP01") {
       toast.error("大檔轉檔需要 ACHP01／ACHR01 格式");
       return;
     }
 
-    if (schema.code === "ACHR01") {
+    if (fileSchema.code === "ACHR01") {
       setBusy(true);
       setProgress(null);
       try {

@@ -43,8 +43,8 @@ const BRAND_ICONS: Record<BrandingIconPreset, typeof AccountBalanceIcon> = {
   swap_horiz: SwapHorizIcon,
 };
 
-/** 主畫面以 activeCode 切換 P01／R01 工作區（上傳偵測後自動切換） */
-const DEFAULT_FORMAT = "ACHP01";
+/** 編輯畫面只留 R01；上傳 P01 會轉成 R01 表單 */
+const DEFAULT_FORMAT = "ACHR01";
 
 export function AppShell() {
   const branding = useBranding();
@@ -59,8 +59,9 @@ export function AppShell() {
   } = useRefStore();
   const { activeCode, setActiveCode, ensureForm } = useFormStore();
   const list = formatList();
+  const resolvedCode = activeCode === "ACHP01" ? DEFAULT_FORMAT : activeCode;
   const activeSchema =
-    formats[activeCode] ??
+    formats[resolvedCode] ??
     formats[DEFAULT_FORMAT] ??
     formats[list[0]?.code ?? ""];
 
@@ -70,7 +71,10 @@ export function AppShell() {
 
   useEffect(() => {
     if (!loaded || !activeSchema) return;
-    if (!formats[activeCode] && formats[DEFAULT_FORMAT]) {
+    if (
+      (!formats[activeCode] || activeCode === "ACHP01") &&
+      formats[DEFAULT_FORMAT]
+    ) {
       setActiveCode(DEFAULT_FORMAT);
       ensureForm(formats[DEFAULT_FORMAT]!);
       return;
@@ -197,7 +201,7 @@ export function AppShell() {
         ) : (
           <Paper sx={{ p: 4, textAlign: "center" }}>
             <Typography color="error" sx={{ fontWeight: 700 }}>
-              找不到 ACHP01／ACHR01 格式定義
+              找不到 ACHR01 格式定義
             </Typography>
           </Paper>
         )}
