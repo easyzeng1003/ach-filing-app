@@ -57,16 +57,12 @@ export function AppShell() {
     formatList,
     formats,
   } = useRefStore();
-  const { activeCode, setActiveCode, ensureForm, isWorkspaceOpen } =
-    useFormStore();
+  const { activeCode, setActiveCode, ensureForm } = useFormStore();
   const list = formatList();
   const activeSchema =
     formats[activeCode] ??
     formats[DEFAULT_FORMAT] ??
     formats[list[0]?.code ?? ""];
-  const workspaceOpen = activeSchema
-    ? isWorkspaceOpen(activeSchema.code)
-    : false;
 
   useEffect(() => {
     void loadRefs();
@@ -148,15 +144,6 @@ export function AppShell() {
                 icon={<CircularProgress size={14} color="inherit" />}
                 label="載入中…"
                 sx={{ bgcolor: "rgba(255,255,255,0.12)", color: "inherit" }}
-              />
-            )}
-            {loaded && workspaceOpen && activeSchema && (
-              <Chip
-                size="small"
-                color="secondary"
-                variant="filled"
-                label={activeSchema.shortCode === "R01" ? "R01" : "P01"}
-                sx={{ fontFamily: "monospace", fontWeight: 700 }}
               />
             )}
             {loadError && (
