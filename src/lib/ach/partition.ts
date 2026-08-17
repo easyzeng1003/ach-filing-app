@@ -22,6 +22,7 @@ import {
   emptyHeader,
   isRowEmpty,
   lookupTxid,
+  validateBuiltControlDates,
 } from "./engine";
 import {
   IMPORT_LIMITS,
@@ -1207,6 +1208,14 @@ export function mergeAchPartitions(
     txids,
     branches,
   });
+  const builtDateErrs = validateBuiltControlDates(
+    schema,
+    headerLine,
+    trailer,
+  );
+  if (builtDateErrs.length) {
+    throw new Error(builtDateErrs[0] ?? "BOF／EOF 處理日期有誤");
+  }
 
   const base =
     input.index.sourceFilename.replace(/\.[^.]+$/, "") || schema.code;

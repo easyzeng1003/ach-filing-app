@@ -9,7 +9,7 @@ import type {
   ValidationRule,
 } from "./schema";
 import { applyPad, filterByCharset, formatExportField, sanitizeInput } from "./field";
-import { nowHms, rocToDate } from "./utils";
+import { nowHms, rocToDate, safeDigits } from "./utils";
 
 export function lookupTxid(code: string, txids: Txid[]): Txid | undefined {
   return txids.find((t) => t.code === code);
@@ -242,6 +242,130 @@ export function validateHeader(
 
 export function headerHasError(errs: Record<string, string | null>): boolean {
   return Object.values(errs).some(Boolean);
+}
+
+/** 依 records 欄位定義取出固定長度欄位原文 */
+export function recordFieldRaw(
+  line: string,
+  fields: RecordFieldDef[],
+  id: string,
+): string {
+  let offset = 0;
+  for (const f of fields) {
+    if (f.id === id) {
+      return offset >= line.length ? "" : line.slice(offset, offset + f.length);
+    }
+    offset += f.length;
+  }
+  return "";
+}
+
+function controlDateFieldError(
+  field: FormFieldDef | undefined,
+  value: string,
+  schema: FormatSchema,
+  header: HeaderValues,
+  txids: Txid[],
+  branches: Branch[],
+): string | null {
+  const digits = safeDigits(value).slice(0, 8);
+  if (!field) {
+    if (!digits) return "未輸入";
+    if (digits.length !== 8) return "日期長度請輸入八碼";
+    if (!rocToDate(digits)) return "非合法日期";
+    return null;
+  }
+  return validateField(field, digits, {
+    schema,
+    header: { ...header, [field.key]: digits },
+    section: "header",
+    txids,
+    branches,
+  });
+}
+
+/**
+ * 輸出前檢核將寫入 BOF／EOF 的日期。
+ * TDATE＝處理日期（P01 另禁過去日）；ACHR01 EOF 另檢 YDATE。
+ */
+export function validateExportControlDates(
+  schema: FormatSchema,
+  header: HeaderValues,
+  txids: Txid[],
+  branches: Branch[],
+): string[] {
+  const errors: string[] = [];
+  const dateField = schema.form.header.find((f) => f.key === "date");
+  const dateErr = controlDateFieldError(
+    dateField,
+    header.date ?? "",
+    schema,
+    header,
+    txids,
+    branches,
+  );
+  if (dateErr) errors.push(`BOF／EOF 處理日期（TDATE）：${dateErr}`);
+
+  if (schema.code === "ACHR01") {
+    const yField = schema.form.header.find((f) => f.key === "ydate");
+    const yErr = controlDateFieldError(
+      yField,
+      header.ydate ?? "",
+      schema,
+      header,
+      txids,
+      branches,
+    );
+    if (yErr) errors.push(`EOF 前一營業日（YDATE）：${yErr}`);
+  }
+  return errors;
+}
+
+function legalRocDateError(value: string): string | null {
+  const digits = safeDigits(value).slice(0, 8);
+  if (!digits) return "未輸入";
+  if (digits.length !== 8) return "日期長度請輸入八碼";
+  if (!rocToDate(digits)) return "非合法日期";
+  return null;
+}
+
+/** 檢核已組出的 BOF／EOF 列上的 TDATE（及 R01 YDATE）為合法民國日期 */
+export function validateBuiltControlDates(
+  schema: FormatSchema,
+  headerLine: string,
+  trailerLine: string,
+): string[] {
+  const bofDate = recordFieldRaw(
+    headerLine,
+    schema.records.header.fields,
+    "TDATE",
+  );
+  const eofDate = recordFieldRaw(
+    trailerLine,
+    schema.records.trailer.fields,
+    "TDATE",
+  );
+  const errors: string[] = [];
+  const bofErr = legalRocDateError(bofDate);
+  if (bofErr) errors.push(`BOF 處理日期（TDATE）：${bofErr}`);
+  const eofErr = legalRocDateError(eofDate);
+  if (eofErr) errors.push(`EOF 處理日期（TDATE）：${eofErr}`);
+  const bofDigits = safeDigits(bofDate).slice(0, 8);
+  const eofDigits = safeDigits(eofDate).slice(0, 8);
+  if (!bofErr && !eofErr && bofDigits !== eofDigits) {
+    errors.push(`BOF 與 EOF 處理日期不一致（${bofDigits}／${eofDigits}）`);
+  }
+
+  if (schema.code === "ACHR01") {
+    const yRaw = recordFieldRaw(
+      trailerLine,
+      schema.records.trailer.fields,
+      "YDATE",
+    );
+    const yErr = legalRocDateError(yRaw);
+    if (yErr) errors.push(`EOF 前一營業日（YDATE）：${yErr}`);
+  }
+  return errors;
 }
 
 export function validateDetailRow(
