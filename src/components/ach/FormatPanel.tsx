@@ -142,6 +142,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   const [dragOver, setDragOver] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [converting, setConverting] = useState(false);
+  const [exportMaskLabel, setExportMaskLabel] = useState("輸出中…");
   /** 收受行代表行代號（輸出 ACHR01 的 RORG） */
   const [agentBank, setAgentBank] = useState("");
   const [partitionTools, setPartitionTools] = useState<{
@@ -545,11 +546,26 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     return validateFormData(source);
   }
 
+  /** 等畫面先畫出 loading mask，再跑同步檢核／組檔 */
+  function yieldForPaint(): Promise<void> {
+    return new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
+  }
+
+  async function beginExport(label: string) {
+    setExportMaskLabel(label);
+    setConverting(true);
+    await yieldForPaint();
+  }
+
   /** 以目前工作區格式輸出（套用篩選／排除） */
   async function exportCurrentAsFile() {
-    if (!validateBeforeExport()) return;
-    setConverting(true);
+    await beginExport("正在輸出 P01…");
     try {
+      if (!validateBeforeExport()) return;
       const doc = useExcludeStore.getState().syncDocFromConditions(schema.code);
       const result = await handleExcludeExport(doc);
       useExcludeStore.getState().setLastResult(result);
@@ -594,7 +610,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       toast.error("找不到 ACHR01 格式定義");
       return;
     }
-    setConverting(true);
+    await beginExport("正在輸出 R01…");
     try {
       const source = prepareExportSource();
       if (!source || !validateFormData(source)) return;
@@ -665,7 +681,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       toast.error("找不到 ACHP01 格式定義");
       return;
     }
-    setConverting(true);
+    await beginExport("正在輸出 P01…");
     try {
       const source = prepareExportSource();
       if (!source || !validateFormData(source)) return;
@@ -963,6 +979,26 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           ),
         )
       : 0;
+
+  const exportLoadingMask = converting ? (
+    <Backdrop
+      open
+      sx={{ zIndex: (t) => t.zIndex.modal + 2, color: "#fff" }}
+      role="status"
+      aria-live="polite"
+    >
+      <Paper sx={{ width: "100%", maxWidth: 360, p: 3, textAlign: "center" }}>
+        <CircularProgress color="primary" sx={{ mb: 2 }} />
+        <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 700 }}>
+          {exportMaskLabel}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          請稍候，產生檔案期間請勿關閉視窗
+        </Typography>
+        <LinearProgress sx={{ mt: 2, borderRadius: 1 }} />
+      </Paper>
+    </Backdrop>
+  ) : null;
 
   // 初次上傳用全畫面 mask；預覽對話框內的篩選重掃改由對話框自家 mask 顯示
   const importLoadingMask =
@@ -1282,6 +1318,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       }}
       onProcess={handleExcludeExport}
       onValidateBeforeExport={validateBeforeExport}
+      exporting={converting}
       onExportP01={() => {
         if (schema.code === "ACHR01") {
           void handleConvertToP01();
@@ -1290,8 +1327,15 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         void exportCurrentAsFile();
       }}
       onExportR01={() => {
-        if (!validateBeforeExport()) return;
-        setConvertOpen(true);
+        void (async () => {
+          await beginExport("檢核中…");
+          try {
+            if (!validateBeforeExport()) return;
+            setConvertOpen(true);
+          } finally {
+            setConverting(false);
+          }
+        })();
       }}
     />
   );
@@ -1414,6 +1458,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   return (
     <Stack spacing={2}>
       {importLoadingMask}
+      {exportLoadingMask}
 
       {excludePanel}
 
