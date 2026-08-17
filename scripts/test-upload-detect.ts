@@ -109,7 +109,7 @@ assert.ok(
   assert.equal(parsedR.errors.length, 0, parsedR.errors.join("; "));
   assert.equal(parsedR.header.agentBank, "8120053");
   assert.equal(parsedR.header.ydate, "01150813");
-  assert.equal(parsedR.header.bankCode, "8120053", "R01 參考 bankCode 由首筆 RBANK 補");
+  assert.equal(parsedR.header.bankCode, "8120053", "R01 參考 bankCode 由首筆 PBANK（退件行）補");
   assert.equal(parsedR.header.account, "0000000987654321");
 
   const bankField = r01.form.header.find((f) => f.key === "bankCode");
@@ -176,8 +176,9 @@ assert.ok(
     .replace(/\n$/, "")
     .split("\n");
   const detail = lines[1]!;
-  // RBANK 在 TYPE1+TXTYPE2+TXID3+SEQ8+PBANK7+PCLNO16 = 37
-  assert.equal(detail.slice(37, 44), "8120053", "fixture RBANK = 收受者／提回行");
+  // 退件對調：PBANK（offset 14）＝原收受者／退件行
+  assert.equal(detail.slice(14, 21), "8120053", "fixture PBANK = 收受者／退件行");
+  assert.equal(detail.slice(37, 44), "0040000", "fixture RBANK = 原提出行");
 
   /** 清空 BOF（offset 30）／EOF（offset 24，無 TTIME）的 RORG */
   const blankCtrlRorg = (line: string) =>
@@ -202,7 +203,7 @@ assert.ok(
   );
 
   // 提回行不一致：保留 BOF RORG，不覆寫
-  const otherRbank = detail.slice(0, 37) + "8120001" + detail.slice(44);
+  const otherRbank = detail.slice(0, 14) + "8120001" + detail.slice(21);
   const mixed = [lines[0]!, detail, otherRbank, lines.at(-1)!].join("\r\n") + "\r\n";
   const parsedMixed = parseAchText(mixed, r01, { filename: "mixed-rbank.txt" });
   assert.equal(parsedMixed.detailCount, 2);
@@ -227,7 +228,7 @@ assert.ok(
     "提回行不一致且首／尾錄無 RORG 時不填代表行",
   );
 
-  // 大檔略過欄位解析時仍掃每一列 RBANK
+  // 大檔略過欄位解析時仍掃每一列 PBANK（退件行）
   const many = [lines[0]!, ...Array(5001).fill(detail), lines.at(-1)!].join(
     "\r\n",
   ) + "\r\n";
@@ -290,7 +291,7 @@ assert.ok(
     .replace(/\r\n/g, "\n")
     .replace(/\n$/, "")
     .split("\n");
-  const other = lines[1]!.slice(0, 37) + "0120001" + lines[1]!.slice(44);
+  const other = lines[1]!.slice(0, 14) + "0120001" + lines[1]!.slice(21);
   const mixed = [lines[0]!, lines[1]!, other, lines.at(-1)!].join("\r\n") + "\r\n";
   const parsedMixed = parseAchText(mixed, r01, { filename: "r01-mixed.txt" });
   assert.equal(parsedMixed.uniformReturnBank, null);

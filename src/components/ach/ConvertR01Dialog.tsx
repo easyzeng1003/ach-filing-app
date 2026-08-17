@@ -23,6 +23,8 @@ import { prevRocDate, safeDigits } from "@/lib/ach/utils";
 type Props = {
   open: boolean;
   detailCount: number;
+  /** 來源已是 R01 時，標題改為輸出退件（仍填 RCODE） */
+  sourceIsR01?: boolean;
   /** 提出檔處理日期（8 碼民國） */
   tdate: string;
   /** 收受行代表行代號（預填自主畫面） */
@@ -40,6 +42,7 @@ type Props = {
 export function ConvertR01Dialog({
   open,
   detailCount,
+  sourceIsR01 = false,
   tdate,
   agentBank: agentBankProp = "",
   busy = false,
@@ -91,7 +94,9 @@ export function ConvertR01Dialog({
         <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
           <ArrowRightLeftIcon color="primary" />
           <Typography variant="h6" component="span">
-            轉檔 P01 → R01（提回／退件）
+            {sourceIsR01
+              ? "輸出 R01（退件理由）"
+              : "轉檔 P01 → R01（提回／退件）"}
           </Typography>
         </Stack>
         <IconButton

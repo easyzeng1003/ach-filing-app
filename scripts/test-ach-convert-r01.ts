@@ -78,14 +78,11 @@ assert.equal(d1.slice(1, 3), "SD", "TXTYPE from txid 704");
 assert.equal(d1.slice(3, 6), "704");
 // SEQ
 assert.equal(d1.slice(6, 14), "00000001");
-// PBANK = 原提示行／發動者（與 P01 同欄）
-assert.equal(d1.slice(14, 21), "0040000");
-// PCLNO = 發動者帳號
-assert.equal(d1.slice(21, 37), "0000001234567890");
-// RBANK = 收受者／提回行（與 P01 同欄）
-assert.equal(d1.slice(37, 44), "8120053");
-// RCLNO = 收受者帳號
-assert.equal(d1.slice(44, 60), "0000000987654321");
+// 退件對調：PBANK/PCLNO ← 原收受者；RBANK/RCLNO ← 原提出行
+assert.equal(d1.slice(14, 21), "8120053");
+assert.equal(d1.slice(21, 37), "0000000987654321");
+assert.equal(d1.slice(37, 44), "0040000");
+assert.equal(d1.slice(44, 60), "0000001234567890");
 // AMT
 assert.equal(d1.slice(60, 70), "0000001500");
 // RCODE
@@ -234,9 +231,9 @@ assert.equal(multiTrl.slice(24, 31), "8220901", "EOF RORG");
   assert.equal(pf.lines[0]!.slice(30, 37), "9990250", "P01 RORG fixed");
   const pd1 = pf.lines[1]!;
   assert.equal(pd1[0], "N", "TYPE=N");
-  assert.equal(pd1.slice(14, 21), "0040000", "PBANK = orig presenter");
+  assert.equal(pd1.slice(14, 21), "0040000", "PBANK = R01 原提示行（對調後 RBANK）");
   assert.equal(pd1.slice(21, 37), "0000001234567890", "PCLNO");
-  assert.equal(pd1.slice(37, 44), "8120053", "RBANK = return/recv bank");
+  assert.equal(pd1.slice(37, 44), "8120053", "RBANK = R01 退件行（對調後 PBANK）");
   assert.equal(pd1.slice(44, 60), "0000000987654321", "RCLNO");
   assert.equal(pd1.slice(70, 72), "  ", "RCODE cleared");
   assert.equal(pd1.slice(99, 107), "        ", "PDATE cleared");
@@ -294,8 +291,8 @@ assert.equal(multiTrl.slice(24, 31), "8220901", "EOF RORG");
     EMBEDDED_BRANCHES,
   );
   const rd1 = round.files[0]!.lines[1]!;
-  assert.equal(rd1.slice(14, 21), "0040000");
-  assert.equal(rd1.slice(37, 44), "8120053");
+  assert.equal(rd1.slice(14, 21), "8120053", "round-trip R01 PBANK＝收受者");
+  assert.equal(rd1.slice(37, 44), "0040000", "round-trip R01 RBANK＝提出行");
   assert.equal(rd1.slice(60, 70), "0000001500");
 }
 
