@@ -1,7 +1,17 @@
 import type { FormatSchema } from "./schema";
 import { downloadTextFile } from "./utils";
 
-export type ExportErrorRow = { row: number; messages: string[] };
+export type ExportErrorRow = {
+  row: number;
+  /** 分割工作區包號（1-based）；無分割時省略 */
+  part?: number;
+  messages: string[];
+};
+
+export function formatExportErrorRowRef(r: ExportErrorRow): string {
+  if (r.part != null) return `分割工作區 ${r.part} 第 ${r.row} 列`;
+  return `第 ${r.row} 列`;
+}
 
 /** 輸出檢核失敗說明（表頭＋錯誤列數／訊息） */
 export function buildExportErrorReport(opts: {
@@ -26,10 +36,10 @@ export function buildExportErrorReport(opts: {
   if (rows.length) {
     lines.push(`【明細錯誤】共 ${rows.length} 列`);
     for (const r of rows) {
-      lines.push(`第 ${r.row} 列：${r.messages.join("；")}`);
+      lines.push(`${formatExportErrorRowRef(r)}：${r.messages.join("；")}`);
     }
     lines.push("");
-    lines.push(`錯誤列數：${rows.map((r) => r.row).join("、")}`);
+    lines.push(`錯誤列數：${rows.map((r) => formatExportErrorRowRef(r)).join("、")}`);
   }
   for (const m of extra) lines.push(m);
   if (!headerErrors.length && !rows.length && extra.length === 0) {

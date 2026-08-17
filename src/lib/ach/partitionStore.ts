@@ -398,20 +398,30 @@ export function mergeSessionToFile(
 export function collectSessionRows(
   schema: FormatSchema,
   session: PartitionSession,
-): { header: HeaderValues; rows: DetailRow[] } {
+): {
+  header: HeaderValues;
+  rows: DetailRow[];
+  /** 與 rows 對齊：分割工作區包號＋該包內列號（皆 1-based） */
+  partRefs: { part: number; row: number }[];
+} {
   if (!session.parts.length) {
     throw new Error("分割工作區沒有可轉檔的包");
   }
   const header: HeaderValues = { ...session.index.header };
   const rows: DetailRow[] = [];
-  for (const part of session.parts) {
+  const partRefs: { part: number; row: number }[] = [];
+  for (let p = 0; p < session.parts.length; p++) {
+    const part = session.parts[p]!;
     const parsed = parsePartToForm(schema, part.content, part.filename);
     if (rows.length === 0) {
       Object.assign(header, parsed.header);
     }
-    rows.push(...parsed.rows);
+    parsed.rows.forEach((row, j) => {
+      rows.push(row);
+      partRefs.push({ part: p + 1, row: j + 1 });
+    });
   }
-  return { header, rows };
+  return { header, rows, partRefs };
 }
 
 export function countNonEmptyRows(
