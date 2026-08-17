@@ -297,6 +297,10 @@ export type ConvertedP01File = {
 export type ConvertR01ToP01Result = {
   files: ConvertedP01File[];
   detailCount: number;
+  /** 轉成 P01 後的表頭（提出行＝原提回行） */
+  header: HeaderValues;
+  /** 轉成 P01 後的明細（收受行＝原退件行） */
+  rows: DetailRow[];
 };
 
 /**
@@ -423,5 +427,7 @@ export function convertR01ToP01(
       },
     ],
     detailCount: nonEmpty.length,
+    header,
+    rows,
   };
 }
