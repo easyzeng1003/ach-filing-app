@@ -4,7 +4,11 @@ import type {
   HeaderValues,
   RecordFieldDef,
 } from "./schema";
-import { emptyDetailRow, emptyHeader } from "./engine";
+import {
+  emptyDetailRow,
+  emptyHeader,
+  swapR01DetailBankAccountBlocks,
+} from "./engine";
 import { newRowId, safeDigits, toHalfWidthAlnum } from "./utils";
 import {
   emptyDetailFilters,
@@ -622,7 +626,11 @@ function consumeLine(acc: ParseAcc, raw: string, index: number): void {
     line = line + " ".repeat(acc.schema.recordLength - line.length);
   }
 
-  const fields = section ? parseRecordFields(line, section) : [];
+  const parseLine =
+    acc.schema.code === "ACHR01"
+      ? swapR01DetailBankAccountBlocks(line)
+      : line;
+  const fields = section ? parseRecordFields(parseLine, section) : [];
   if (acc.detailSamples.length < IMPORT_LIMITS.maxDetailLineSamples) {
     acc.detailSamples.push({
       index,

@@ -831,10 +831,10 @@
         {
           "id": "PBANK",
           "source": "detail",
-          "key": "bankCode",
+          "key": "origBankCode",
           "length": 7,
           "charset": "digit",
-          "label": "提出行代號（退件行）",
+          "label": "提出行代號（輸出時與提回行對調）",
           "pad": {
             "side": "none"
           }
@@ -842,10 +842,10 @@
         {
           "id": "PCLNO",
           "source": "detail",
-          "key": "account",
+          "key": "origAccount",
           "length": 16,
           "charset": "digit",
-          "label": "發動者帳號（原收受者帳號）",
+          "label": "發動者帳號（輸出時與收受者帳號對調）",
           "pad": {
             "side": "none"
           }
@@ -853,24 +853,24 @@
         {
           "id": "RBANK",
           "source": "detail",
-          "key": "origBankCode",
+          "key": "bankCode",
           "length": 7,
           "charset": "digit",
           "pad": {
             "side": "none"
           },
-          "label": "提回行代號（原提示行）"
+          "label": "提回行代號（輸出時與提出行對調）"
         },
         {
           "id": "RCLNO",
           "source": "detail",
-          "key": "origAccount",
+          "key": "account",
           "length": 16,
           "charset": "digit",
           "pad": {
             "side": "none"
           },
-          "label": "收受者帳號（原發動者帳號）"
+          "label": "收受者帳號（輸出時與發動者帳號對調）"
         },
         {
           "id": "AMT",

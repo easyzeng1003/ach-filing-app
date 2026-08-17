@@ -3,7 +3,10 @@
  */
 import assert from "node:assert/strict";
 import { convertP01ToR01, convertR01ToP01 } from "../src/lib/ach/convertR01";
-import { generateFromSchema } from "../src/lib/ach/engine";
+import {
+  generateFromSchema,
+  swapR01DetailBankAccountBlocks,
+} from "../src/lib/ach/engine";
 import { parseAchText } from "../src/lib/ach/import";
 import { loadEmbeddedFormats, EMBEDDED_TXIDS, EMBEDDED_BRANCHES } from "../src/data/embedded";
 import type { DetailRow, HeaderValues } from "../src/lib/ach/schema";
@@ -74,6 +77,10 @@ assert.equal(hdr.slice(23, 30), "9990250", "ACHR01 SORG fixed");
 assert.equal(hdr.slice(30, 37), "0040000", "ACHR01 RORG = agentBank");
 
 const d1 = file.lines[1]!;
+assert.equal(
+  swapR01DetailBankAccountBlocks("X".repeat(14) + "A".repeat(23) + "B".repeat(23) + "Z"),
+  "X".repeat(14) + "B".repeat(23) + "A".repeat(23) + "Z",
+);
 assert.equal(d1[0], "R", "TYPE=R");
 assert.equal(d1.slice(1, 3), "SD", "TXTYPE from txid 704");
 assert.equal(d1.slice(3, 6), "704");
@@ -107,6 +114,19 @@ assert.equal(d2.slice(14, 21), "8120053", "第2列 PBANK＝該列收受者");
 assert.equal(d2.slice(21, 37), "0000000111222333", "第2列 PCLNO＝該列收受者帳號");
 assert.equal(d2.slice(37, 44), "0040000", "第2列 RBANK＝提出行（表頭後備）");
 assert.equal(d2.slice(44, 60), "0000001234567890", "第2列 RCLNO＝發動者帳號（表頭後備）");
+// 每個明細列：R01 的 15–37 與 38–60 ＝ 該列 P01 的 38–60 與 15–37
+for (const i of [1, 2] as const) {
+  assert.equal(
+    file.lines[i]!.slice(14, 37),
+    p01Out.lines[i]!.slice(37, 60),
+    `第${i}列 R01[15-37] 須為 P01[38-60]`,
+  );
+  assert.equal(
+    file.lines[i]!.slice(37, 60),
+    p01Out.lines[i]!.slice(14, 37),
+    `第${i}列 R01[38-60] 須為 P01[15-37]`,
+  );
+}
 
 const trl = file.lines[3]!;
 assert.equal(trl.slice(0, 3), "EOF");

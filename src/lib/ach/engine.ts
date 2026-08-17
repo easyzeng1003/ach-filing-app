@@ -535,6 +535,17 @@ export type GenerateResult = {
   recordLength: number;
 };
 
+/**
+ * ACHR01 明細 1-based 第 15–37 碼（PBANK+PCLNO）與第 38–60 碼（RBANK+RCLNO）對調。
+ * 產生時先依 P01 同位置寫入，再對調；匯入時先對調再解析。
+ */
+export function swapR01DetailBankAccountBlocks(line: string): string {
+  if (line.length < 60) return line;
+  return (
+    line.slice(0, 14) + line.slice(37, 60) + line.slice(14, 37) + line.slice(60)
+  );
+}
+
 export function generateFromSchema(
   schema: FormatSchema,
   header: HeaderValues,
@@ -579,13 +590,15 @@ export function generateFromSchema(
 
   let seq = 1;
   for (const row of nonEmpty) {
-    lines.push(
-      buildRecord(schema.records.detail.fields, {
-        ...baseCtx,
-        detail: row,
-        seq,
-      }),
-    );
+    let rec = buildRecord(schema.records.detail.fields, {
+      ...baseCtx,
+      detail: row,
+      seq,
+    });
+    if (schema.code === "ACHR01") {
+      rec = swapR01DetailBankAccountBlocks(rec);
+    }
+    lines.push(rec);
     seq += 1;
   }
 
