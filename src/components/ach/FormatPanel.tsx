@@ -5,8 +5,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardHeader,
-  Chip,
   CircularProgress,
   LinearProgress,
   Paper,
@@ -59,7 +57,6 @@ import {
   parseAchFile,
   resolveImportSchemaFromFile,
   inferUniformR01ReturnBank,
-  shouldOpenR01AsP01,
   IMPORT_LIMITS,
   type ImportProgress,
   type ImportResult,
@@ -83,7 +80,6 @@ import {
 } from "@/lib/ach/partitionStore";
 import {
   buildExportControlLines,
-  convertLargeR01FileToP01,
   headerFromLine,
   type PartitionProgress,
 } from "@/lib/ach/partition";
@@ -282,11 +278,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     });
   };
 
-  const headerErrs = useMemo(
-    () => validateHeader(schema, deferredHeader, txids, branches),
-    [schema, deferredHeader, txids, branches],
-  );
-
   const rowErrs = useMemo(() => {
     // 大量列時避免一次驗證全部造成主執行緒卡死／記憶體暴衝
     const MAX_FULL_VALIDATE = 800;
@@ -478,11 +469,49 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     return { header, rows };
   }
 
-  /** 輸出／轉檔前：完整檢核 R01／P01 表頭＋明細規則 */
+  /** 輸出／轉檔前：完整檢核目前表單（表頭＋明細規則） */
   function validateBeforeExport(): boolean {
     const source = prepareExportSource();
     if (!source) return false;
     return validateFormData(source);
+  }
+
+  /** 以目前工作區格式輸出（套用篩選／排除） */
+  async function exportCurrentAsFile() {
+    if (!validateBeforeExport()) return;
+    setConverting(true);
+    try {
+      const doc = useExcludeStore.getState().syncDocFromConditions(schema.code);
+      const result = await handleExcludeExport(doc);
+      useExcludeStore.getState().setLastResult(result);
+      const saved = await saveAchFiles([
+        {
+          filename: result.filename,
+          content: result.content,
+          mime: "text/plain;charset=utf-8",
+        },
+      ]);
+      if (saved.method === "canceled") {
+        toast.message(
+          `已完成輸出（${result.detailCount.toLocaleString("zh-TW")} 筆），但取消下載`,
+        );
+        return;
+      }
+      const action = result.action;
+      const actionVerb = action === "filter" ? "篩選" : "排除";
+      const hasRules = result.excludedCount > 0;
+      toast.success(
+        `${hasRules ? `${actionVerb}後輸出` : "已輸出"} ${result.detailCount.toLocaleString("zh-TW")} 筆` +
+          (result.excludedCount > 0
+            ? `（未輸出 ${result.excludedCount.toLocaleString("zh-TW")} 筆）`
+            : "") +
+          ` · ${describeSaveResult(saved)}`,
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "輸出失敗");
+    } finally {
+      setConverting(false);
+    }
   }
 
   async function handleConvertToR01(opts: {
@@ -603,59 +632,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     }
   }
 
-  /** R01 且提回行一致：轉成 P01 表單並切到 P01 編輯 */
-  function applyR01ImportAsP01(result: ImportResult): boolean {
-    const p01 = formats.ACHP01;
-    const r01 = formats.ACHR01;
-    if (!p01 || result.schema.code !== "ACHR01" || !result.rows.length) {
-      return false;
-    }
-    const returnBank = inferUniformR01ReturnBank(
-      result.rows.map((r) => r.origBankCode),
-    );
-    if (!returnBank) return false;
-    try {
-      const converted = convertR01ToP01(
-        p01,
-        result.header,
-        result.rows,
-        txids,
-        branches,
-      );
-      const file = converted.files[0];
-      if (!file) return false;
-      if (r01) closeWorkspace(r01);
-      if (usePartitionStore.getState().session?.formatCode === "ACHR01") {
-        clearPartitionSession();
-      }
-      resetEditSessionUi();
-      setAgentBank(returnBank);
-      loadFromImport(
-        p01,
-        { header: converted.header, rows: converted.rows },
-        {
-          fileName: result.filename,
-          sourceHeaderLine: file.lines[0],
-          sourceTrailerLine: file.lines[file.lines.length - 1],
-        },
-      );
-      onSelectFormat?.("ACHP01");
-      const bytes = Uint8Array.from(file.content, (c) => c.charCodeAt(0) & 0xff);
-      setImportFile(
-        new File([bytes], file.filename || result.filename, {
-          type: "text/plain",
-        }),
-      );
-      setImportResult(null);
-      toast.success(
-        `已匯入 R01，改以 P01 模式編輯（提回行 ${returnBank}，${converted.detailCount.toLocaleString("zh-TW")} 筆）`,
-      );
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   async function handleImportFile(file: File) {
     // 新上傳：清掉上一輪編輯暫存（篩選／排除條件／代表行等）與分割工作區
     if (partitionSession?.formatCode === schema.code) {
@@ -693,95 +669,8 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         return;
       }
 
-      // R01 且各明細提回行相同：直接以 P01 模式編輯（略過 R01 預覽）
-      if (!result.tooLargeForForm && shouldOpenR01AsP01(result)) {
-        if (applyR01ImportAsP01(result)) return;
-      }
-
-      // >5000 筆：不開預覽，自動分割後進入編輯
+      // >5000 筆：不開預覽，自動分割後進入編輯（不依 P01／R01 切換編輯模式）
       if (result.tooLargeForForm) {
-        const p01 = formats.ACHP01;
-        if (
-          target.code === "ACHR01" &&
-          result.uniformReturnBank &&
-          p01
-        ) {
-          try {
-            toast.message(
-              `檔案 ${result.detailCount.toLocaleString("zh-TW")} 筆超過可編輯上限，提回行皆為 ${result.uniformReturnBank}，轉成 P01 後分割編輯`,
-            );
-            const converted = await convertLargeR01FileToP01(
-              file,
-              target,
-              p01,
-              txids,
-              branches,
-              {
-                onProgress: (p: PartitionProgress) => {
-                  setImportProgress({
-                    bytesRead: p.bytesRead,
-                    totalBytes: p.totalBytes || file.size,
-                    linesRead: p.linesRead,
-                    detailCount: p.detailCount,
-                    matchedCount: p.matchedCount,
-                  });
-                },
-              },
-            );
-            const p01Out = converted.files[0];
-            if (p01Out) {
-              const bytes = Uint8Array.from(p01Out.content, (c) =>
-                c.charCodeAt(0) & 0xff,
-              );
-              const p01File = new File([bytes], p01Out.filename, {
-                type: "text/plain",
-              });
-              const split = await splitFileAndStartEdit({
-                file: p01File,
-                schema: p01,
-                txids,
-                branches,
-                detailCount: converted.detailCount,
-                onProgress: (p: PartitionProgress) => {
-                  setImportProgress({
-                    bytesRead: p.bytesRead,
-                    totalBytes: p.totalBytes || file.size,
-                    linesRead: p.linesRead,
-                    detailCount: p.detailCount,
-                    matchedCount: p.matchedCount,
-                  });
-                },
-              });
-              if (formats.ACHR01) closeWorkspace(formats.ACHR01);
-              loadFromImport(
-                p01,
-                {
-                  header: {
-                    ...split.first.header,
-                    // P01 解析可能用首筆明細 PBANK 當 bankCode；提出行應為原提回行
-                    bankCode: result.uniformReturnBank,
-                  },
-                  rows: split.first.rows,
-                },
-                {
-                  fileName: split.first.fileName,
-                  sourceHeaderLine: split.sourceHeaderLine,
-                  sourceTrailerLine: split.sourceTrailerLine,
-                },
-              );
-              onSelectFormat?.("ACHP01");
-              setImportFile(p01File);
-              setPartitionFormDirty(false);
-              setImportResult(null);
-              toast.success(
-                `已將 R01 轉為 P01 並分割 ${split.partCount} 包（提回行 ${result.uniformReturnBank}，共 ${split.totalDetailCount.toLocaleString("zh-TW")} 筆），已載入第 1 包`,
-              );
-              return;
-            }
-          } catch {
-            // 轉 P01 失敗（例如原發動者帳號不一致）→ 仍以 R01 分割
-          }
-        }
         if (target.code !== schema.code) {
           onSelectFormat?.(target.code);
         }
@@ -893,9 +782,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       clearPartitionSession();
     }
     resetEditSessionUi();
-    if (shouldOpenR01AsP01(result) && applyR01ImportAsP01(result)) {
-      return;
-    }
     const sourceHeaderLine = result.lines.find((l) => l.kind === "header")?.raw;
     const sourceTrailerLine = result.lines.find((l) => l.kind === "trailer")?.raw;
     loadFromImport(
@@ -1253,26 +1139,25 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       }}
       onProcess={handleExcludeExport}
       onValidateBeforeExport={validateBeforeExport}
-      onExportR01={
-        schema.code === "ACHP01"
-          ? () => {
-              if (!validateBeforeExport()) return;
-              setConvertOpen(true);
-            }
-          : undefined
-      }
-      onExportP01={
-        schema.code === "ACHR01"
-          ? () => {
-              void handleConvertToP01();
-            }
-          : undefined
-      }
+      onExportP01={() => {
+        if (schema.code === "ACHR01") {
+          void handleConvertToP01();
+          return;
+        }
+        void exportCurrentAsFile();
+      }}
+      onExportR01={() => {
+        if (schema.code === "ACHP01") {
+          if (!validateBeforeExport()) return;
+          setConvertOpen(true);
+          return;
+        }
+        void exportCurrentAsFile();
+      }}
     />
   );
 
-  const convertDialog =
-    schema.code === "ACHP01" ? (
+  const convertDialog = (
       <ConvertR01Dialog
         open={convertOpen}
         detailCount={convertR01DetailCount}
@@ -1284,7 +1169,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         }}
         onConfirm={handleConvertToR01}
       />
-    ) : null;
+    );
 
   // —— 預設：引導先上傳既有 P01／R01，隱藏新建表單 ——
   if (!workspaceOpen) {
@@ -1292,27 +1177,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       <Stack spacing={2}>
         {importLoadingMask}
         <Card>
-          <CardHeader
-            title={`${schema.shortCode} ${schema.name}・檢核與加工`}
-            avatar={
-              <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: "wrap" }}>
-                <Chip size="small" color="success" label={schema.code} sx={{ fontFamily: "monospace" }} />
-                <Chip
-                  size="small"
-                  color="warning"
-                  label={`V${schema.version.replace(/^V/i, "")}`}
-                />
-                <Chip size="small" variant="outlined" label={`列長 ${schema.recordLength}`} />
-              </Stack>
-            }
-            sx={{
-              alignItems: "flex-start",
-              "& .MuiCardHeader-avatar": { marginRight: 0, mb: 1 },
-              bgcolor: "grey.50",
-              borderBottom: 1,
-              borderColor: "divider",
-            }}
-          />
           <CardContent sx={{ py: 4 }}>
             <Paper
               variant="outlined"
@@ -1394,7 +1258,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                   預覽並確認表頭／明細／列長
                 </Typography>
                 <Typography component="li" variant="caption">
-                  進入編輯後輸出前才完整檢核格式（P01⇄R01 可互相轉檔）
+                  編輯後按「輸出 P01」或「輸出 R01」時才完整檢核並轉檔
                 </Typography>
               </Stack>
             </Paper>
@@ -1562,23 +1426,17 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                 </tr>
               ) : (
                 pagedDetails.map(({ row, index: idx }) => {
-                  const errs = rowErrs[idx] ?? {};
-                  const messages = rowErrorMessages(errs);
-                  const hasErr = messages.length > 0;
                   const bankName =
                     lookupBranch(row.bankCode ?? "", branches)?.name || "";
                   return (
-                    <tr
-                      key={row.id}
-                      className={hasErr ? "has-error" : undefined}
-                    >
+                    <tr key={row.id}>
                       <td className="text-center text-faint">{idx + 1}</td>
                       {schema.form.detail.map((field) => (
                         <td key={field.key}>
                           <div className="flex gap-0.5">
                             <DetailCellInput
                               value={row[field.key] ?? ""}
-                              err={!!errs[field.key]}
+                              err={false}
                               alignRight={field.ui?.align === "right"}
                               onCommit={(value) =>
                                 updateRowT(
@@ -1614,8 +1472,10 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                       >
                         {bankName}
                       </td>
-                      <td className="whitespace-pre-line text-xs font-semibold text-danger">
-                        {messages.join("\n")}
+                      <td className="whitespace-pre-line text-xs text-muted">
+                        {filterOpts.onlyErrors
+                          ? rowErrorMessages(rowErrs[idx] ?? {}).join("\n")
+                          : ""}
                       </td>
                     </tr>
                   );

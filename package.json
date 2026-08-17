@@ -110,7 +110,7 @@
   },
   "description": "ACH改檔小工具 — ACH 固定長度檔產生（JSON 參數化）純 HTML + JS 靜態版",
   "main": "electron/main.cjs",
-  "version": "1.4.46",
+  "version": "1.4.47",
   "author": "EzZeng",
   "license": "MIT",
   "homepage": "https://github.com/EzZeng/ach-filing-app",

@@ -33,7 +33,6 @@ import {
   useExcludeStore,
   type ExcludeExportResult,
 } from "@/lib/ach/excludeStore";
-import { validateField } from "@/lib/ach/engine";
 import type { FormatSchema } from "@/lib/ach/schema";
 import { describeSaveResult, saveAchFiles } from "@/lib/ach/desktop";
 import { normalizeSubmitDate, safeDigits } from "@/lib/ach/utils";
@@ -79,8 +78,6 @@ export function ExcludeExportPanel({
   onProcessDateBlur,
   agentBank = "",
   onAgentBankChange,
-  onProcess,
-  onValidateBeforeExport,
   onExportR01,
   onExportP01,
 }: Props) {
@@ -98,34 +95,15 @@ export function ExcludeExportPanel({
   const clear = useExcludeStore((s) => s.clear);
 
   const fields = schema.form.detail;
-  const dateField = schema.form.header.find((f) => f.key === "date");
-  const showAgentBank =
-    Boolean(onAgentBankChange) ||
-    schema.code === "ACHR01" ||
-    Boolean(onExportR01);
-  const processDateError = dateField
-    ? validateField(dateField, safeDigits(processDate).slice(0, 8), {
-        schema,
-        header: { date: safeDigits(processDate).slice(0, 8) },
-        section: "header",
-        txids: [],
-        branches: [],
-      })
-    : !safeDigits(processDate).slice(0, 8)
-      ? "未輸入"
-      : safeDigits(processDate).length !== 8
-        ? "日期長度請輸入八碼"
-        : null;
+  const showAgentBank = Boolean(onAgentBankChange) || Boolean(onExportR01);
+  const dateDigits = safeDigits(processDate).slice(0, 8);
+  // 編輯中只做長度提示；過去日期等完整規則於輸出 P01／R01 時檢核
+  const processDateError =
+    dateDigits && dateDigits.length !== 8 ? "日期長度請輸入八碼" : null;
   const agentBankDigits = safeDigits(agentBank).slice(0, 7);
-  // P01 面板無 agentBank schema 欄；僅檢核七碼。完整分行檢核於轉檔時執行。
-  // 轉回 P01（onExportP01）不需代表行；輸出／轉出 R01 才必填。
-  const agentBankRequired = schema.code === "ACHR01" || Boolean(onExportR01);
-  const agentBankError = !showAgentBank
-    ? null
-    : !agentBankDigits
-      ? agentBankRequired
-        ? "未輸入代表行代號"
-        : null
+  const agentBankError =
+    !showAgentBank || !agentBankDigits
+      ? null
       : agentBankDigits.length !== 7
         ? "代表行代號須為七碼"
         : null;
@@ -141,63 +119,17 @@ export function ExcludeExportPanel({
   const r01Label = hasActiveConditions
     ? `${actionVerb}後輸出 R01`
     : "輸出 R01";
-  const convertToP01Label = hasActiveConditions
-    ? `${actionVerb}後轉回 P01`
-    : "轉回 P01";
-  const primaryExportLabel =
-    schema.code === "ACHR01"
-      ? hasActiveConditions
-        ? `${actionVerb}後輸出 R01`
-        : "輸出 R01"
-      : p01Label;
 
-  async function handleProcess() {
+  function guardDate(): boolean {
+    if (!dateDigits) {
+      toast.error("未輸入處理日期");
+      return false;
+    }
     if (processDateError) {
       toast.error(processDateError);
-      return;
+      return false;
     }
-    if (schema.code === "ACHR01" && agentBankError) {
-      toast.error(agentBankError);
-      return;
-    }
-    if (onValidateBeforeExport && !onValidateBeforeExport()) {
-      return;
-    }
-    setBusy(true);
-    try {
-      const doc = useExcludeStore
-        .getState()
-        .syncDocFromConditions(schema.code);
-      const result = await onProcess(doc);
-      setLastResult(result);
-      const saved = await saveAchFiles([
-        {
-          filename: result.filename,
-          content: result.content,
-          mime: "text/plain;charset=utf-8",
-        },
-      ]);
-      if (saved.method === "canceled") {
-        toast.message(
-          `已完成輸出（${result.detailCount.toLocaleString("zh-TW")} 筆），但取消下載`,
-        );
-        return;
-      }
-      const modeNote = hasActiveConditions
-        ? `${actionVerb}後輸出`
-        : "已輸出";
-      toast.success(
-        `${modeNote} ${result.detailCount.toLocaleString("zh-TW")} 筆` +
-          (result.excludedCount > 0
-            ? `（未輸出 ${result.excludedCount.toLocaleString("zh-TW")} 筆）`
-            : "") +
-          ` · ${describeSaveResult(saved)}`,
-      );
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "輸出失敗");
-    } finally {
-      setBusy(false);
-    }
+    return true;
   }
 
   async function handleRedownload() {
@@ -448,54 +380,39 @@ export function ExcludeExportPanel({
             清除條件
           </Button>
           <Box sx={{ flex: 1 }} />
-          {onExportP01 ? (
-            <Button
-              variant="outlined"
-              color="primary"
-              disabled={busy}
-              startIcon={<SwapHorizIcon />}
-              onClick={() => {
-                if (processDateError) {
-                  toast.error(processDateError);
-                  return;
-                }
-                onExportP01();
-              }}
-              title={convertToP01Label}
-            >
-              {convertToP01Label}
-            </Button>
-          ) : null}
-          {onExportR01 ? (
-            <Button
-              variant="outlined"
-              color="primary"
-              disabled={busy}
-              startIcon={<SwapHorizIcon />}
-              onClick={() => {
-                if (processDateError) {
-                  toast.error(processDateError);
-                  return;
-                }
-                if (agentBankError) {
-                  toast.error(agentBankError);
-                  return;
-                }
-                onExportR01();
-              }}
-              title={r01Label}
-            >
-              {r01Label}
-            </Button>
-          ) : null}
+          <Button
+            variant="outlined"
+            color="primary"
+            disabled={busy}
+            startIcon={<SwapHorizIcon />}
+            onClick={() => {
+              if (!guardDate()) return;
+              onExportP01?.();
+            }}
+            title={p01Label}
+          >
+            {p01Label}
+          </Button>
           <Button
             variant="contained"
             color="primary"
             disabled={busy}
-            startIcon={<FilterIcon />}
-            onClick={() => void handleProcess()}
+            startIcon={<SwapHorizIcon />}
+            onClick={() => {
+              if (!guardDate()) return;
+              if (!agentBankDigits) {
+                toast.error("未輸入代表行代號");
+                return;
+              }
+              if (agentBankError) {
+                toast.error(agentBankError);
+                return;
+              }
+              onExportR01?.();
+            }}
+            title={r01Label}
           >
-            {busy ? "處理中…" : primaryExportLabel}
+            {r01Label}
           </Button>
         </Stack>
 

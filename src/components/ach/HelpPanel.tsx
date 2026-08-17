@@ -16,15 +16,11 @@ export function HelpPanel() {
           <strong className="text-fg">R01 提回／退件</strong>
           固定長度檔為主，進行<strong className="text-fg">檢核與加工</strong>。
           開啟後請先上傳既有 P01 或 R01 檔（上傳時依 BOF／EOF 自動辨識檔案代號，並檢核明細 TYPE 是否符合）。
-          若上傳 R01 且各明細<strong className="text-fg">提回行代號相同</strong>，會自動轉成
-          <strong className="text-fg">P01 模式編輯</strong>（對調提出／收受行後進入提出檔畫面）。
+          編輯頁不區分 P01／R01 模式；按<strong className="text-fg">輸出 P01</strong>或
+          <strong className="text-fg">輸出 R01</strong>時才做該格式的完整檢核（轉檔時對調提出／收受行）。
           ACHP01 明細<strong className="text-fg">交易類別</strong>依交易代號帶入：
           <strong className="text-fg">SD＝代收</strong>、
           <strong className="text-fg">SC＝代付</strong>。
-          於 P01 可<strong className="text-fg">轉檔 R01</strong>
-          （TYPE=R、對調提出／提回行與帳號、填入退件理由）；
-          於 R01 亦可<strong className="text-fg">轉回 P01</strong>。
-          完整欄位規則於<strong className="text-fg">編輯頁輸出前</strong>檢核。
           大檔請按<strong className="text-fg">編輯</strong>整合分割邏輯：切成多包後在網頁
           <strong className="text-fg">逐包載入修改</strong>，存回後以
           <strong className="text-fg">篩選／排除後輸出</strong>合併全部分割包；
@@ -164,13 +160,12 @@ export function HelpPanel() {
           <strong className="text-fg">可不填條件直接輸出整檔</strong>）、比對方式（
           <strong className="text-fg">等於</strong>／
           <strong className="text-fg">包含</strong>）並輸入條件內容，
-          按「輸出 P01」或「… R01」。
+          按「輸出 P01」或「輸出 R01」（此時才做該格式完整檢核）。
           輸出 P01 時<strong className="text-fg">控制首錄／尾錄以來源原檔為主</strong>
           （<strong className="text-fg">SORG／RORG 固定為原檔值</strong>；尾錄總筆數／總金額依實際輸出明細重算；處理日期可覆寫）。
           輸出 R01（ACHR01）時<strong className="text-fg">發送單位 SORG 固定 9990250</strong>，
           <strong className="text-fg">接收單位 RORG＝代表行代號</strong>。
-          P01 直接下載結果檔；輸出 R01 再開啟轉檔對話框填入退件理由後產生。
-          R01 畫面可按「轉回 P01」對調提出／收受行後產生 ACHP01。
+          來源為提出檔時，輸出 R01 再開啟轉檔對話框填入退件理由；來源為提回檔時，輸出 P01 會對調提出／收受行。
           「包含」只要欄位值含輸入字串即命中（類似{" "}
           <code className="font-mono text-xs">String.includes</code>
           ，不區分大小寫；JSON 運算子仍為{" "}
