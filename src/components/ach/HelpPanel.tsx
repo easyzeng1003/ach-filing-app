@@ -161,7 +161,7 @@ export function HelpPanel() {
           <strong className="text-fg">可不填條件直接輸出整檔</strong>）、比對方式（
           <strong className="text-fg">等於</strong>／
           <strong className="text-fg">包含</strong>）並輸入條件內容，
-          按「輸出 P01」或「輸出 R01」（此時才做該格式完整檢核）。
+          按「輸出 P01」或「輸出 R01」（此時才做該格式完整檢核，期間會顯示全畫面載入遮罩）。
           輸出 P01 時<strong className="text-fg">控制首錄／尾錄以來源原檔為主</strong>
           （<strong className="text-fg">SORG／RORG 固定為原檔值</strong>；尾錄總筆數／總金額依實際輸出明細重算；處理日期可覆寫）。
           輸出 R01（ACHR01）時<strong className="text-fg">發送單位 SORG 固定 9990250</strong>，
