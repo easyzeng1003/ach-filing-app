@@ -8,6 +8,7 @@
  * - 退件時每個明細列 1-based 第 15–37 碼與第 38–60 碼對調
  *   （PBANK+PCLNO ↔ RBANK+RCLNO）
  * - 退件必填：RCODE、PDATE、PSEQ、PSCHD（轉回 P01 時清空為 filler）
+ * - 輸出 R01 時 PSEQ（1-based 108–115）＝原上傳檔該列 SEQ（1-based 7–14）
  * - Trailer YDATE：ACHR01 為 TDATE 前一日（ACHP01 空白）
  *
  * 輸出：單一整檔（不依收受行分檔）；
@@ -69,8 +70,8 @@ export type ConvertP01ToR01Options = {
   /** 原提示交易日期 PDATE（8 碼）。未指定時使用提出檔處理日期。 */
   pdate?: string;
   /**
-   * 原提示序號起算偏移（分塊轉檔用）。
-   * 實際 PSEQ = seqOffset + 塊內序號（塊內自 1 起）。
+   * 原提示序號起算偏移（分塊轉檔、且列上無原上傳 SEQ 時）。
+   * 實際 PSEQ 優先＝該列上傳檔 SEQ（7–14）；否則 seqOffset + 塊內序號。
    */
   seqOffset?: number;
   /**
@@ -128,6 +129,15 @@ export function requireAgentBank(value: string, branches: Branch[]): string {
 function padSeq8(seq: number | string): string {
   const d = safeDigits(String(seq));
   return d.padStart(8, "0").slice(-8);
+}
+
+/** R01 PSEQ ← 原上傳檔該列 SEQ（7–14）；無則用列序 */
+function pseqFromUploadedSeq(row: DetailRow, fallbackSeq: number): string {
+  const fromSeq = safeDigits(String(row.seq ?? ""));
+  if (fromSeq) return padSeq8(fromSeq);
+  const fromPseq = safeDigits(String(row.pseq ?? ""));
+  if (fromPseq) return padSeq8(fromPseq);
+  return padSeq8(fallbackSeq);
 }
 
 /**
@@ -228,7 +238,7 @@ export function convertP01ToR01(
             : presenterAccount,
         rcode,
         pdate,
-        pseq: padSeq8(origSeq),
+        pseq: pseqFromUploadedSeq(row, origSeq),
         pschd: "B",
       };
     },

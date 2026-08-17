@@ -103,7 +103,7 @@ assert.equal(d1.slice(73, 83), "12345678  ");
 assert.equal(d1.slice(83, 93), "A123456789");
 // PDATE
 assert.equal(d1.slice(99, 107), "01150804");
-// PSEQ = 原序號
+// PSEQ = 原上傳檔該列 SEQ（7–14）；測試列無 seq 時回退列序
 assert.equal(d1.slice(107, 115), "00000001");
 // PSCHD
 assert.equal(d1.slice(115, 116), "B");
@@ -417,6 +417,64 @@ assert.equal(multiTrl.slice(24, 31), "8220901", "EOF RORG");
   assert.equal(asR01.rows[0]!.bankCode, "8120053", "P01 收受者→提回行");
   assert.equal(asR01.rows[1]!.bankCode, "8120053");
   assert.equal(asR01.rows[1]!.account, "0000000111222333");
+  assert.equal(asR01.rows[0]!.pseq, parsedP.rows[0]!.seq, "P01 SEQ→R01 原提示序號");
+}
+
+// 輸出 R01：PSEQ（108–115）＝原上傳檔該列 SEQ（7–14），逐列不抄首筆
+{
+  const custom = convertP01ToR01(
+    r01,
+    header,
+    [
+      { ...rows[0]!, seq: "00000042" },
+      { ...rows[1]!, seq: "99" },
+    ],
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+    { rcode: "04", ydate: "01150803", pdate: "01150804", agentBank: "0040000" },
+  );
+  assert.equal(custom.files[0]!.lines[1]!.slice(107, 115), "00000042");
+  assert.equal(custom.files[0]!.lines[2]!.slice(107, 115), "00000099");
+
+  const pLines = p01Out.content
+    .replace(/\r\n/g, "\n")
+    .replace(/\n$/, "")
+    .split("\n");
+  const d0 = pLines[1]!;
+  const d1p = pLines[2]!;
+  const mutated = [
+    pLines[0]!,
+    d0.slice(0, 6) + "00000042" + d0.slice(14),
+    d1p.slice(0, 6) + "00000099" + d1p.slice(14),
+    pLines.at(-1)!,
+  ].join("\r\n") + "\r\n";
+  const parsedMut = parseAchText(mutated, p01, { filename: "p01-seq.txt" });
+  assert.equal(parsedMut.rows[0]!.seq, "00000042");
+  assert.equal(parsedMut.rows[1]!.seq, "00000099");
+  const adapted = adaptP01ImportToR01(parsedMut, r01);
+  const fromFile = convertP01ToR01(
+    r01,
+    adapted.header,
+    adapted.rows,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+    { rcode: "04", ydate: "01150803", pdate: "01150804", agentBank: "0040000" },
+  );
+  assert.equal(
+    fromFile.files[0]!.lines[1]!.slice(6, 14),
+    "00000001",
+    "輸出 R01 本檔 SEQ 仍依列序",
+  );
+  assert.equal(
+    fromFile.files[0]!.lines[1]!.slice(107, 115),
+    "00000042",
+    "PSEQ＝原 P01 第1列 SEQ",
+  );
+  assert.equal(
+    fromFile.files[0]!.lines[2]!.slice(107, 115),
+    "00000099",
+    "PSEQ＝原 P01 第2列 SEQ",
+  );
 }
 
 console.log("OK convert P01⇄R01: lengths, TYPE/CDATA, bank swap, RCODE/PDATE/PSEQ/YDATE, SORG/RORG, round-trip");

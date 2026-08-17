@@ -509,6 +509,11 @@ function resolveField(def: RecordFieldDef, ctx: BuildCtx): string {
       if (!String(raw).trim() && def.key === "seq") {
         raw = String(ctx.seq);
       }
+      // R01 PSEQ（1-based 108–115）← 原上傳檔該列 SEQ（1-based 7–14）
+      if (def.key === "pseq") {
+        const uploadedSeq = String(ctx.detail?.seq ?? "").trim();
+        if (uploadedSeq) raw = uploadedSeq;
+      }
       // 與原 VBA 對齊：銀行代號/帳號 charset 過濾後 pad.side=none 則不補長
       return formatExportField(raw, {
         length,
