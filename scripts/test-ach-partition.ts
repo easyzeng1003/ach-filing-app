@@ -157,18 +157,30 @@ assert.ok(mergedLines.every((l) => l.length === 250));
       "合併尾錄 RORG 應等於來源",
     );
   }
+  assert.throws(
+    () =>
+      mergeAchPartitions(
+        p01,
+        { index: parsed, parts: partMap },
+        EMBEDDED_TXIDS,
+        EMBEDDED_BRANCHES,
+        { exclude: null, processDate: "01159999" },
+      ),
+    /TDATE|非合法日期/,
+    "無效處理日期不可寫入 BOF／EOF",
+  );
   const dated = mergeAchPartitions(
     p01,
     { index: parsed, parts: partMap },
     EMBEDDED_TXIDS,
     EMBEDDED_BRANCHES,
-    { exclude: null, processDate: "01159999" },
+    { exclude: null, processDate: "01151231" },
   );
   const datedBof = dated.content.replace(/\r\n/g, "\n").split("\n")[0]!;
   const hTdate = hSpans.find((s) => s.id === "TDATE")!;
   assert.equal(
     datedBof.slice(hTdate.start, hTdate.start + hTdate.length),
-    "01159999",
+    "01151231",
   );
   assert.equal(
     datedBof.slice(hSorg.start, hSorg.start + hSorg.length),

@@ -41,7 +41,9 @@ import {
   isRowEmpty,
   rowErrorMessages,
   syncHeaderFromDetails,
+  validateBuiltControlDates,
   validateDetailRow,
+  validateExportControlDates,
   validateHeader,
 } from "@/lib/ach/engine";
 import {
@@ -410,19 +412,41 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     if (!source && synced.txid !== header.txid) {
       setHeaderT(schema.code, schema, "txid", synced.txid ?? "");
     }
-    const syncedHeaderErrs = validateHeader(schema, synced, txids, branches);
+    // 輸出寫入 BOF／EOF TDATE 的是畫面「處理日期」，分割工作區也以此為準
+    const exportHeader = {
+      ...synced,
+      date: String(header.date ?? synced.date ?? ""),
+    };
+    const syncedHeaderErrs = validateHeader(
+      schema,
+      exportHeader,
+      txids,
+      branches,
+    );
     // ACHR01 表頭 bankCode／account 為參考（BOF 無此欄、畫面已隱藏），不阻擋輸出
     if (schema.code === "ACHR01") {
       delete syncedHeaderErrs.bankCode;
       delete syncedHeaderErrs.account;
     }
-    const headerErrors = schema.form.header
-      .map((f) => {
-        const msg = syncedHeaderErrs[f.key];
-        return msg ? `${f.label}：${msg}` : null;
-      })
-      .filter((m): m is string => Boolean(m));
-    if (headerHasError(syncedHeaderErrs)) {
+    const controlDateErrors = validateExportControlDates(
+      schema,
+      exportHeader,
+      txids,
+      branches,
+    );
+    delete syncedHeaderErrs.date;
+    delete syncedHeaderErrs.ydate;
+    const headerErrors = [
+      ...schema.form.header
+        .filter((f) => f.key !== "date" && f.key !== "ydate")
+        .map((f) => {
+          const msg = syncedHeaderErrs[f.key];
+          return msg ? `${f.label}：${msg}` : null;
+        })
+        .filter((m): m is string => Boolean(m)),
+      ...controlDateErrors,
+    ];
+    if (headerHasError(syncedHeaderErrs) || controlDateErrors.length) {
       downloadExportErrorReport(
         schema,
         buildExportErrorReport({ schema, headerErrors }),
@@ -641,6 +665,20 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         return;
       }
       const processDate = String(header.date ?? sourceHeader.date ?? "");
+      const p01DateErrs = validateExportControlDates(
+        p01,
+        { ...sourceHeader, date: processDate || sourceHeader.date || "" },
+        txids,
+        branches,
+      );
+      if (p01DateErrs.length) {
+        downloadExportErrorReport(
+          p01,
+          buildExportErrorReport({ schema: p01, headerErrors: p01DateErrs }),
+        );
+        toast.error("BOF／EOF 處理日期有誤（已下載錯誤說明）");
+        return;
+      }
       const result = convertR01ToP01(
         withLineEndingId(p01, lineEnding),
         { ...sourceHeader, date: processDate || sourceHeader.date },
@@ -1138,6 +1176,18 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       txids,
       branches,
     });
+    const builtDateErrs = validateBuiltControlDates(
+      outSchema,
+      headerLine,
+      trailerLine,
+    );
+    if (builtDateErrs.length) {
+      downloadExportErrorReport(
+        outSchema,
+        buildExportErrorReport({ schema: outSchema, headerErrors: builtDateErrs }),
+      );
+      throw new Error(builtDateErrs[0] ?? "BOF／EOF 處理日期有誤");
+    }
     const content =
       [headerLine, ...detailLines, trailerLine].join(ending) + ending;
 

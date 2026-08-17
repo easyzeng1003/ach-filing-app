@@ -12,6 +12,8 @@ import {
 import {
   generateFromSchema,
   headerHasError,
+  validateBuiltControlDates,
+  validateExportControlDates,
   validateHeader,
 } from "../src/lib/ach/engine";
 import { convertP01ToR01, convertR01ToP01 } from "../src/lib/ach/convertR01";
@@ -287,6 +289,73 @@ assert.ok(
   const parsedMixed = parseAchText(mixed, r01, { filename: "r01-mixed.txt" });
   assert.equal(parsedMixed.uniformReturnBank, null);
   assert.equal(shouldOpenR01AsP01(parsedMixed), false);
+}
+
+// 輸出時檢核 BOF／EOF 日期（TDATE；R01 另含 YDATE）
+{
+  const past = validateExportControlDates(
+    p01,
+    { ...header, date: "01150101" },
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  assert.ok(
+    past.some((m) => m.includes("TDATE") && m.includes("過去")),
+    past.join("; "),
+  );
+  const illegal = validateExportControlDates(
+    p01,
+    { ...header, date: "01159999" },
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  assert.ok(
+    illegal.some((m) => m.includes("TDATE") && m.includes("非合法")),
+    illegal.join("; "),
+  );
+  const okP01 = validateExportControlDates(
+    p01,
+    { ...header, date: "01151231" },
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  assert.deepEqual(okP01, []);
+
+  const r01PastOk = validateExportControlDates(
+    r01,
+    { ...header, date: "01150101", ydate: "01141231", agentBank: "0040000" },
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  assert.deepEqual(r01PastOk, [], r01PastOk.join("; "));
+  const r01BadY = validateExportControlDates(
+    r01,
+    { ...header, date: "01150804", ydate: "01159999", agentBank: "0040000" },
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  assert.ok(
+    r01BadY.some((m) => m.includes("YDATE") && m.includes("非合法")),
+    r01BadY.join("; "),
+  );
+
+  const good = generateFromSchema(
+    p01,
+    { ...header, date: "01151231" },
+    rows,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  assert.deepEqual(
+    validateBuiltControlDates(p01, good.lines[0]!, good.lines.at(-1)!),
+    [],
+  );
+  const badBof = `${good.lines[0]!.slice(0, 9)}01159999${good.lines[0]!.slice(17)}`;
+  const builtBad = validateBuiltControlDates(p01, badBof, good.lines.at(-1)!);
+  assert.ok(
+    builtBad.some((m) => m.includes("BOF") && m.includes("TDATE")),
+    builtBad.join("; "),
+  );
 }
 
 console.log("OK upload-detect: BOF/EOF CDATA, detail TYPE gate, no full-field block on upload");
