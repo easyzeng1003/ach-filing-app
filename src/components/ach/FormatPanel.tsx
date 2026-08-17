@@ -629,6 +629,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         clearPartitionSession();
       }
       resetEditSessionUi();
+      setAgentBank(returnBank);
       loadFromImport(
         p01,
         { header: converted.header, rows: converted.rows },
