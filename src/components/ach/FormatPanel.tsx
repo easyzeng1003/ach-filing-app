@@ -47,6 +47,7 @@ import {
 import {
   buildExportErrorReport,
   downloadExportErrorReport,
+  formatExportErrorRowRef,
 } from "@/lib/ach/exportErrorReport";
 import { safeDigits } from "@/lib/ach/utils";
 import {
@@ -401,6 +402,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   function validateFormData(source?: {
     header: import("@/lib/ach/schema").HeaderValues;
     rows: import("@/lib/ach/schema").DetailRow[];
+    partRefs?: { part: number; row: number }[];
   }): boolean {
     const sourceHeader = source?.header ?? header;
     const sourceRows = source?.rows ?? rows;
@@ -428,7 +430,11 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       toast.error("控制首錄／表頭資料輸入有誤（已下載錯誤說明）");
       return false;
     }
-    const badRows: { row: number; messages: string[] }[] = [];
+    const badRows: {
+      row: number;
+      part?: number;
+      messages: string[];
+    }[] = [];
     // 輸出前完整檢核：以傳入資料或目前表單即時 validate（不依賴畫面 rowErrs 快取）
     sourceRows.forEach((r, i) => {
       if (isRowEmpty(r, schema)) return;
@@ -437,16 +443,23 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           ? validateDetailRow(schema, r, txids, branches, synced)
           : (rowErrs[i] ?? validateDetailRow(schema, r, txids, branches, synced));
       const messages = rowErrorMessages(errs);
-      if (messages.length) badRows.push({ row: i + 1, messages });
+      if (messages.length) {
+        const ref = source?.partRefs?.[i];
+        badRows.push({
+          row: ref?.row ?? i + 1,
+          part: ref?.part,
+          messages,
+        });
+      }
     });
     if (badRows.length) {
       downloadExportErrorReport(
         schema,
         buildExportErrorReport({ schema, rows: badRows }),
       );
-      const bad = badRows.map((r) => r.row);
+      const bad = badRows.map((r) => formatExportErrorRowRef(r));
       toast.error(
-        `第 ${bad.slice(0, 12).join("、")}${bad.length > 12 ? "…" : ""} 列資料仍有錯誤（已下載錯誤說明）`,
+        `${bad.slice(0, 8).join("、")}${bad.length > 8 ? "…" : ""} 資料仍有錯誤（已下載錯誤說明）`,
       );
       return false;
     }
@@ -473,6 +486,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   function prepareExportSource(): {
     header: import("@/lib/ach/schema").HeaderValues;
     rows: import("@/lib/ach/schema").DetailRow[];
+    partRefs?: { part: number; row: number }[];
   } | null {
     const sess = usePartitionStore.getState().session;
     if (sess && sess.formatCode === schema.code) {
