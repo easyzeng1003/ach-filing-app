@@ -22,6 +22,7 @@ import {
   emptyHeader,
   isRowEmpty,
   lookupTxid,
+  resolveR01Ydate,
   validateBuiltControlDates,
 } from "./engine";
 import {
@@ -299,10 +300,13 @@ export function buildExportControlLines(
     : "";
   // 組尾錄合計時不要用可能被明細覆寫的 bankCode 去推 SORG；
   // ACHP01：實際 SORG／RORG 稍後從來源列貼上；ACHR01：用固定 SORG＋代表行。
+  const ydate = isR01
+    ? resolveR01Ydate(opts.header.ydate, date || opts.header.date)
+    : "";
   const headerValues: HeaderValues = {
     ...opts.header,
     ...(date.length === 8 ? { date } : {}),
-    ...(isR01 ? { agentBank } : {}),
+    ...(isR01 ? { agentBank, ydate } : {}),
   };
 
   const srcH =
@@ -415,6 +419,14 @@ export function buildExportControlLines(
       schema.records.trailer.fields,
       "TDATE",
       date.padStart(8, "0").slice(-8),
+    );
+  }
+  if (isR01 && ydate.length === 8) {
+    trailerLine = patchRecordFieldById(
+      trailerLine,
+      schema.records.trailer.fields,
+      "YDATE",
+      ydate,
     );
   }
 

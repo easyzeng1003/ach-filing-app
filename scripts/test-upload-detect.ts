@@ -334,9 +334,47 @@ assert.ok(
     EMBEDDED_TXIDS,
     EMBEDDED_BRANCHES,
   );
-  assert.ok(
-    r01BadY.some((m) => m.includes("YDATE") && m.includes("非合法")),
-    r01BadY.join("; "),
+  assert.deepEqual(r01BadY, [], "YDATE 非法時改用 TDATE，不擋輸出");
+
+  const r01EmptyY = generateFromSchema(
+    r01,
+    { ...header, date: "01150804", ydate: "", agentBank: "0040000" },
+    [
+      {
+        ...rows[0]!,
+        origBankCode: "0040000",
+        origAccount: "0000001234567890",
+        rcode: "04",
+        pdate: "01150804",
+        pseq: "00000001",
+        pschd: "B",
+      },
+    ],
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  assert.equal(r01EmptyY.lines.at(-1)!.slice(55, 63), "01150804", "空 YDATE → TDATE");
+  const r01IllegalY = generateFromSchema(
+    r01,
+    { ...header, date: "01150804", ydate: "01159999", agentBank: "0040000" },
+    [
+      {
+        ...rows[0]!,
+        origBankCode: "0040000",
+        origAccount: "0000001234567890",
+        rcode: "04",
+        pdate: "01150804",
+        pseq: "00000001",
+        pschd: "B",
+      },
+    ],
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+  );
+  assert.equal(r01IllegalY.lines.at(-1)!.slice(55, 63), "01150804", "非法 YDATE → TDATE");
+  assert.deepEqual(
+    validateBuiltControlDates(r01, r01IllegalY.lines[0]!, r01IllegalY.lines.at(-1)!),
+    [],
   );
 
   const good = generateFromSchema(
