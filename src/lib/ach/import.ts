@@ -328,6 +328,7 @@ export function adaptP01ImportToR01(
       row.origBankCode ?? result.header.bankCode ?? "",
     );
     next.origAccount = String(row.origAccount ?? result.header.account ?? "");
+    next.pseq = String(row.seq ?? "");
     return next;
   };
 
@@ -419,6 +420,11 @@ function detailRowFromFields(
       const v = fieldText(f);
       if (v) row.txid = v;
     }
+  }
+  // 輸出 R01 時 PSEQ＝原上傳檔 SEQ；匯入後表單原提示序號與之一致
+  if (schema.code === "ACHR01") {
+    const uploadedSeq = String(row.seq ?? "").trim();
+    if (uploadedSeq) row.pseq = uploadedSeq;
   }
   return row;
 }
