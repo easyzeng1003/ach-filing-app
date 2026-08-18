@@ -53,6 +53,41 @@
         }
       },
       {
+        "key": "agentBank",
+        "label": "代表行代號",
+        "placeholder": "0040000",
+        "inputType": "text",
+        "length": 7,
+        "charset": "digit",
+        "required": true,
+        "pad": {
+          "side": "none"
+        },
+        "validation": {
+          "rules": [
+            {
+              "type": "required",
+              "message": "未輸入代表行代號"
+            },
+            {
+              "type": "exactLength",
+              "length": 7,
+              "message": "代表行代號須為七碼"
+            },
+            {
+              "type": "branchCode",
+              "message": "代表行代號錯誤"
+            }
+          ]
+        },
+        "picker": "branch",
+        "metaFrom": "branch",
+        "ui": {
+          "mono": true,
+          "colSpan": 1
+        }
+      },
+      {
         "key": "txid",
         "label": "交易代號（代收 SD／代付 SC）",
         "placeholder": "704",
@@ -85,7 +120,7 @@
         "inputType": "text",
         "length": 7,
         "charset": "digit",
-        "required": true,
+        "required": false,
         "pad": {
           "side": "none"
         },
@@ -238,12 +273,16 @@
         "inputType": "text",
         "length": 7,
         "charset": "digit",
-        "required": false,
+        "required": true,
         "pad": {
           "side": "none"
         },
         "validation": {
           "rules": [
+            {
+              "type": "requiredIfAny",
+              "message": "提出行代號未輸入"
+            },
             {
               "type": "branchCode",
               "message": "提出行代號錯誤"
@@ -270,7 +309,7 @@
         "inputType": "text",
         "length": 16,
         "charset": "digit",
-        "required": false,
+        "required": true,
         "pad": {
           "side": "left",
           "char": "0",
@@ -278,6 +317,10 @@
         },
         "validation": {
           "rules": [
+            {
+              "type": "requiredIfAny",
+              "message": "發動者帳號未輸入"
+            },
             {
               "type": "maxLength",
               "length": 16,
@@ -313,11 +356,11 @@
           "rules": [
             {
               "type": "requiredIfAny",
-              "message": "收受者銀行代號未輸入"
+              "message": "提回行代號未輸入"
             },
             {
               "type": "branchCode",
-              "message": "收受者銀行代號錯誤"
+              "message": "提回行代號錯誤"
             }
           ]
         },
