@@ -213,6 +213,8 @@
         "placeholder": "00000001",
         "inputType": "text",
         "length": 8,
+        "digitStart": 7,
+        "digitEnd": 14,
         "charset": "digit",
         "required": false,
         "pad": {
@@ -242,6 +244,8 @@
         "placeholder": "704",
         "inputType": "text",
         "length": 3,
+        "digitStart": 4,
+        "digitEnd": 6,
         "charset": "digit",
         "required": false,
         "pad": {
@@ -272,6 +276,8 @@
         "label": "提出行代號",
         "inputType": "text",
         "length": 7,
+        "digitStart": 15,
+        "digitEnd": 21,
         "charset": "digit",
         "required": true,
         "pad": {
@@ -308,6 +314,8 @@
         "label": "發動者帳號",
         "inputType": "text",
         "length": 16,
+        "digitStart": 22,
+        "digitEnd": 37,
         "charset": "digit",
         "required": true,
         "pad": {
@@ -347,6 +355,8 @@
         "label": "收受者銀行代號",
         "inputType": "text",
         "length": 7,
+        "digitStart": 38,
+        "digitEnd": 44,
         "charset": "digit",
         "required": true,
         "pad": {
@@ -383,6 +393,8 @@
         "label": "收受者帳號",
         "inputType": "text",
         "length": 16,
+        "digitStart": 45,
+        "digitEnd": 60,
         "charset": "digit",
         "required": true,
         "pad": {
@@ -422,6 +434,8 @@
         "label": "金額",
         "inputType": "amount",
         "length": 10,
+        "digitStart": 61,
+        "digitEnd": 70,
         "charset": "digit",
         "required": true,
         "pad": {
@@ -466,6 +480,8 @@
         "label": "收受者統一編號",
         "inputType": "text",
         "length": 10,
+        "digitStart": 84,
+        "digitEnd": 93,
         "charset": "alnum",
         "required": true,
         "pad": {
@@ -504,6 +520,8 @@
         "label": "用戶號碼（代收 SD 必填）",
         "inputType": "text",
         "length": 20,
+        "digitStart": 117,
+        "digitEnd": 136,
         "charset": "alnum",
         "required": false,
         "pad": {
@@ -620,6 +638,8 @@
           "source": "literal",
           "value": "N",
           "length": 1,
+          "digitStart": 1,
+          "digitEnd": 1,
           "label": "交易型態"
         },
         {
@@ -627,6 +647,8 @@
           "source": "derived",
           "fn": "txType",
           "length": 2,
+          "digitStart": 2,
+          "digitEnd": 3,
           "pad": {
             "side": "right",
             "char": " "
@@ -638,6 +660,8 @@
           "source": "detail",
           "key": "txid",
           "length": 3,
+          "digitStart": 4,
+          "digitEnd": 6,
           "charset": "digit",
           "pad": {
             "side": "right",
@@ -649,6 +673,8 @@
           "id": "SEQ",
           "source": "detail",
           "length": 8,
+          "digitStart": 7,
+          "digitEnd": 14,
           "charset": "digit",
           "pad": {
             "side": "left",
@@ -662,6 +688,8 @@
           "source": "detail",
           "key": "origBankCode",
           "length": 7,
+          "digitStart": 15,
+          "digitEnd": 21,
           "charset": "digit",
           "label": "提出行代號",
           "pad": {
@@ -673,6 +701,8 @@
           "source": "detail",
           "key": "origAccount",
           "length": 16,
+          "digitStart": 22,
+          "digitEnd": 37,
           "charset": "digit",
           "label": "發動者帳號",
           "pad": {
@@ -684,6 +714,8 @@
           "source": "detail",
           "key": "bankCode",
           "length": 7,
+          "digitStart": 38,
+          "digitEnd": 44,
           "charset": "digit",
           "pad": {
             "side": "none"
@@ -695,6 +727,8 @@
           "source": "detail",
           "key": "account",
           "length": 16,
+          "digitStart": 45,
+          "digitEnd": 60,
           "charset": "digit",
           "pad": {
             "side": "none"
@@ -706,6 +740,8 @@
           "source": "detail",
           "key": "amount",
           "length": 10,
+          "digitStart": 61,
+          "digitEnd": 70,
           "charset": "digit",
           "pad": {
             "side": "left",
@@ -718,6 +754,8 @@
           "id": "RCODE",
           "source": "filler",
           "length": 2,
+          "digitStart": 71,
+          "digitEnd": 72,
           "fill": " ",
           "label": "退件理由代號"
         },
@@ -726,6 +764,8 @@
           "source": "literal",
           "value": "B",
           "length": 1,
+          "digitStart": 73,
+          "digitEnd": 73,
           "label": "提示交換次序"
         },
         {
@@ -733,6 +773,8 @@
           "source": "header",
           "key": "taxId",
           "length": 10,
+          "digitStart": 74,
+          "digitEnd": 83,
           "charset": "alnum",
           "pad": {
             "side": "right",
@@ -745,6 +787,8 @@
           "source": "detail",
           "key": "taxId",
           "length": 10,
+          "digitStart": 84,
+          "digitEnd": 93,
           "charset": "alnum",
           "pad": {
             "side": "right",
@@ -756,6 +800,8 @@
           "id": "SID",
           "source": "filler",
           "length": 6,
+          "digitStart": 94,
+          "digitEnd": 99,
           "fill": " ",
           "label": "上市上櫃公司代號"
         },
@@ -763,6 +809,8 @@
           "id": "PDATE",
           "source": "filler",
           "length": 8,
+          "digitStart": 100,
+          "digitEnd": 107,
           "fill": " ",
           "label": "原提示交易日期"
         },
@@ -770,6 +818,8 @@
           "id": "PSEQ",
           "source": "filler",
           "length": 8,
+          "digitStart": 108,
+          "digitEnd": 115,
           "fill": " ",
           "label": "原提示交易序號"
         },
@@ -777,6 +827,8 @@
           "id": "PSCHD",
           "source": "filler",
           "length": 1,
+          "digitStart": 116,
+          "digitEnd": 116,
           "fill": " ",
           "label": "原提示交換次序"
         },
@@ -785,6 +837,8 @@
           "source": "detail",
           "key": "userNo",
           "length": 20,
+          "digitStart": 117,
+          "digitEnd": 136,
           "charset": "alnum",
           "pad": {
             "side": "right",
@@ -796,6 +850,8 @@
           "id": "NOTE",
           "source": "filler",
           "length": 40,
+          "digitStart": 137,
+          "digitEnd": 176,
           "fill": " ",
           "label": "發動者專用區"
         },
@@ -803,6 +859,8 @@
           "id": "MEMO",
           "source": "filler",
           "length": 10,
+          "digitStart": 177,
+          "digitEnd": 186,
           "fill": " ",
           "label": "存摺摘要"
         },
@@ -811,12 +869,16 @@
           "source": "literal",
           "value": "00000",
           "length": 5,
+          "digitStart": 187,
+          "digitEnd": 191,
           "label": "客戶支付手續費"
         },
         {
           "id": "NOTEB",
           "source": "filler",
           "length": 20,
+          "digitStart": 192,
+          "digitEnd": 211,
           "fill": " ",
           "label": "發動行專用區"
         },
@@ -824,6 +886,8 @@
           "id": "FILLER",
           "source": "filler",
           "length": 39,
+          "digitStart": 212,
+          "digitEnd": 250,
           "fill": " ",
           "label": "備用"
         }

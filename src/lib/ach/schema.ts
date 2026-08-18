@@ -65,6 +65,10 @@ export type FormFieldDef = {
     minWidth?: string;
     align?: "left" | "right";
   };
+  /** 財金規格「欄位起」（1-based digit 位置，含端點） */
+  digitStart?: number;
+  /** 財金規格「欄位迄」（1-based digit 位置，含端點） */
+  digitEnd?: number;
 };
 
 export type RecordFieldSource =
@@ -93,6 +97,10 @@ export type RecordFieldDef = {
   pad?: PadSpec;
   fill?: string;
   transform?: "floorInt" | "firstChar";
+  /** 財金規格「欄位起」（1-based digit 位置，含端點） */
+  digitStart?: number;
+  /** 財金規格「欄位迄」（1-based digit 位置，含端點） */
+  digitEnd?: number;
 };
 
 export type AuthOptionDef = {

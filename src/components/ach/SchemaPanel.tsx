@@ -3,6 +3,7 @@ import { Braces, CheckCircle2, AlertTriangle } from "lucide-react";
 import { useRefStore } from "@/lib/ach/store";
 import { assertRecordLengths } from "@/lib/ach/engine";
 import { EXPORT_FORMAT_META, enabledExportFormats } from "@/lib/ach/exportFormats";
+import { digitRangesOf } from "@/lib/ach/field";
 import type { FormatSchema, RecordFieldDef } from "@/lib/ach/schema";
 
 /** 客戶靜態版（dev:web / build:customer） */
@@ -18,15 +19,9 @@ function fieldDescription(f: RecordFieldDef): string {
   return f.id;
 }
 
-/** 1-based 起迄位置（含端點），例如 1-9、10-17 */
+/** 1-based 起迄位置（含端點），例如 1-9、10-17；優先用 JSON digitStart／digitEnd */
 function fieldPositions(fields: RecordFieldDef[]): { start: number; end: number }[] {
-  let cursor = 1;
-  return fields.map((f) => {
-    const start = cursor;
-    const end = cursor + f.length - 1;
-    cursor = end + 1;
-    return { start, end };
-  });
+  return digitRangesOf(fields);
 }
 
 function FieldTable({
@@ -90,6 +85,8 @@ function FieldTable({
               <th>#</th>
               <th>欄位 ID</th>
               <th>來源</th>
+              <th>欄位起</th>
+              <th>欄位迄</th>
               <th>長度</th>
               <th>charset</th>
               <th>pad</th>
@@ -110,6 +107,8 @@ function FieldTable({
                     <span className="ml-1 font-mono text-muted">(){f.fn}</span>
                   ) : null}
                 </td>
+                <td className="font-mono">{f.digitStart ?? "—"}</td>
+                <td className="font-mono">{f.digitEnd ?? "—"}</td>
                 <td className="font-mono">{f.length}</td>
                 <td className="font-mono">{f.charset || "—"}</td>
                 <td className="font-mono">
@@ -143,6 +142,8 @@ function FormFieldTable({ schema }: { schema: FormatSchema }) {
               <th>區段</th>
               <th>key</th>
               <th>標籤</th>
+              <th>欄位起</th>
+              <th>欄位迄</th>
               <th>長度</th>
               <th>charset</th>
               <th>可篩選</th>
@@ -155,6 +156,8 @@ function FormFieldTable({ schema }: { schema: FormatSchema }) {
                 <td>{f.section}</td>
                 <td className="font-mono font-semibold">{f.key}</td>
                 <td>{f.label}</td>
+                <td className="font-mono">{f.digitStart ?? "—"}</td>
+                <td className="font-mono">{f.digitEnd ?? "—"}</td>
                 <td className="font-mono">{f.length}</td>
                 <td className="font-mono">{f.charset}</td>
                 <td className="font-mono">

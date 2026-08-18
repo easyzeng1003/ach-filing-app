@@ -413,6 +413,8 @@ function RecordFieldsTable({
             <tr>
               <th>欄位</th>
               <th>ID</th>
+              <th>欄位起</th>
+              <th>欄位迄</th>
               <th>長度</th>
               <th>原始</th>
               <th>解析值</th>
@@ -429,6 +431,12 @@ function RecordFieldsTable({
                       {def?.label || f.id}
                     </td>
                     <td className="font-mono text-xs">{f.id}</td>
+                    <td className="text-center font-mono text-xs">
+                      {def?.digitStart ?? "—"}
+                    </td>
+                    <td className="text-center font-mono text-xs">
+                      {def?.digitEnd ?? "—"}
+                    </td>
                     <td className="text-center">{f.length}</td>
                     <td
                       className="max-w-48 truncate font-mono text-xs"
