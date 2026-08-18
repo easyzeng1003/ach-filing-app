@@ -1,5 +1,5 @@
 /**
- * R01 明細顯示：提示行在前，提回行在後。
+ * R01 明細顯示：提出行在前；自收受者帳號起比照 P01 檔案欄序。
  */
 import assert from "node:assert/strict";
 import { loadEmbeddedFormats } from "../src/data/embedded";
@@ -7,15 +7,46 @@ import { orderDetailFieldsForEdit } from "../src/lib/ach/formDisplay";
 
 const formats = loadEmbeddedFormats();
 const r01 = formats.ACHR01!;
+const p01 = formats.ACHP01!;
 assert.ok(r01);
+assert.ok(p01);
 
 const displayed = orderDetailFieldsForEdit(r01);
 const displayedKeys = displayed.map((f) => f.key);
+const p01Keys = orderDetailFieldsForEdit(p01).map((f) => f.key);
 
 assert.deepEqual(
-  displayedKeys.slice(0, 6),
-  ["seq", "txid", "origBankCode", "origAccount", "bankCode", "account"],
-  "提示行（orig*）須在提回行（bankCode/account）之前",
+  displayedKeys,
+  [
+    "seq",
+    "txid",
+    "origBankCode",
+    "origAccount",
+    "bankCode",
+    "account",
+    "amount",
+    "rcode",
+    "taxId",
+    "pdate",
+    "pseq",
+    "userNo",
+  ],
+  "自收受者帳號起應為 金額→退件理由→統編→原提示日期／序號→用戶號碼",
+);
+assert.deepEqual(
+  p01Keys,
+  [
+    "seq",
+    "txid",
+    "origBankCode",
+    "origAccount",
+    "bankCode",
+    "account",
+    "amount",
+    "taxId",
+    "userNo",
+  ],
+  "P01 表單自收受者帳號起應為 金額→統編→用戶號碼",
 );
 assert.ok(!displayedKeys.includes("pschd"), "不顯示原提示交換次序");
 

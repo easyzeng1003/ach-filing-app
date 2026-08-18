@@ -4,8 +4,9 @@ import type { FormatSchema, FormFieldDef } from "./schema";
 const HIDDEN_DETAIL_KEYS = new Set(["pschd"]);
 
 /**
- * R01 編輯欄序：提示行（提出）在前，提回行（收受）在後。
- * 不改 `records.detail`（檔案位元組配置）。
+ * 明細顯示欄序：提出行在前、收受行在後；
+ * 自收受者帳號起比照 P01 `records.detail`（RCLNO → AMT → RCODE → PID → PDATE → PSEQ → CNO）。
+ * 不改檔案位元組配置。
  */
 const R01_DISPLAY_ORDER = [
   "seq",
@@ -14,12 +15,12 @@ const R01_DISPLAY_ORDER = [
   "origAccount",
   "bankCode",
   "account",
-  "taxId",
-  "userNo",
   "amount",
   "rcode",
+  "taxId",
   "pdate",
   "pseq",
+  "userNo",
 ] as const;
 
 export function orderDetailFieldsForEdit(schema: FormatSchema): FormFieldDef[] {

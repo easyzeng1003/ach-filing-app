@@ -418,6 +418,50 @@
         "filterable": true
       },
       {
+        "key": "amount",
+        "label": "金額",
+        "inputType": "amount",
+        "length": 10,
+        "charset": "digit",
+        "required": true,
+        "pad": {
+          "side": "none"
+        },
+        "validation": {
+          "rules": [
+            {
+              "type": "requiredIfAny",
+              "message": "金額未輸入"
+            },
+            {
+              "type": "number",
+              "message": "金額必須是數字"
+            },
+            {
+              "type": "maxIntegerDigits",
+              "length": 10,
+              "message": "金額最多只能輸入10位數"
+            }
+          ]
+        },
+        "picker": null,
+        "export": {
+          "charset": "digit",
+          "length": 10,
+          "pad": {
+            "side": "left",
+            "char": "0"
+          },
+          "transform": "floorInt"
+        },
+        "ui": {
+          "mono": true,
+          "minWidth": "6rem",
+          "align": "right"
+        },
+        "filterable": true
+      },
+      {
         "key": "taxId",
         "label": "收受者統一編號",
         "inputType": "text",
@@ -493,50 +537,6 @@
         "ui": {
           "mono": true,
           "minWidth": "7rem"
-        },
-        "filterable": true
-      },
-      {
-        "key": "amount",
-        "label": "金額",
-        "inputType": "amount",
-        "length": 10,
-        "charset": "digit",
-        "required": true,
-        "pad": {
-          "side": "none"
-        },
-        "validation": {
-          "rules": [
-            {
-              "type": "requiredIfAny",
-              "message": "金額未輸入"
-            },
-            {
-              "type": "number",
-              "message": "金額必須是數字"
-            },
-            {
-              "type": "maxIntegerDigits",
-              "length": 10,
-              "message": "金額最多只能輸入10位數"
-            }
-          ]
-        },
-        "picker": null,
-        "export": {
-          "charset": "digit",
-          "length": 10,
-          "pad": {
-            "side": "left",
-            "char": "0"
-          },
-          "transform": "floorInt"
-        },
-        "ui": {
-          "mono": true,
-          "minWidth": "6rem",
-          "align": "right"
         },
         "filterable": true
       }
