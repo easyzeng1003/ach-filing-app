@@ -44,6 +44,20 @@ assert.deepEqual(
 const txTypeField = achp01.records.detail.fields.find((f) => f.id === "TXTYPE");
 assert.equal(txTypeField?.fn, "txType");
 assert.equal(txTypeField?.length, 2);
+const p01Pbank = achp01.records.detail.fields.find((f) => f.id === "PBANK");
+const p01Pclno = achp01.records.detail.fields.find((f) => f.id === "PCLNO");
+const p01Rbank = achp01.records.detail.fields.find((f) => f.id === "RBANK");
+const p01Rclno = achp01.records.detail.fields.find((f) => f.id === "RCLNO");
+assert.equal(p01Pbank?.source, "detail");
+assert.equal(p01Pbank?.key, "origBankCode");
+assert.equal(p01Pbank?.pad?.side, "none");
+assert.equal(p01Pclno?.source, "detail");
+assert.equal(p01Pclno?.key, "origAccount");
+assert.equal(p01Pclno?.pad?.side, "none");
+assert.equal(p01Rbank?.source, "detail");
+assert.equal(p01Rbank?.key, "bankCode");
+assert.equal(p01Rclno?.source, "detail");
+assert.equal(p01Rclno?.key, "account");
 
 const txids = JSON.parse(fs.readFileSync(path.join(dataRoot, "txid.json"), "utf8"));
 const byType = txids.reduce((acc, t) => {

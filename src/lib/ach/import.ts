@@ -370,7 +370,7 @@ function fieldText(f: ParsedRecordField): string {
     .trim();
 }
 
-/** ACHP01 明細 PBANK/PCLNO 標為 header.source，仍寫入列供逐筆對調 */
+/** ACHP01 明細 PBANK/PCLNO（origBankCode／origAccount）寫入列供逐筆對調 */
 export function attachP01PresenterFromFields(
   row: DetailRow,
   fields: ParsedRecordField[],
@@ -737,12 +737,18 @@ function finalizeHeader(acc: ParseAcc): HeaderValues {
       ...fromDetailHeader,
       ...(fromDetailBody.txid ? { txid: fromDetailBody.txid } : {}),
       // ACHR01 BOF 無 bankCode／account；參考欄由首筆明細 RBANK／RCLNO（檔案原樣）補
-      // ACHP01 不可用 RBANK／RCLNO（收受者）覆蓋 PBANK／PCLNO（提出行／發動者）
+      // ACHP01 表頭提出行／發動者＝首筆 PBANK／PCLNO（orig*），不可用收受者覆蓋
       ...(!isP01 && fromDetailBody.bankCode
         ? { bankCode: fromDetailBody.bankCode }
         : {}),
       ...(!isP01 && fromDetailBody.account
         ? { account: fromDetailBody.account }
+        : {}),
+      ...(isP01 && fromDetailBody.origBankCode
+        ? { bankCode: fromDetailBody.origBankCode }
+        : {}),
+      ...(isP01 && fromDetailBody.origAccount
+        ? { account: fromDetailBody.origAccount }
         : {}),
     };
     const forceFromFirst = isP01

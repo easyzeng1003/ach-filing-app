@@ -118,6 +118,8 @@ for (const entry of index.formats) {
   const detailA = {
     seq: "1",
     txid: "704",
+    origBankCode: "0040000",
+    origAccount: "0000001234567890",
     bankCode: "0040037",
     account: "0000009988776655",
     taxId: "A123456789",
@@ -127,6 +129,8 @@ for (const entry of index.formats) {
   const detailB = {
     seq: "2",
     txid: "704",
+    origBankCode: "0040000",
+    origAccount: "0000001234567890",
     bankCode: "0040071",
     account: "0000001122334455",
     taxId: "87654321",
@@ -207,6 +211,18 @@ for (const entry of index.formats) {
     );
   }
 
+  if (fromDetail1.detail.origBankCode !== undefined) {
+    assert.equal(
+      fromDetail1.detail.origBankCode,
+      "0040000",
+      `${schema.code} detail origBankCode`,
+    );
+    assert.equal(
+      fromDetail1.detail.origAccount,
+      "0000001234567890",
+      `${schema.code} detail origAccount`,
+    );
+  }
   assert.equal(fromDetail1.detail.bankCode, "0040037");
   assert.equal(fromDetail1.detail.account, "0000009988776655");
   assert.equal(fromDetail1.detail.userNo, "USER001");

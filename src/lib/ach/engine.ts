@@ -509,6 +509,21 @@ function resolveField(def: RecordFieldDef, ctx: BuildCtx): string {
       if (!String(raw).trim() && def.key === "seq") {
         raw = String(ctx.seq);
       }
+      // ACHP01 提出行／發動者：列上 orig* 未填時回退表頭（與舊 header.source 行為相同）
+      if (
+        ctx.schema.code === "ACHP01" &&
+        !String(raw).trim() &&
+        def.key === "origBankCode"
+      ) {
+        raw = ctx.header.bankCode ?? "";
+      }
+      if (
+        ctx.schema.code === "ACHP01" &&
+        !String(raw).trim() &&
+        def.key === "origAccount"
+      ) {
+        raw = ctx.header.account ?? "";
+      }
       // R01 PSEQ（1-based 108–115）← 原上傳檔該列 SEQ（1-based 7–14）
       if (def.key === "pseq") {
         const uploadedSeq = String(ctx.detail?.seq ?? "").trim();

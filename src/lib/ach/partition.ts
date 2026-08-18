@@ -499,7 +499,7 @@ function detailRowFromLine(line: string, schema: FormatSchema): DetailRow {
   for (const f of fields) {
     if (f.source === "detail" && f.key) row[f.key] = f.value;
     if (f.source === "header" && f.key && !row[f.key]) {
-      // P01：PBANK/PCLNO/TXID 來自 header source，一併帶入列供轉檔
+      // P01：提出行已改為 detail.orig*；此處僅保留舊 header.source 後備
     }
   }
   // ACHP01 detail 表單欄位對應 records.detail 的 detail-source
