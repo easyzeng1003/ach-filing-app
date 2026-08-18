@@ -319,6 +319,7 @@ export function adaptP01ImportToR01(
     const next = emptyDetailRow(r01, row.id || newRowId());
     next.seq = String(row.seq ?? "");
     next.txid = String(row.txid ?? result.header.txid ?? "");
+    // 收受者＝P01 RBANK／RCLNO（勿與提出行／發動者對調）
     next.bankCode = String(row.bankCode ?? "");
     next.account = String(row.account ?? "");
     next.taxId = String(row.taxId ?? "");
@@ -705,7 +706,7 @@ function consumeLine(acc: ParseAcc, raw: string, index: number): void {
   collectMatchedRow(acc, row);
 }
 
-/** 提出資料中應以「明細第一筆」為準的欄位（ACHP01：TXID／PCLNO／CID） */
+/** 提出資料中應以「明細第一筆」為準的欄位。ACHP01 僅強制 TXID（帳號／統編留在提出行／發動者）。 */
 const HEADER_FROM_FIRST_DETAIL = new Set(["txid", "account", "taxId"]);
 
 function finalizeHeader(acc: ParseAcc): HeaderValues {
@@ -731,17 +732,26 @@ function finalizeHeader(acc: ParseAcc): HeaderValues {
       "detail",
     );
     // 交易代號已改為 detail.source；其餘提出欄仍為 header.source
+    const isP01 = acc.schema.code === "ACHP01";
     const fromDetail = {
       ...fromDetailHeader,
       ...(fromDetailBody.txid ? { txid: fromDetailBody.txid } : {}),
       // ACHR01 BOF 無 bankCode／account；參考欄由首筆明細 RBANK／RCLNO（檔案原樣）補
-      ...(fromDetailBody.bankCode ? { bankCode: fromDetailBody.bankCode } : {}),
-      ...(fromDetailBody.account ? { account: fromDetailBody.account } : {}),
+      // ACHP01 不可用 RBANK／RCLNO（收受者）覆蓋 PBANK／PCLNO（提出行／發動者）
+      ...(!isP01 && fromDetailBody.bankCode
+        ? { bankCode: fromDetailBody.bankCode }
+        : {}),
+      ...(!isP01 && fromDetailBody.account
+        ? { account: fromDetailBody.account }
+        : {}),
     };
+    const forceFromFirst = isP01
+      ? new Set(["txid"])
+      : HEADER_FROM_FIRST_DETAIL;
     for (const [k, v] of Object.entries(fromDetail)) {
       if (!v) continue;
       // 交易代號等：分割／匯入後一律以明細第一筆為主
-      if (HEADER_FROM_FIRST_DETAIL.has(k) || !header[k]) {
+      if (forceFromFirst.has(k) || !header[k]) {
         header[k] = v;
       }
     }
