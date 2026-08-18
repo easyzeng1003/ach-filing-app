@@ -78,3 +78,38 @@ export function formatExportField(
 export function recordLengthOf(fields: { length: number }[]): number {
   return fields.reduce((sum, f) => sum + f.length, 0);
 }
+
+/** 財金規格 1-based 欄位起迄（含端點）。有 digitStart／digitEnd 時優先採用。 */
+export function digitRangeOf(field: {
+  length: number;
+  digitStart?: number;
+  digitEnd?: number;
+}): { start: number; end: number } | null {
+  if (
+    Number.isInteger(field.digitStart) &&
+    Number.isInteger(field.digitEnd) &&
+    (field.digitStart as number) > 0 &&
+    (field.digitEnd as number) >= (field.digitStart as number)
+  ) {
+    return { start: field.digitStart as number, end: field.digitEnd as number };
+  }
+  if (field.length > 0) {
+    return { start: 1, end: field.length };
+  }
+  return null;
+}
+
+/** 依欄位順序推算／核對 1-based 起迄（含端點） */
+export function digitRangesOf(
+  fields: { length: number; digitStart?: number; digitEnd?: number }[],
+): { start: number; end: number }[] {
+  let cursor = 1;
+  return fields.map((f) => {
+    const start = Number.isInteger(f.digitStart) ? (f.digitStart as number) : cursor;
+    const end = Number.isInteger(f.digitEnd)
+      ? (f.digitEnd as number)
+      : start + f.length - 1;
+    cursor = end + 1;
+    return { start, end };
+  });
+}

@@ -59,6 +59,73 @@ assert.equal(p01Rbank?.key, "bankCode");
 assert.equal(p01Rclno?.source, "detail");
 assert.equal(p01Rclno?.key, "account");
 
+/** 財金 ACHP01／ACHR01 明細錄「欄位起／欄位迄」（1-based，含端點） */
+const SPEC_DETAIL_DIGITS = {
+  TYPE: [1, 1],
+  TXTYPE: [2, 3],
+  TXID: [4, 6],
+  SEQ: [7, 14],
+  PBANK: [15, 21],
+  PCLNO: [22, 37],
+  RBANK: [38, 44],
+  RCLNO: [45, 60],
+  AMT: [61, 70],
+  RCODE: [71, 72],
+  SCHD: [73, 73],
+  CID: [74, 83],
+  PID: [84, 93],
+  SID: [94, 99],
+  PDATE: [100, 107],
+  PSEQ: [108, 115],
+  PSCHD: [116, 116],
+  CNO: [117, 136],
+  NOTE: [137, 176],
+  MEMO: [177, 186],
+  CFEE: [187, 191],
+  NOTEB: [192, 211],
+  FILLER: [212, 250],
+};
+const FORM_KEY_TO_RECORD_ID = {
+  seq: "SEQ",
+  txid: "TXID",
+  origBankCode: "PBANK",
+  origAccount: "PCLNO",
+  bankCode: "RBANK",
+  account: "RCLNO",
+  amount: "AMT",
+  rcode: "RCODE",
+  taxId: "PID",
+  pdate: "PDATE",
+  pseq: "PSEQ",
+  pschd: "PSCHD",
+  userNo: "CNO",
+};
+function assertDetailDigits(schema) {
+  let cursor = 1;
+  for (const f of schema.records.detail.fields) {
+    const spec = SPEC_DETAIL_DIGITS[f.id];
+    assert.ok(spec, `${schema.code} records.detail 未知欄 ${f.id}`);
+    assert.equal(f.digitStart, spec[0], `${schema.code} ${f.id} digitStart`);
+    assert.equal(f.digitEnd, spec[1], `${schema.code} ${f.id} digitEnd`);
+    assert.equal(
+      f.digitEnd - f.digitStart + 1,
+      f.length,
+      `${schema.code} ${f.id} 起迄與長度不符`,
+    );
+    assert.equal(f.digitStart, cursor, `${schema.code} ${f.id} 應緊接前欄`);
+    cursor = f.digitEnd + 1;
+  }
+  assert.equal(cursor, schema.recordLength + 1, `${schema.code} 明細應覆蓋 1–250`);
+  for (const f of schema.form.detail) {
+    const id = FORM_KEY_TO_RECORD_ID[f.key];
+    const spec = SPEC_DETAIL_DIGITS[id];
+    assert.ok(spec, `${schema.code} form.detail ${f.key} 無對應規格`);
+    assert.equal(f.digitStart, spec[0], `${schema.code} form ${f.key} digitStart`);
+    assert.equal(f.digitEnd, spec[1], `${schema.code} form ${f.key} digitEnd`);
+  }
+}
+assertDetailDigits(achp01);
+
 const txids = JSON.parse(fs.readFileSync(path.join(dataRoot, "txid.json"), "utf8"));
 const byType = txids.reduce((acc, t) => {
   (acc[t.type] ??= []).push(t);
@@ -118,6 +185,7 @@ assert.deepEqual(
   r01SharedKeys,
   "ACHR01 form.detail 共用欄順序應與 ACHP01 相同",
 );
+assertDetailDigits(achr01);
 console.log("OK ACHR01 return schema: TYPE=R, RCODE/PDATE/PSEQ, YDATE from header");
 
 console.log("ACH JSON schema smoke tests passed");
