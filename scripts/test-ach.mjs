@@ -85,6 +85,11 @@ const SPEC_DETAIL_DIGITS = {
   NOTEB: [192, 211],
   FILLER: [212, 250],
 };
+/** 上傳 P01 時 RCODE 抓 73–74（與 SCHD／CID 前碼重疊） */
+const SPEC_DETAIL_DIGITS_P01 = {
+  ...SPEC_DETAIL_DIGITS,
+  RCODE: [73, 74],
+};
 const SPEC_HEADER_DIGITS = {
   BOF: [1, 3],
   CDATA: [4, 9],
@@ -107,7 +112,7 @@ const SPEC_TRAILER_DIGITS = {
   FILLER: [64, 250],
 };
 
-function assertSectionDigits(schema, section, spec) {
+function assertSectionDigits(schema, section, spec, { contiguous = true } = {}) {
   let cursor = 1;
   for (const f of schema.records[section].fields) {
     const pos = spec[f.id];
@@ -119,19 +124,29 @@ function assertSectionDigits(schema, section, spec) {
       f.length,
       `${schema.code} ${section} ${f.id} 起迄與長度不符`,
     );
-    assert.equal(f.digitStart, cursor, `${schema.code} ${section} ${f.id} 應緊接前欄`);
+    if (contiguous) {
+      assert.equal(f.digitStart, cursor, `${schema.code} ${section} ${f.id} 應緊接前欄`);
+    }
     cursor = f.digitEnd + 1;
   }
-  assert.equal(
-    cursor,
-    schema.recordLength + 1,
-    `${schema.code} ${section} 應覆蓋 1–${schema.recordLength}`,
-  );
+  if (contiguous) {
+    assert.equal(
+      cursor,
+      schema.recordLength + 1,
+      `${schema.code} ${section} 應覆蓋 1–${schema.recordLength}`,
+    );
+  }
 }
 
 function assertDetailDigits(schema) {
   assertSectionDigits(schema, "header", SPEC_HEADER_DIGITS);
-  assertSectionDigits(schema, "detail", SPEC_DETAIL_DIGITS);
+  if (schema.code === "ACHP01") {
+    assertSectionDigits(schema, "detail", SPEC_DETAIL_DIGITS_P01, {
+      contiguous: false,
+    });
+  } else {
+    assertSectionDigits(schema, "detail", SPEC_DETAIL_DIGITS);
+  }
   assertSectionDigits(schema, "trailer", SPEC_TRAILER_DIGITS);
   const headerDigits = {
     ACHP01: {

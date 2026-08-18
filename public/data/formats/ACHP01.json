@@ -543,8 +543,8 @@
         "label": "退件理由代號",
         "inputType": "text",
         "length": 2,
-        "digitStart": 71,
-        "digitEnd": 72,
+        "digitStart": 73,
+        "digitEnd": 74,
         "charset": "alnum",
         "required": false,
         "hidden": true,
@@ -1085,11 +1085,15 @@
         },
         {
           "id": "RCODE",
-          "source": "filler",
+          "source": "detail",
+          "key": "rcode",
           "length": 2,
-          "digitStart": 71,
-          "digitEnd": 72,
-          "fill": " ",
+          "digitStart": 73,
+          "digitEnd": 74,
+          "charset": "alnum",
+          "pad": {
+            "side": "none"
+          },
           "label": "退件理由代號"
         },
         {
