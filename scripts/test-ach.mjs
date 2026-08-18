@@ -85,21 +85,6 @@ const SPEC_DETAIL_DIGITS = {
   NOTEB: [192, 211],
   FILLER: [212, 250],
 };
-const FORM_KEY_TO_RECORD_ID = {
-  seq: "SEQ",
-  txid: "TXID",
-  origBankCode: "PBANK",
-  origAccount: "PCLNO",
-  bankCode: "RBANK",
-  account: "RCLNO",
-  amount: "AMT",
-  rcode: "RCODE",
-  taxId: "PID",
-  pdate: "PDATE",
-  pseq: "PSEQ",
-  pschd: "PSCHD",
-  userNo: "CNO",
-};
 const SPEC_HEADER_DIGITS = {
   BOF: [1, 3],
   CDATA: [4, 9],
@@ -179,24 +164,21 @@ function assertDetailDigits(schema) {
       `${schema.code} form.header ${f.key} 起迄與長度不符`,
     );
   }
-  for (const f of schema.form.detail) {
-    const id = FORM_KEY_TO_RECORD_ID[f.key];
-    const spec = SPEC_DETAIL_DIGITS[id];
-    assert.ok(spec, `${schema.code} form.detail ${f.key} 無對應規格`);
-    assert.equal(f.digitStart, spec[0], `${schema.code} form ${f.key} digitStart`);
-    assert.equal(f.digitEnd, spec[1], `${schema.code} form ${f.key} digitEnd`);
-    const rec = schema.records.detail.fields.find(
-      (r) => r.id === id && r.source === "detail",
-    );
-    assert.ok(rec, `${schema.code} records.detail 缺 ${id}`);
-    assert.equal(rec.digitStart, f.digitStart, `${schema.code} ${f.key}/${id} digitStart 應與 form 同步`);
-    assert.equal(rec.digitEnd, f.digitEnd, `${schema.code} ${f.key}/${id} digitEnd 應與 form 同步`);
-    assert.equal(rec.length, f.length, `${schema.code} ${f.key}/${id} length 應與 form 同步`);
-    if (rec.charset && f.charset) {
-      assert.equal(rec.charset, f.charset, `${schema.code} ${f.key}/${id} charset 應與 form 同步`);
-    }
-    assert.equal(rec.label, f.label, `${schema.code} ${f.key}/${id} label 應與 form 同步`);
-  }
+  const recs = schema.records.detail.fields;
+  assert.equal(
+    schema.form.detail.length,
+    recs.length,
+    `${schema.code} form.detail 筆數應與 records.detail 相同`,
+  );
+  assert.equal(schema.form.detail[0]?.id, recs[0]?.id, `${schema.code} form/records 首欄應同為 ${recs[0]?.id}`);
+  recs.forEach((rec, i) => {
+    const f = schema.form.detail[i];
+    assert.equal(f.id, rec.id, `${schema.code} form.detail[${i}] id`);
+    assert.equal(f.label, rec.label, `${schema.code} form.detail[${i}] ${rec.id} label`);
+    assert.equal(f.length, rec.length, `${schema.code} form.detail[${i}] ${rec.id} length`);
+    assert.equal(f.digitStart, rec.digitStart, `${schema.code} form.detail[${i}] ${rec.id} digitStart`);
+    assert.equal(f.digitEnd, rec.digitEnd, `${schema.code} form.detail[${i}] ${rec.id} digitEnd`);
+  });
 }
 assertDetailDigits(achp01);
 

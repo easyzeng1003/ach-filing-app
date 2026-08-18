@@ -255,38 +255,51 @@
     ],
     "detail": [
       {
-        "key": "seq",
-        "label": "序號",
-        "placeholder": "00000001",
+        "key": "type",
+        "id": "TYPE",
+        "label": "交易型態",
         "inputType": "text",
-        "length": 8,
-        "digitStart": 7,
-        "digitEnd": 14,
-        "charset": "digit",
+        "length": 1,
+        "digitStart": 1,
+        "digitEnd": 1,
+        "charset": "alnum",
         "required": false,
+        "hidden": true,
         "pad": {
-          "side": "left",
-          "char": "0",
-          "onBlur": true
-        },
-        "validation": {
-          "rules": [
-            {
-              "type": "maxLength",
-              "length": 8,
-              "message": "序號長度不符"
-            }
-          ]
+          "side": "none"
         },
         "picker": null,
         "ui": {
           "mono": true,
-          "minWidth": "5.5rem"
+          "minWidth": "5rem"
         },
-        "filterable": true
+        "filterable": false
+      },
+      {
+        "key": "txType",
+        "id": "TXTYPE",
+        "label": "交易類別（SD 代收／SC 代付）",
+        "inputType": "text",
+        "length": 2,
+        "digitStart": 2,
+        "digitEnd": 3,
+        "charset": "alnum",
+        "required": false,
+        "hidden": true,
+        "pad": {
+          "side": "right",
+          "char": " "
+        },
+        "picker": null,
+        "ui": {
+          "mono": true,
+          "minWidth": "5rem"
+        },
+        "filterable": false
       },
       {
         "key": "txid",
+        "id": "TXID",
         "label": "交易代號",
         "placeholder": "704",
         "inputType": "text",
@@ -319,7 +332,40 @@
         "filterable": true
       },
       {
+        "key": "seq",
+        "id": "SEQ",
+        "label": "序號",
+        "placeholder": "00000001",
+        "inputType": "text",
+        "length": 8,
+        "digitStart": 7,
+        "digitEnd": 14,
+        "charset": "digit",
+        "required": false,
+        "pad": {
+          "side": "left",
+          "char": "0",
+          "onBlur": true
+        },
+        "validation": {
+          "rules": [
+            {
+              "type": "maxLength",
+              "length": 8,
+              "message": "序號長度不符"
+            }
+          ]
+        },
+        "picker": null,
+        "ui": {
+          "mono": true,
+          "minWidth": "5.5rem"
+        },
+        "filterable": true
+      },
+      {
         "key": "origBankCode",
+        "id": "PBANK",
         "label": "提出行代號",
         "inputType": "text",
         "length": 7,
@@ -358,6 +404,7 @@
       },
       {
         "key": "origAccount",
+        "id": "PCLNO",
         "label": "發動者帳號",
         "inputType": "text",
         "length": 16,
@@ -399,6 +446,7 @@
       },
       {
         "key": "bankCode",
+        "id": "RBANK",
         "label": "收受者銀行代號",
         "inputType": "text",
         "length": 7,
@@ -437,6 +485,7 @@
       },
       {
         "key": "account",
+        "id": "RCLNO",
         "label": "收受者帳號",
         "inputType": "text",
         "length": 16,
@@ -478,6 +527,7 @@
       },
       {
         "key": "amount",
+        "id": "AMT",
         "label": "金額",
         "inputType": "amount",
         "length": 10,
@@ -524,6 +574,7 @@
       },
       {
         "key": "rcode",
+        "id": "RCODE",
         "label": "退件理由代號",
         "inputType": "text",
         "length": 2,
@@ -562,7 +613,51 @@
         "filterable": true
       },
       {
+        "key": "schd",
+        "id": "SCHD",
+        "label": "提示交換次序",
+        "inputType": "text",
+        "length": 1,
+        "digitStart": 73,
+        "digitEnd": 73,
+        "charset": "alnum",
+        "required": false,
+        "hidden": true,
+        "pad": {
+          "side": "none"
+        },
+        "picker": null,
+        "ui": {
+          "mono": true,
+          "minWidth": "5rem"
+        },
+        "filterable": false
+      },
+      {
+        "key": "cid",
+        "id": "CID",
+        "label": "發動者統一編號",
+        "inputType": "text",
+        "length": 10,
+        "digitStart": 74,
+        "digitEnd": 83,
+        "charset": "alnum",
+        "required": false,
+        "hidden": true,
+        "pad": {
+          "side": "right",
+          "char": " "
+        },
+        "picker": null,
+        "ui": {
+          "mono": true,
+          "minWidth": "5rem"
+        },
+        "filterable": false
+      },
+      {
         "key": "taxId",
+        "id": "PID",
         "label": "收受者統一編號",
         "inputType": "text",
         "length": 10,
@@ -602,7 +697,29 @@
         "filterable": true
       },
       {
+        "key": "sid",
+        "id": "SID",
+        "label": "上市上櫃公司代號",
+        "inputType": "text",
+        "length": 6,
+        "digitStart": 94,
+        "digitEnd": 99,
+        "charset": "alnum",
+        "required": false,
+        "hidden": true,
+        "pad": {
+          "side": "none"
+        },
+        "picker": null,
+        "ui": {
+          "mono": true,
+          "minWidth": "5rem"
+        },
+        "filterable": false
+      },
+      {
         "key": "pdate",
+        "id": "PDATE",
         "label": "原提示交易日期",
         "inputType": "rocDate",
         "length": 8,
@@ -642,6 +759,7 @@
       },
       {
         "key": "pseq",
+        "id": "PSEQ",
         "label": "原提示交易序號",
         "inputType": "text",
         "length": 8,
@@ -684,6 +802,7 @@
       },
       {
         "key": "pschd",
+        "id": "PSCHD",
         "label": "原提示交換次序",
         "inputType": "text",
         "length": 1,
@@ -691,6 +810,7 @@
         "digitEnd": 116,
         "charset": "alnum",
         "required": false,
+        "hidden": true,
         "pad": {
           "side": "none"
         },
@@ -718,6 +838,7 @@
       },
       {
         "key": "userNo",
+        "id": "CNO",
         "label": "用戶號碼（代收 SD 必填）",
         "inputType": "text",
         "length": 20,
@@ -758,6 +879,111 @@
           "minWidth": "7rem"
         },
         "filterable": true
+      },
+      {
+        "key": "note",
+        "id": "NOTE",
+        "label": "發動者專用區",
+        "inputType": "text",
+        "length": 40,
+        "digitStart": 137,
+        "digitEnd": 176,
+        "charset": "alnum",
+        "required": false,
+        "hidden": true,
+        "pad": {
+          "side": "none"
+        },
+        "picker": null,
+        "ui": {
+          "mono": true,
+          "minWidth": "5rem"
+        },
+        "filterable": false
+      },
+      {
+        "key": "memo",
+        "id": "MEMO",
+        "label": "存摺摘要",
+        "inputType": "text",
+        "length": 10,
+        "digitStart": 177,
+        "digitEnd": 186,
+        "charset": "alnum",
+        "required": false,
+        "hidden": true,
+        "pad": {
+          "side": "none"
+        },
+        "picker": null,
+        "ui": {
+          "mono": true,
+          "minWidth": "5rem"
+        },
+        "filterable": false
+      },
+      {
+        "key": "cfee",
+        "id": "CFEE",
+        "label": "客戶支付手續費",
+        "inputType": "text",
+        "length": 5,
+        "digitStart": 187,
+        "digitEnd": 191,
+        "charset": "alnum",
+        "required": false,
+        "hidden": true,
+        "pad": {
+          "side": "none"
+        },
+        "picker": null,
+        "ui": {
+          "mono": true,
+          "minWidth": "5rem"
+        },
+        "filterable": false
+      },
+      {
+        "key": "noteb",
+        "id": "NOTEB",
+        "label": "發動行專用區",
+        "inputType": "text",
+        "length": 20,
+        "digitStart": 192,
+        "digitEnd": 211,
+        "charset": "alnum",
+        "required": false,
+        "hidden": true,
+        "pad": {
+          "side": "none"
+        },
+        "picker": null,
+        "ui": {
+          "mono": true,
+          "minWidth": "5rem"
+        },
+        "filterable": false
+      },
+      {
+        "key": "filler",
+        "id": "FILLER",
+        "label": "備用",
+        "inputType": "text",
+        "length": 39,
+        "digitStart": 212,
+        "digitEnd": 250,
+        "charset": "alnum",
+        "required": false,
+        "hidden": true,
+        "pad": {
+          "side": "none"
+        },
+        "picker": null,
+        "ui": {
+          "mono": true,
+          "minWidth": "5rem"
+        },
+        "filterable": false
       }
     ]
   },

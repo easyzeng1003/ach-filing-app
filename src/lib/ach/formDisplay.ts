@@ -1,46 +1,12 @@
 import type { FormatSchema, FormFieldDef } from "./schema";
 
-/** 明細表不顯示的 form.detail key（仍寫入固定長度檔） */
-const HIDDEN_DETAIL_KEYS = new Set(["pschd"]);
+export function isHiddenDetailField(field: FormFieldDef): boolean {
+  return field.hidden === true;
+}
 
-/**
- * 明細顯示欄序：提出行在前、收受行在後；
- * 自收受者帳號起比照 P01 `records.detail`（RCLNO → AMT → RCODE → PID → PDATE → PSEQ → CNO）。
- * 不改檔案位元組配置。
- */
-const R01_DISPLAY_ORDER = [
-  "seq",
-  "txid",
-  "origBankCode",
-  "origAccount",
-  "bankCode",
-  "account",
-  "amount",
-  "rcode",
-  "taxId",
-  "pdate",
-  "pseq",
-  "userNo",
-] as const;
-
+/** 明細表欄序＝form.detail（與 records.detail 同步），略過 hidden */
 export function orderDetailFieldsForEdit(schema: FormatSchema): FormFieldDef[] {
-  const visible = schema.form.detail.filter(
-    (f) => !HIDDEN_DETAIL_KEYS.has(f.key),
-  );
-  if (schema.code !== "ACHR01") return visible;
-  const byKey = new Map(visible.map((f) => [f.key, f]));
-  const out: FormFieldDef[] = [];
-  const seen = new Set<string>();
-  for (const key of R01_DISPLAY_ORDER) {
-    const f = byKey.get(key);
-    if (!f) continue;
-    out.push(f);
-    seen.add(key);
-  }
-  for (const f of visible) {
-    if (!seen.has(f.key)) out.push(f);
-  }
-  return out;
+  return schema.form.detail.filter((f) => !isHiddenDetailField(f));
 }
 
 /** @deprecated 改用 orderDetailFieldsForEdit */

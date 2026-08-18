@@ -63,9 +63,9 @@ export function emptyDetailRow(schema: FormatSchema, id: string): DetailRow {
   return row;
 }
 
-/** 序號單獨填寫不視為有效明細（避免空白列被 SEQ 佔住） */
+/** 序號／hidden 欄不視為有效明細（避免空白列被 SEQ／TYPE 佔住） */
 function detailKeysForContent(schema: FormatSchema): FormFieldDef[] {
-  return schema.form.detail.filter((f) => f.key !== "seq");
+  return schema.form.detail.filter((f) => f.key !== "seq" && f.hidden !== true);
 }
 
 export function isRowEmpty(row: DetailRow, schema: FormatSchema): boolean {

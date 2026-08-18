@@ -37,6 +37,8 @@ export type ValidationRule =
 
 export type FormFieldDef = {
   key: string;
+  /** 對應 records.detail 欄位 ID（與檔案欄序同步） */
+  id?: string;
   label: string;
   placeholder?: string;
   inputType: "text" | "rocDate" | "amount" | "select";
@@ -53,6 +55,8 @@ export type FormFieldDef = {
    * 設為 false 可從篩選列隱藏該欄。
    */
   filterable?: boolean;
+  /** 寫入 JSON／檔案但不出現在編輯表（literal／filler／衍生欄） */
+  hidden?: boolean;
   export?: {
     charset?: Charset;
     length?: number;
