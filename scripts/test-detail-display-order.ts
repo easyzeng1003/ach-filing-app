@@ -23,10 +23,10 @@ const origBank = displayed.find((f) => f.key === "origBankCode");
 const origAcct = displayed.find((f) => f.key === "origAccount");
 const bank = displayed.find((f) => f.key === "bankCode");
 const account = displayed.find((f) => f.key === "account");
-assert.equal(origBank?.label, "提示行代號");
-assert.equal(origAcct?.label, "提示行帳號");
-assert.equal(bank?.label, "提回行代號");
-assert.equal(account?.label, "提回行帳號");
+assert.equal(origBank?.label, "提出行代號");
+assert.equal(origAcct?.label, "發動者帳號");
+assert.equal(bank?.label, "收受者銀行代號");
+assert.equal(account?.label, "收受者帳號");
 
 assert.ok(
   displayedKeys.indexOf("origBankCode") < displayedKeys.indexOf("bankCode"),
