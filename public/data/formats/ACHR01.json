@@ -451,85 +451,6 @@
         "filterable": true
       },
       {
-        "key": "taxId",
-        "label": "收受者統一編號",
-        "inputType": "text",
-        "length": 10,
-        "charset": "alnum",
-        "required": true,
-        "pad": {
-          "side": "none"
-        },
-        "validation": {
-          "rules": [
-            {
-              "type": "requiredIfAny",
-              "message": "收受者統一編號未輸入"
-            },
-            {
-              "type": "maxLength",
-              "length": 10,
-              "message": "統編最多10碼"
-            }
-          ]
-        },
-        "picker": null,
-        "export": {
-          "charset": "alnum",
-          "length": 10,
-          "pad": {
-            "side": "right",
-            "char": " "
-          }
-        },
-        "ui": {
-          "mono": true,
-          "minWidth": "7rem"
-        },
-        "filterable": true
-      },
-      {
-        "key": "userNo",
-        "label": "用戶號碼（代收 SD 必填）",
-        "inputType": "text",
-        "length": 20,
-        "charset": "alnum",
-        "required": false,
-        "pad": {
-          "side": "none"
-        },
-        "validation": {
-          "rules": [
-            {
-              "type": "requiredIfTxType",
-              "txTypes": [
-                "SD"
-              ],
-              "message": "用戶號碼未輸入"
-            },
-            {
-              "type": "maxLength",
-              "length": 20,
-              "message": "用戶號碼不可超過20個字"
-            }
-          ]
-        },
-        "picker": null,
-        "export": {
-          "charset": "alnum",
-          "length": 20,
-          "pad": {
-            "side": "right",
-            "char": " "
-          }
-        },
-        "ui": {
-          "mono": true,
-          "minWidth": "7rem"
-        },
-        "filterable": true
-      },
-      {
         "key": "amount",
         "label": "金額",
         "inputType": "amount",
@@ -607,6 +528,44 @@
         "ui": {
           "mono": true,
           "minWidth": "5rem"
+        },
+        "filterable": true
+      },
+      {
+        "key": "taxId",
+        "label": "收受者統一編號",
+        "inputType": "text",
+        "length": 10,
+        "charset": "alnum",
+        "required": true,
+        "pad": {
+          "side": "none"
+        },
+        "validation": {
+          "rules": [
+            {
+              "type": "requiredIfAny",
+              "message": "收受者統一編號未輸入"
+            },
+            {
+              "type": "maxLength",
+              "length": 10,
+              "message": "統編最多10碼"
+            }
+          ]
+        },
+        "picker": null,
+        "export": {
+          "charset": "alnum",
+          "length": 10,
+          "pad": {
+            "side": "right",
+            "char": " "
+          }
+        },
+        "ui": {
+          "mono": true,
+          "minWidth": "7rem"
         },
         "filterable": true
       },
@@ -718,6 +677,47 @@
           "minWidth": "4rem"
         },
         "filterable": false
+      },
+      {
+        "key": "userNo",
+        "label": "用戶號碼（代收 SD 必填）",
+        "inputType": "text",
+        "length": 20,
+        "charset": "alnum",
+        "required": false,
+        "pad": {
+          "side": "none"
+        },
+        "validation": {
+          "rules": [
+            {
+              "type": "requiredIfTxType",
+              "txTypes": [
+                "SD"
+              ],
+              "message": "用戶號碼未輸入"
+            },
+            {
+              "type": "maxLength",
+              "length": 20,
+              "message": "用戶號碼不可超過20個字"
+            }
+          ]
+        },
+        "picker": null,
+        "export": {
+          "charset": "alnum",
+          "length": 20,
+          "pad": {
+            "side": "right",
+            "char": " "
+          }
+        },
+        "ui": {
+          "mono": true,
+          "minWidth": "7rem"
+        },
+        "filterable": true
       }
     ]
   },
