@@ -1422,29 +1422,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                 選擇檔案上傳
               </Button>
               {fileInput}
-              <Stack
-                component="ol"
-                spacing={1}
-                sx={{
-                  mt: 4,
-                  mx: "auto",
-                  maxWidth: 360,
-                  pl: 2.5,
-                  textAlign: "left",
-                  color: "text.secondary",
-                  typography: "caption",
-                }}
-              >
-                <Typography component="li" variant="caption">
-                  依 BOF／EOF 判定 P01／R01；皆進入 R01 編輯畫面
-                </Typography>
-                <Typography component="li" variant="caption">
-                  預覽並確認表頭／明細／列長
-                </Typography>
-                <Typography component="li" variant="caption">
-                  編輯後按「輸出 P01」或「輸出 R01」時才完整檢核並轉檔
-                </Typography>
-              </Stack>
             </Paper>
           </CardContent>
         </Card>
