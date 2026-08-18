@@ -40,6 +40,7 @@ import {
   headerHasError,
   isRowEmpty,
   rowErrorMessages,
+  sumDetailRecordAmounts,
   syncHeaderFromDetails,
   validateBuiltControlDates,
   validateDetailRow,
@@ -1252,6 +1253,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           }
         : {}),
     };
+    const exportAmount = sumDetailRecordAmounts(detailLines, outSchema);
     const { headerLine, trailerLine } = buildExportControlLines(outSchema, {
       sourceHeaderLine: sourceHeader,
       sourceTrailerLine: sourceTrailer,
@@ -1259,7 +1261,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       processDate,
       agentBank: schema.code === "ACHR01" ? exportAgentBank : null,
       detailCount: detailLines.length,
-      totalAmount: generated.amount,
+      totalAmount: exportAmount,
       txids,
       branches,
     });
@@ -1284,7 +1286,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       totalBefore: filtered.totalBefore,
       excludedCount: filtered.excludedCount,
       detailCount: detailLines.length,
-      amount: generated.amount,
+      amount: exportAmount,
       partCount: null,
       action,
     };

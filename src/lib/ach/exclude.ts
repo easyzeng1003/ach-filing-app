@@ -9,6 +9,7 @@
  * - 比對：eq＝精確相等；like＝包含（類似 String.includes，不分大小寫）
  * - 金額／數字欄另去千分位後再比
  */
+import { isRowEmpty } from "./engine";
 import { parseRecordFields } from "./import";
 import type { DetailRow, FormatSchema, FormFieldDef } from "./schema";
 
@@ -62,7 +63,13 @@ export function normalizeExcludeCell(
   field?: FormFieldDef,
 ): string {
   let v = String(raw ?? "").trim();
-  if (field?.inputType === "amount" || field?.charset === "digit") {
+  if (field?.inputType === "amount") {
+    v = v.replace(/,/g, "").replace(/\s/g, "");
+    const n = Number(v);
+    if (Number.isFinite(n)) return String(Math.floor(n));
+    return v;
+  }
+  if (field?.charset === "digit") {
     v = v.replace(/,/g, "").replace(/\s/g, "");
   }
   return v;
@@ -340,13 +347,18 @@ export function filterExcludedRows(
   rows: DetailRow[],
   doc: ExcludeRulesDoc | null | undefined,
 ): ExcludeFilterResult<DetailRow> {
+  const populated = rows.filter((r) => !isRowEmpty(r, schema));
   if (!doc?.rules.length) {
-    return { kept: rows, excludedCount: 0, totalBefore: rows.length };
+    return {
+      kept: populated,
+      excludedCount: 0,
+      totalBefore: populated.length,
+    };
   }
   const keepMatches = resolveExcludeAction(doc) === "filter";
   const kept: DetailRow[] = [];
   let excludedCount = 0;
-  for (const row of rows) {
+  for (const row of populated) {
     const matched = rowMatchesAnyExcludeRule(
       detailValuesFromRow(row),
       doc,
@@ -356,7 +368,7 @@ export function filterExcludedRows(
     if (keep) kept.push(row);
     else excludedCount += 1;
   }
-  return { kept, excludedCount, totalBefore: rows.length };
+  return { kept, excludedCount, totalBefore: populated.length };
 }
 
 export function filterExcludedDetailLines(
