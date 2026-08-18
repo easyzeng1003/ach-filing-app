@@ -15,6 +15,7 @@ export type FilterOptions = {
 
 /** 欄位是否可篩選：預設 true，JSON 可設 filterable: false 關閉 */
 export function isFieldFilterable(field: FormFieldDef): boolean {
+  if (field.hidden) return false;
   return field.filterable !== false;
 }
 
