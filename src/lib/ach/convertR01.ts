@@ -8,7 +8,7 @@
  * - 退件時每個明細列 1-based 第 15–37 碼與第 38–60 碼對調
  *   （PBANK+PCLNO ↔ RBANK+RCLNO）
  * - 退件必填：RCODE、PDATE、PSEQ、PSCHD（轉回 P01 時清空為 filler）
- * - 輸出 R01 時 PSEQ（1-based 108–115）＝原上傳檔該列 SEQ（1-based 7–14）
+ * - 輸出 R01 時 PSEQ 用該列表單 pseq（上傳檔原值）；空白才回退 SEQ／列序
  * - Trailer YDATE：ACHR01 為 TDATE 前一日（ACHP01 空白）
  *
  * 輸出：單一整檔（不依收受行分檔）；
@@ -71,7 +71,7 @@ export type ConvertP01ToR01Options = {
   pdate?: string;
   /**
    * 原提示序號起算偏移（分塊轉檔、且列上無原上傳 SEQ 時）。
-   * 實際 PSEQ 優先＝該列上傳檔 SEQ（7–14）；否則 seqOffset + 塊內序號。
+   * 實際 PSEQ 優先＝該列表單 pseq（檔案原值）；空白才用 SEQ 或 seqOffset + 塊內序號。
    */
   seqOffset?: number;
   /**
@@ -131,12 +131,12 @@ function padSeq8(seq: number | string): string {
   return d.padStart(8, "0").slice(-8);
 }
 
-/** R01 PSEQ ← 原上傳檔該列 SEQ（7–14）；無則用列序 */
+/** R01 PSEQ ← 檔案／表單 pseq；空白才回退 SEQ 或列序 */
 function pseqFromUploadedSeq(row: DetailRow, fallbackSeq: number): string {
-  const fromSeq = safeDigits(String(row.seq ?? ""));
-  if (fromSeq) return padSeq8(fromSeq);
   const fromPseq = safeDigits(String(row.pseq ?? ""));
   if (fromPseq) return padSeq8(fromPseq);
+  const fromSeq = safeDigits(String(row.seq ?? ""));
+  if (fromSeq) return padSeq8(fromSeq);
   return padSeq8(fallbackSeq);
 }
 

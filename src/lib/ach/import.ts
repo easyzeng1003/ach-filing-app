@@ -330,9 +330,6 @@ export function adaptP01ImportToR01(
     if (!String(next.origAccount ?? "").trim()) {
       next.origAccount = String(result.header.account ?? "");
     }
-    if (!String(next.pseq ?? "").trim()) {
-      next.pseq = String(row.seq ?? "");
-    }
     return next;
   };
 
@@ -432,11 +429,9 @@ function detailRowFromFields(
       const v = fieldText(f);
       if (v) row.txid = v;
     }
-  }
-  // 輸出 R01 時 PSEQ＝原上傳檔 SEQ；匯入後表單原提示序號與之一致
-  if (schema.code === "ACHR01") {
-    const uploadedSeq = String(row.seq ?? "").trim();
-    if (uploadedSeq) row.pseq = uploadedSeq;
+    if (f.id === "PSEQ") {
+      row.pseq = fieldText(f);
+    }
   }
   return row;
 }

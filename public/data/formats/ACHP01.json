@@ -1149,11 +1149,16 @@
         },
         {
           "id": "PSEQ",
-          "source": "filler",
+          "source": "detail",
+          "key": "pseq",
           "length": 8,
           "digitStart": 108,
           "digitEnd": 115,
-          "fill": " ",
+          "charset": "digit",
+          "pad": {
+            "side": "left",
+            "char": "0"
+          },
           "label": "原提示交易序號"
         },
         {
