@@ -5,6 +5,7 @@ import type {
   RecordFieldDef,
 } from "./schema";
 import { emptyDetailRow, emptyHeader } from "./engine";
+import { digitRangeOf } from "./field";
 import { newRowId, safeDigits, toHalfWidthAlnum } from "./utils";
 import {
   emptyDetailFilters,
@@ -244,9 +245,14 @@ export function parseRecordFields(
   const out: ParsedRecordField[] = [];
   let offset = 0;
   for (const def of fields) {
+    const range = digitRangeOf(def);
     const raw =
-      offset >= line.length ? "" : line.slice(offset, offset + def.length);
-    offset += def.length;
+      range
+        ? line.slice(range.start - 1, range.end)
+        : offset >= line.length
+          ? ""
+          : line.slice(offset, offset + def.length);
+    offset = range ? range.end : offset + def.length;
     out.push({
       id: def.id,
       source: def.source,
@@ -431,6 +437,9 @@ function detailRowFromFields(
     }
     if (f.id === "PSEQ") {
       row.pseq = fieldText(f);
+    }
+    if (f.id === "RCODE") {
+      row.rcode = fieldText(f);
     }
   }
   return row;

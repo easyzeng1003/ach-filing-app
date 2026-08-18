@@ -252,10 +252,12 @@ export function recordFieldRaw(
 ): string {
   let offset = 0;
   for (const f of fields) {
+    const start = f.digitStart && f.digitEnd ? f.digitStart - 1 : offset;
+    const end = f.digitStart && f.digitEnd ? f.digitEnd : offset + f.length;
     if (f.id === id) {
-      return offset >= line.length ? "" : line.slice(offset, offset + f.length);
+      return start >= line.length ? "" : line.slice(start, end);
     }
-    offset += f.length;
+    offset = f.digitEnd ?? offset + f.length;
   }
   return "";
 }
