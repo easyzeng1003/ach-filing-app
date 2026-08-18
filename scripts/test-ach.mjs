@@ -100,28 +100,102 @@ const FORM_KEY_TO_RECORD_ID = {
   pschd: "PSCHD",
   userNo: "CNO",
 };
-function assertDetailDigits(schema) {
+const SPEC_HEADER_DIGITS = {
+  BOF: [1, 3],
+  CDATA: [4, 9],
+  TDATE: [10, 17],
+  TTIME: [18, 23],
+  SORG: [24, 30],
+  RORG: [31, 37],
+  VERNO: [38, 40],
+  FILLER: [41, 250],
+};
+const SPEC_TRAILER_DIGITS = {
+  EOF: [1, 3],
+  CDATA: [4, 9],
+  TDATE: [10, 17],
+  SORG: [18, 24],
+  RORG: [25, 31],
+  TCOUNT: [32, 39],
+  TAMT: [40, 55],
+  YDATE: [56, 63],
+  FILLER: [64, 250],
+};
+
+function assertSectionDigits(schema, section, spec) {
   let cursor = 1;
-  for (const f of schema.records.detail.fields) {
-    const spec = SPEC_DETAIL_DIGITS[f.id];
-    assert.ok(spec, `${schema.code} records.detail 未知欄 ${f.id}`);
-    assert.equal(f.digitStart, spec[0], `${schema.code} ${f.id} digitStart`);
-    assert.equal(f.digitEnd, spec[1], `${schema.code} ${f.id} digitEnd`);
+  for (const f of schema.records[section].fields) {
+    const pos = spec[f.id];
+    assert.ok(pos, `${schema.code} records.${section} 未知欄 ${f.id}`);
+    assert.equal(f.digitStart, pos[0], `${schema.code} ${section} ${f.id} digitStart`);
+    assert.equal(f.digitEnd, pos[1], `${schema.code} ${section} ${f.id} digitEnd`);
     assert.equal(
       f.digitEnd - f.digitStart + 1,
       f.length,
-      `${schema.code} ${f.id} 起迄與長度不符`,
+      `${schema.code} ${section} ${f.id} 起迄與長度不符`,
     );
-    assert.equal(f.digitStart, cursor, `${schema.code} ${f.id} 應緊接前欄`);
+    assert.equal(f.digitStart, cursor, `${schema.code} ${section} ${f.id} 應緊接前欄`);
     cursor = f.digitEnd + 1;
   }
-  assert.equal(cursor, schema.recordLength + 1, `${schema.code} 明細應覆蓋 1–250`);
+  assert.equal(
+    cursor,
+    schema.recordLength + 1,
+    `${schema.code} ${section} 應覆蓋 1–${schema.recordLength}`,
+  );
+}
+
+function assertDetailDigits(schema) {
+  assertSectionDigits(schema, "header", SPEC_HEADER_DIGITS);
+  assertSectionDigits(schema, "detail", SPEC_DETAIL_DIGITS);
+  assertSectionDigits(schema, "trailer", SPEC_TRAILER_DIGITS);
+  const headerDigits = {
+    ACHP01: {
+      date: [10, 17],
+      agentBank: [24, 30],
+      txid: [4, 6],
+      bankCode: [15, 21],
+      account: [22, 37],
+      taxId: [74, 83],
+    },
+    ACHR01: {
+      date: [10, 17],
+      agentBank: [31, 37],
+      txid: [4, 6],
+      bankCode: [38, 44],
+      account: [45, 60],
+      taxId: [74, 83],
+      ydate: [56, 63],
+    },
+  }[schema.code];
+  assert.ok(headerDigits, `${schema.code} form.header digit 對照`);
+  for (const f of schema.form.header) {
+    const pos = headerDigits[f.key];
+    assert.ok(pos, `${schema.code} form.header ${f.key} 缺 digit 對照`);
+    assert.equal(f.digitStart, pos[0], `${schema.code} form.header ${f.key} digitStart`);
+    assert.equal(f.digitEnd, pos[1], `${schema.code} form.header ${f.key} digitEnd`);
+    assert.equal(
+      f.digitEnd - f.digitStart + 1,
+      f.length,
+      `${schema.code} form.header ${f.key} 起迄與長度不符`,
+    );
+  }
   for (const f of schema.form.detail) {
     const id = FORM_KEY_TO_RECORD_ID[f.key];
     const spec = SPEC_DETAIL_DIGITS[id];
     assert.ok(spec, `${schema.code} form.detail ${f.key} 無對應規格`);
     assert.equal(f.digitStart, spec[0], `${schema.code} form ${f.key} digitStart`);
     assert.equal(f.digitEnd, spec[1], `${schema.code} form ${f.key} digitEnd`);
+    const rec = schema.records.detail.fields.find(
+      (r) => r.id === id && r.source === "detail",
+    );
+    assert.ok(rec, `${schema.code} records.detail 缺 ${id}`);
+    assert.equal(rec.digitStart, f.digitStart, `${schema.code} ${f.key}/${id} digitStart 應與 form 同步`);
+    assert.equal(rec.digitEnd, f.digitEnd, `${schema.code} ${f.key}/${id} digitEnd 應與 form 同步`);
+    assert.equal(rec.length, f.length, `${schema.code} ${f.key}/${id} length 應與 form 同步`);
+    if (rec.charset && f.charset) {
+      assert.equal(rec.charset, f.charset, `${schema.code} ${f.key}/${id} charset 應與 form 同步`);
+    }
+    assert.equal(rec.label, f.label, `${schema.code} ${f.key}/${id} label 應與 form 同步`);
   }
 }
 assertDetailDigits(achp01);
