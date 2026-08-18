@@ -925,16 +925,23 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       clearPartitionSession();
     }
     resetEditSessionUi();
-    const sourceHeaderLine = result.lines.find((l) => l.kind === "header")?.raw;
-    const sourceTrailerLine = result.lines.find((l) => l.kind === "trailer")?.raw;
+    const r01 = formats.ACHR01;
+    if (!r01) {
+      toast.error("找不到 ACHR01 格式定義");
+      return;
+    }
+    const adapted =
+      result.schema.code === "ACHP01" ? adaptP01ImportToR01(result, r01) : result;
+    const sourceHeaderLine = adapted.lines.find((l) => l.kind === "header")?.raw;
+    const sourceTrailerLine = adapted.lines.find((l) => l.kind === "trailer")?.raw;
     loadFromImport(
-      result.schema,
+      r01,
       {
-        header: result.header,
-        rows: result.rows,
+        header: adapted.header,
+        rows: adapted.rows,
       },
       {
-        fileName: result.filename,
+        fileName: adapted.filename,
         sourceHeaderLine,
         sourceTrailerLine,
       },
