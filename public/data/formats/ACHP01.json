@@ -233,6 +233,73 @@
         "filterable": true
       },
       {
+        "key": "origBankCode",
+        "label": "提出行代號",
+        "inputType": "text",
+        "length": 7,
+        "charset": "digit",
+        "required": false,
+        "pad": {
+          "side": "none"
+        },
+        "validation": {
+          "rules": [
+            {
+              "type": "branchCode",
+              "message": "提出行代號錯誤"
+            }
+          ]
+        },
+        "picker": null,
+        "export": {
+          "charset": "digit",
+          "length": 7,
+          "pad": {
+            "side": "none"
+          }
+        },
+        "ui": {
+          "mono": true,
+          "minWidth": "7rem"
+        },
+        "filterable": true
+      },
+      {
+        "key": "origAccount",
+        "label": "發動者帳號",
+        "inputType": "text",
+        "length": 16,
+        "charset": "digit",
+        "required": false,
+        "pad": {
+          "side": "left",
+          "char": "0",
+          "onBlur": true
+        },
+        "validation": {
+          "rules": [
+            {
+              "type": "maxLength",
+              "length": 16,
+              "message": "發動者帳號長度不符"
+            }
+          ]
+        },
+        "picker": null,
+        "export": {
+          "charset": "digit",
+          "length": 16,
+          "pad": {
+            "side": "none"
+          }
+        },
+        "ui": {
+          "mono": true,
+          "minWidth": "9rem"
+        },
+        "filterable": true
+      },
+      {
         "key": "bankCode",
         "label": "收受者銀行代號",
         "inputType": "text",
@@ -481,6 +548,7 @@
           "source": "literal",
           "value": "9990250",
           "length": 7,
+          "charset": "digit",
           "label": "接收單位代號"
         },
         {
@@ -548,19 +616,25 @@
         },
         {
           "id": "PBANK",
-          "source": "header",
-          "key": "bankCode",
+          "source": "detail",
+          "key": "origBankCode",
           "length": 7,
           "charset": "digit",
-          "label": "提出行代號"
+          "label": "提出行代號",
+          "pad": {
+            "side": "none"
+          }
         },
         {
           "id": "PCLNO",
-          "source": "header",
-          "key": "account",
+          "source": "detail",
+          "key": "origAccount",
           "length": 16,
           "charset": "digit",
-          "label": "發動者帳號"
+          "label": "發動者帳號",
+          "pad": {
+            "side": "none"
+          }
         },
         {
           "id": "RBANK",
@@ -752,6 +826,7 @@
           "source": "literal",
           "value": "9990250",
           "length": 7,
+          "charset": "digit",
           "label": "接收單位代號"
         },
         {

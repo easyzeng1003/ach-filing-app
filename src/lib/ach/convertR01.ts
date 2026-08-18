@@ -440,6 +440,11 @@ export function convertR01ToP01(
       taxId: String(row.taxId ?? ""),
       userNo: String(row.userNo ?? ""),
       amount: String(row.amount ?? ""),
+      origBankCode: presenter.bank,
+      origAccount:
+        presenter.acct.length < 16
+          ? presenter.acct.padStart(16, "0")
+          : presenter.acct,
       ...(txid ? { txid } : {}),
     });
   }
