@@ -551,12 +551,21 @@ export function swapR01DetailBankAccountBlocks(line: string): string {
   );
 }
 
+export type GenerateFromSchemaOptions = {
+  /**
+   * ACHR01 預設對調第 15–37／38–60 碼。
+   * 上傳 P01 後寫入分割工作區再解析時須關閉，否則提示行／收受者會反過來。
+   */
+  swapR01Banks?: boolean;
+};
+
 export function generateFromSchema(
   schema: FormatSchema,
   header: HeaderValues,
   rows: DetailRow[],
   txids: Txid[],
   branches: Branch[],
+  options?: GenerateFromSchemaOptions,
 ): GenerateResult {
   const amountKey = schema.features.amountKey;
   const nonEmpty = rows.filter((r) => !isRowEmpty(r, schema));
@@ -600,7 +609,7 @@ export function generateFromSchema(
       detail: row,
       seq,
     });
-    if (schema.code === "ACHR01") {
+    if (schema.code === "ACHR01" && options?.swapR01Banks !== false) {
       rec = swapR01DetailBankAccountBlocks(rec);
     }
     lines.push(rec);

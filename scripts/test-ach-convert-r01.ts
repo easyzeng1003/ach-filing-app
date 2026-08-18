@@ -418,6 +418,31 @@ assert.equal(multiTrl.slice(24, 31), "8220901", "EOF RORG");
   assert.equal(asR01.rows[1]!.bankCode, "8120053");
   assert.equal(asR01.rows[1]!.account, "0000000111222333");
   assert.equal(asR01.rows[0]!.pseq, parsedP.rows[0]!.seq, "P01 SEQ→R01 原提示序號");
+  assert.equal(
+    parsedP.header.bankCode,
+    "0040000",
+    "P01 表頭 bankCode＝提出行／發動者，不可被收受者覆蓋",
+  );
+  assert.equal(
+    parsedP.header.account,
+    "0000001234567890",
+    "P01 表頭 account＝發動者帳號",
+  );
+
+  // 上傳 P01 寫入工作區再解析：不可先對調，否則提示行／收受者會反
+  const stored = generateFromSchema(
+    r01,
+    asR01.header,
+    asR01.rows,
+    EMBEDDED_TXIDS,
+    EMBEDDED_BRANCHES,
+    { swapR01Banks: false },
+  );
+  const reparsed = parseAchText(stored.content, r01, { filename: "from-p01.txt" });
+  assert.equal(reparsed.rows[0]!.origBankCode, "0040000", "再解析提示行＝發動者");
+  assert.equal(reparsed.rows[0]!.origAccount, "0000001234567890");
+  assert.equal(reparsed.rows[0]!.bankCode, "8120053", "再解析提回行＝收受者");
+  assert.equal(reparsed.rows[0]!.account, "0000000987654321");
 }
 
 // 輸出 R01：PSEQ（108–115）＝原上傳檔該列 SEQ（7–14），逐列不抄首筆

@@ -277,6 +277,7 @@ export function rewriteSessionPartsFromP01ToR01(
       adapted.rows,
       txids,
       branches,
+      { swapR01Banks: false },
     );
     return { filename: p.filename, content: gen.content };
   });

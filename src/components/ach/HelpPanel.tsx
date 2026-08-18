@@ -168,7 +168,9 @@ export function HelpPanel() {
           <strong className="text-fg">接收單位 RORG＝代表行代號</strong>。
           輸出 R01 時開啟對話框填入退件理由（RCODE），並將每個明細列第 15–37 碼與第 38–60 碼對調（PBANK+PCLNO ↔ RBANK+RCLNO）。
           每個明細列第 108–115 碼（PSEQ）填入原上傳檔該列第 7–14 碼（SEQ）。
-          上傳 R01 依檔案原樣解析，不先對調 P／R。來源為提回檔時，輸出 P01 再對調回提出檔。
+          上傳 R01 依檔案原樣解析，不先對調 P／R。
+          上傳 P01 時提示行／發動者＝提出行（PBANK／PCLNO），收受者＝RBANK／RCLNO，不對調。
+          來源為提回檔時，輸出 P01 再對調回提出檔。
           「包含」只要欄位值含輸入字串即命中（類似{" "}
           <code className="font-mono text-xs">String.includes</code>
           ，不區分大小寫；JSON 運算子仍為{" "}
