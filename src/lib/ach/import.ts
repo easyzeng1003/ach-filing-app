@@ -317,19 +317,22 @@ export function adaptP01ImportToR01(
 
   const mapRow = (row: DetailRow): DetailRow => {
     const next = emptyDetailRow(r01, row.id || newRowId());
-    next.seq = String(row.seq ?? "");
-    next.txid = String(row.txid ?? result.header.txid ?? "");
-    // 收受者＝P01 RBANK／RCLNO（勿與提出行／發動者對調）
-    next.bankCode = String(row.bankCode ?? "");
-    next.account = String(row.account ?? "");
-    next.taxId = String(row.taxId ?? "");
-    next.userNo = String(row.userNo ?? "");
-    next.amount = String(row.amount ?? "");
-    next.origBankCode = String(
-      row.origBankCode ?? result.header.bankCode ?? "",
-    );
-    next.origAccount = String(row.origAccount ?? result.header.account ?? "");
-    next.pseq = String(row.seq ?? "");
+    // 欄位對應依 R01 JSON form.detail key，不另寫欄位表
+    for (const f of r01.form.detail) {
+      next[f.key] = String(row[f.key] ?? "");
+    }
+    if (!String(next.txid ?? "").trim()) {
+      next.txid = String(result.header.txid ?? "");
+    }
+    if (!String(next.origBankCode ?? "").trim()) {
+      next.origBankCode = String(result.header.bankCode ?? "");
+    }
+    if (!String(next.origAccount ?? "").trim()) {
+      next.origAccount = String(result.header.account ?? "");
+    }
+    if (!String(next.pseq ?? "").trim()) {
+      next.pseq = String(row.seq ?? "");
+    }
     return next;
   };
 
@@ -337,18 +340,26 @@ export function adaptP01ImportToR01(
   const previewRows = result.previewRows.map(mapRow);
   const first = rows[0] ?? previewRows[0];
   const header = emptyHeader(r01);
-  header.date = String(result.header.date ?? "");
-  header.txid = String(result.header.txid ?? first?.txid ?? "");
-  header.taxId = String(result.header.taxId ?? "");
-  header.bankCode = String(first?.bankCode ?? "");
-  header.account = String(first?.account ?? "");
-  header.agentBank =
-    result.uniformReturnBank ??
-    inferUniformR01ReturnBank(
-      (rows.length ? rows : previewRows).map((r) => r.bankCode),
-    ) ??
-    "";
-  header.ydate = String(result.header.ydate ?? "");
+  for (const f of r01.form.header) {
+    header[f.key] = String(result.header[f.key] ?? "");
+  }
+  if (!String(header.txid ?? "").trim()) {
+    header.txid = String(first?.txid ?? "");
+  }
+  if (!String(header.bankCode ?? "").trim()) {
+    header.bankCode = String(first?.bankCode ?? "");
+  }
+  if (!String(header.account ?? "").trim()) {
+    header.account = String(first?.account ?? "");
+  }
+  if (!String(header.agentBank ?? "").trim()) {
+    header.agentBank =
+      result.uniformReturnBank ??
+      inferUniformR01ReturnBank(
+        (rows.length ? rows : previewRows).map((r) => r.bankCode),
+      ) ??
+      "";
+  }
 
   return {
     ...result,
