@@ -4,7 +4,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { EMBEDDED_BRANCHES, EMBEDDED_TXIDS, loadEmbeddedFormats } from "../src/data/embedded";
-import { generateFromSchema } from "../src/lib/ach/engine";
+import {
+  generateFromSchema,
+  sumDetailRecordAmounts,
+} from "../src/lib/ach/engine";
 import {
   buildExcludeDocFromConditions,
   filterExcludedDetailLines,
@@ -32,6 +35,15 @@ assert.ok(doc.rules.length >= 2);
 const formats = loadEmbeddedFormats();
 const p01 = formats.ACHP01!;
 
+assert.equal(
+  rowMatchesExcludeRule(
+    { bankCode: "0040000", amount: "0000001000", account: "x" },
+    { bankCode: "0040000", amount: "1000" },
+    p01,
+  ),
+  true,
+  "amount eq must ignore leading zeros",
+);
 assert.equal(
   rowMatchesExcludeRule(
     { bankCode: "0040000", amount: "1000", account: "x" },
@@ -166,6 +178,22 @@ const merged = mergeAchPartitions(
 assert.equal(merged.totalBeforeExclude, 3);
 assert.equal(merged.excludedCount, 2);
 assert.equal(merged.detailCount, 1);
+assert.equal(merged.amount, 300, "merge exclude TAMT = kept AMT");
+{
+  const eof = merged.content
+    .replace(/\r\n/g, "\n")
+    .trim()
+    .split("\n")
+    .find((l) => l.startsWith("EOF"));
+  assert.ok(eof);
+  assert.equal(Number(eof.slice(39, 55)), 300, "merged EOF TAMT after exclude");
+  const details = merged.content
+    .replace(/\r\n/g, "\n")
+    .trim()
+    .split("\n")
+    .filter((l) => !l.startsWith("BOF") && !l.startsWith("EOF"));
+  assert.equal(sumDetailRecordAmounts(details, p01), 300);
+}
 assert.equal(parts.length, 2, "應涵蓋多個分割包");
 assert.equal(
   parts.reduce((n, p) => {
@@ -189,6 +217,16 @@ const mergedFilter = mergeAchPartitions(
 );
 assert.equal(mergedFilter.detailCount, 2, "merge filter keeps matches");
 assert.equal(mergedFilter.excludedCount, 1);
+assert.equal(mergedFilter.amount, 1200, "merge filter TAMT = 1000+200");
+{
+  const eof = mergedFilter.content
+    .replace(/\r\n/g, "\n")
+    .trim()
+    .split("\n")
+    .find((l) => l.startsWith("EOF"));
+  assert.ok(eof);
+  assert.equal(Number(eof.slice(39, 55)), 1200, "merged EOF TAMT after filter");
+}
 
 const lineFilter = filterExcludedDetailLines(
   p01,

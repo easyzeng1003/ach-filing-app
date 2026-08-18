@@ -18,6 +18,8 @@ import {
   type ConvertedR01File,
 } from "./convertR01";
 import {
+  amountFromDetailRecord,
+  amountFromDetailRow,
   buildRecord,
   emptyHeader,
   isRowEmpty,
@@ -439,9 +441,7 @@ function endingOf(schema: FormatSchema): string {
 }
 
 function amountFromDetailLine(line: string, schema: FormatSchema): number {
-  const fields = parseRecordFields(line, schema.records.detail.fields);
-  const amt = fields.find((f) => f.id === "AMT");
-  return Math.floor(Number(safeDigits(amt?.value ?? "0") || 0));
+  return amountFromDetailRecord(line, schema);
 }
 
 export function headerFromLine(line: string, schema: FormatSchema): HeaderValues {
@@ -722,7 +722,7 @@ export function rebuildPartitionPreservingDetails(
   let totalAmount = 0;
   if (amountKey) {
     for (const r of nonEmpty) {
-      totalAmount += Number(r[amountKey]) || 0;
+      totalAmount += amountFromDetailRow(r, amountKey);
     }
   }
 
@@ -759,6 +759,11 @@ export function rebuildPartitionPreservingDetails(
       );
     }
     seq += 1;
+  }
+
+  totalAmount = 0;
+  for (const line of details) {
+    totalAmount += amountFromDetailRecord(line, schema);
   }
 
   const headerLine = buildHeaderLine(
@@ -1372,7 +1377,7 @@ export async function convertLargeP01FileToR01(
           if (parsed) row[def.key] = parsed.value;
         }
       }
-      totalAmount += Math.floor(Number(row.amount) || 0);
+      totalAmount += amountFromDetailRow(row, "amount");
       chunkRows.push(row);
 
       if (chunkRows.length >= PARTITION_LIMITS.convertChunkSize) {
@@ -1585,7 +1590,7 @@ export async function convertLargeR01FileToP01(
           if (parsed) row[def.key] = parsed.value;
         }
       }
-      totalAmount += Math.floor(Number(row.amount) || 0);
+      totalAmount += amountFromDetailRow(row, "amount");
       chunkRows.push(row);
 
       if (chunkRows.length >= PARTITION_LIMITS.convertChunkSize) {

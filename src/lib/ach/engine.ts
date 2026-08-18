@@ -559,6 +559,48 @@ export type GenerateFromSchemaOptions = {
   swapR01Banks?: boolean;
 };
 
+/** 表單金額：去千分位後取整（與 AMT floorInt 一致） */
+export function amountFromDetailRow(
+  row: DetailRow,
+  amountKey: string | null | undefined,
+): number {
+  if (!amountKey) return 0;
+  const raw = String(row[amountKey] ?? "").replace(/,/g, "").trim();
+  return Math.floor(Number(raw) || 0);
+}
+
+/** 明細列位元組上的 AMT（依 schema 偏移；不受 15–60 對調影響） */
+export function amountFromDetailRecord(
+  line: string,
+  schema: FormatSchema,
+): number {
+  let offset = 0;
+  for (const def of schema.records.detail.fields) {
+    if (def.id === "AMT") {
+      const raw =
+        line.length >= offset + def.length
+          ? line.slice(offset, offset + def.length)
+          : "";
+      return Math.floor(Number(safeDigits(raw) || 0));
+    }
+    offset += def.length;
+  }
+  return 0;
+}
+
+/** 實際輸出明細 AMT 合計＝EOF TAMT 應寫入值 */
+export function sumDetailRecordAmounts(
+  lines: string[],
+  schema: FormatSchema,
+): number {
+  let total = 0;
+  for (const line of lines) {
+    if (!line || line.startsWith("BOF") || line.startsWith("EOF")) continue;
+    total += amountFromDetailRecord(line, schema);
+  }
+  return total;
+}
+
 export function generateFromSchema(
   schema: FormatSchema,
   header: HeaderValues,
@@ -567,7 +609,6 @@ export function generateFromSchema(
   branches: Branch[],
   options?: GenerateFromSchemaOptions,
 ): GenerateResult {
-  const amountKey = schema.features.amountKey;
   const nonEmpty = rows.filter((r) => !isRowEmpty(r, schema));
   let effectiveHeader = syncHeaderFromDetails(header, nonEmpty, schema);
   if (schema.code === "ACHR01") {
@@ -577,12 +618,28 @@ export function generateFromSchema(
     };
   }
 
-  let totalAmount = 0;
-  if (amountKey) {
-    for (const r of nonEmpty) {
-      totalAmount += Number(r[amountKey]) || 0;
+  const detailLines: string[] = [];
+  let seq = 1;
+  for (const row of nonEmpty) {
+    let rec = buildRecord(schema.records.detail.fields, {
+      schema,
+      header: effectiveHeader,
+      detail: row,
+      seq,
+      totalCount: nonEmpty.length,
+      totalAmount: 0,
+      txids,
+      branches,
+    });
+    if (schema.code === "ACHR01" && options?.swapR01Banks !== false) {
+      rec = swapR01DetailBankAccountBlocks(rec);
     }
+    detailLines.push(rec);
+    seq += 1;
   }
+
+  // EOF TAMT 必須等於實際寫入的明細 AMT 合計（篩選／排除後亦同）
+  const totalAmount = sumDetailRecordAmounts(detailLines, schema);
 
   const baseCtx: Omit<BuildCtx, "seq" | "detail"> = {
     schema,
@@ -601,21 +658,7 @@ export function generateFromSchema(
       totalCount: nonEmpty.length,
     }),
   );
-
-  let seq = 1;
-  for (const row of nonEmpty) {
-    let rec = buildRecord(schema.records.detail.fields, {
-      ...baseCtx,
-      detail: row,
-      seq,
-    });
-    if (schema.code === "ACHR01" && options?.swapR01Banks !== false) {
-      rec = swapR01DetailBankAccountBlocks(rec);
-    }
-    lines.push(rec);
-    seq += 1;
-  }
-
+  lines.push(...detailLines);
   lines.push(
     buildRecord(schema.records.trailer.fields, {
       ...baseCtx,
