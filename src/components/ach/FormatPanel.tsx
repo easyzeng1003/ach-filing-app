@@ -25,10 +25,7 @@ import {
   useRefStore,
 } from "@/lib/ach/store";
 import type { FormatSchema } from "@/lib/ach/schema";
-import {
-  detailFieldsForDisplay,
-  resolveDetailDisplaySchema,
-} from "@/lib/ach/formDisplay";
+import { detailFieldsForDisplay } from "@/lib/ach/formDisplay";
 import { convertP01ToR01, convertR01ToP01 } from "@/lib/ach/convertR01";
 import {
   filterExcludedRows,
@@ -158,11 +155,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
 
   const workspaceOpen = isWorkspaceOpen(schema.code);
   const workspace = getWorkspace(schema.code);
-  const displaySchema = resolveDetailDisplaySchema(
-    schema,
-    formats,
-    workspace.sourceFormatCode,
-  );
 
   const [picker, setPicker] = useState<{
     mode: "txid" | "branch";
@@ -174,7 +166,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   const filterEnabled = schema.features.detailFilter !== false;
 
   const [filters, setFilters] = useState<DetailFilters>(() =>
-    emptyDetailFilters(displaySchema),
+    emptyDetailFilters(schema),
   );
   const [filterOpts, setFilterOpts] = useState<FilterOptions>({
     hideEmpty: false,
@@ -189,7 +181,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
 
   /** 清除／重新匯入時重設編輯區暫存 UI，避免與初次進入畫面落差 */
   function resetEditSessionUi() {
-    setFilters(emptyDetailFilters(displaySchema));
+    setFilters(emptyDetailFilters(schema));
     setFilterOpts({ hideEmpty: false, onlyErrors: false, global: "" });
     setDetailPage(0);
     setDetailPageSize(DEFAULT_DETAIL_PAGE_SIZE);
@@ -213,11 +205,11 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   }
 
   useEffect(() => {
-    setFilters(emptyDetailFilters(displaySchema));
+    setFilters(emptyDetailFilters(schema));
     setFilterOpts({ hideEmpty: false, onlyErrors: false, global: "" });
     setDetailPage(0);
     setDetailPageSize(DEFAULT_DETAIL_PAGE_SIZE);
-  }, [displaySchema.code, displaySchema]);
+  }, [schema.code, schema]);
 
   useEffect(() => {
     ensureForm(schema);
@@ -226,10 +218,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   const form = getForm(schema.code) ?? { header: {}, rows: [] };
   const header = form.header;
   const rows = form.rows;
-  const detailFields = useMemo(
-    () => detailFieldsForDisplay(displaySchema),
-    [displaySchema],
-  );
+  const detailFields = useMemo(() => detailFieldsForDisplay(schema), [schema]);
   /** 驗證／統計延後，避免每鍵重算卡住輸入 */
   const deferredRows = useDeferredValue(rows);
   const deferredHeader = useDeferredValue(header);
@@ -373,12 +362,12 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     }
     return filterDetailRows(
       rows,
-      displaySchema,
+      schema,
       filters,
       filterOpts,
       (_row, index) => rowErrorMessages(rowErrs[index] ?? {}).length > 0,
     );
-  }, [rows, displaySchema, filters, filterOpts, rowErrs, filterEnabled]);
+  }, [rows, schema, filters, filterOpts, rowErrs, filterEnabled]);
 
   const filtersActive = filterEnabled && hasActiveFilters(filters, filterOpts);
 
@@ -413,7 +402,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   }
 
   function clearAllFilters() {
-    setFilters(emptyDetailFilters(displaySchema));
+    setFilters(emptyDetailFilters(schema));
     setFilterOpts({ hideEmpty: false, onlyErrors: false, global: "" });
   }
 
@@ -796,6 +785,9 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
 
       const r01 = formats.ACHR01;
       const sourceCode = result.schema.code;
+      if (sourceCode === "ACHP01" && r01) {
+        result = adaptP01ImportToR01(result, r01);
+      }
 
       // >5000 筆：不開預覽，自動分割後進入 R01 編輯
       if (result.tooLargeForForm) {
@@ -856,7 +848,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
             fileName: firstPart?.filename ?? split.first.fileName,
             sourceHeaderLine: split.sourceHeaderLine,
             sourceTrailerLine: split.sourceTrailerLine,
-            sourceFormatCode: sourceCode,
           },
         );
         setPartitionFormDirty(false);
@@ -902,6 +893,9 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         filterGlobal: global,
         onProgress: setImportProgress,
       });
+      if (result.schema.code === "ACHP01" && formats.ACHR01) {
+        result = adaptP01ImportToR01(result, formats.ACHR01);
+      }
       setImportResult(result);
       if (result.tooLargeForForm) {
         toast.error(
@@ -937,7 +931,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     resetEditSessionUi();
     const sourceHeaderLine = result.lines.find((l) => l.kind === "header")?.raw;
     const sourceTrailerLine = result.lines.find((l) => l.kind === "trailer")?.raw;
-    const sourceFormatCode = result.sourceFormatCode ?? result.schema.code;
     let toLoad = result;
     if (toLoad.schema.code === "ACHP01" && formats.ACHR01) {
       toLoad = adaptP01ImportToR01(toLoad, formats.ACHR01);
@@ -952,7 +945,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         fileName: result.filename,
         sourceHeaderLine,
         sourceTrailerLine,
-        sourceFormatCode,
       },
     );
     onSelectFormat?.("ACHR01");
@@ -1096,10 +1088,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
             sourceHeaderLine:
               sess?.index.sourceHeaderLine ?? sess?.index.headerLine,
             sourceTrailerLine: sess?.index.sourceTrailerLine,
-            sourceFormatCode:
-              importResult?.sourceFormatCode ??
-              sess?.formatCode ??
-              schema.code,
           },
         );
         setPartitionFormDirty(false);
@@ -1129,13 +1117,11 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
             fileName: payload.fileName,
             sourceHeaderLine: sess?.index.sourceHeaderLine,
             sourceTrailerLine: sess?.index.sourceTrailerLine,
-            sourceFormatCode:
-              workspace.sourceFormatCode ?? sess?.formatCode ?? schema.code,
           },
         );
         setPartitionFormDirty(false);
         // 切換包時重設明細篩選／分頁，避免上一包條件殘留
-        setFilters(emptyDetailFilters(displaySchema));
+        setFilters(emptyDetailFilters(schema));
         setFilterOpts({ hideEmpty: false, onlyErrors: false, global: "" });
         setDetailPage(0);
       }}
@@ -1316,7 +1302,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
 
   const excludePanel = (
     <ExcludeExportPanel
-      schema={displaySchema}
+      schema={schema}
       partitionScope={
         partitionSession?.formatCode === schema.code
           ? {
@@ -1633,7 +1619,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
                                   ? (text) => {
                                       pasteRows(
                                         schema.code,
-                                        displaySchema,
+                                        schema,
                                         idx,
                                         text,
                                       );

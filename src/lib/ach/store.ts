@@ -119,8 +119,6 @@ export type WorkspaceMeta = {
   sourceHeaderLine?: string;
   /** 來源檔原始 EOF（合計欄仍依輸出明細重算） */
   sourceTrailerLine?: string;
-  /** 上傳檔案代號（明細顯示欄參照該 JSON 的 form.detail） */
-  sourceFormatCode?: string;
 };
 
 type FormState = {
@@ -154,7 +152,6 @@ type FormState = {
       fileName?: string;
       sourceHeaderLine?: string;
       sourceTrailerLine?: string;
-      sourceFormatCode?: string;
     },
   ) => void;
   getForm: (code: string) => FormBundle | undefined;
@@ -457,8 +454,6 @@ export const useFormStore = create<FormState>()(
                   meta?.sourceHeaderLine ?? prev?.sourceHeaderLine,
                 sourceTrailerLine:
                   meta?.sourceTrailerLine ?? prev?.sourceTrailerLine,
-                sourceFormatCode:
-                  meta?.sourceFormatCode ?? prev?.sourceFormatCode,
               },
             },
           };
