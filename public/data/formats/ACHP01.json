@@ -589,7 +589,6 @@
         "digitEnd": 83,
         "charset": "alnum",
         "required": false,
-        "hidden": true,
         "pad": {
           "side": "right",
           "char": " "
@@ -599,7 +598,7 @@
           "mono": true,
           "minWidth": "5rem"
         },
-        "filterable": false
+        "filterable": true
       },
       {
         "key": "taxId",
@@ -1092,7 +1091,8 @@
           "digitEnd": 72,
           "charset": "alnum",
           "pad": {
-            "side": "none"
+            "side": "right",
+            "char": " "
           },
           "label": "退件理由代號"
         },
@@ -1107,8 +1107,8 @@
         },
         {
           "id": "CID",
-          "source": "header",
-          "key": "taxId",
+          "source": "detail",
+          "key": "cid",
           "length": 10,
           "digitStart": 74,
           "digitEnd": 83,
