@@ -511,6 +511,10 @@ function resolveField(def: RecordFieldDef, ctx: BuildCtx): string {
       if (!String(raw).trim() && def.key === "seq") {
         raw = String(ctx.seq);
       }
+      // 發動者統一編號：明細未填時回退表頭統編（CID）
+      if (!String(raw).trim() && def.key === "cid") {
+        raw = ctx.header.taxId ?? "";
+      }
       // ACHP01 提出行／發動者：列上 orig* 未填時回退表頭（與舊 header.source 行為相同）
       if (
         ctx.schema.code === "ACHP01" &&
