@@ -55,6 +55,11 @@ type Props = {
   /** 執行篩選／排除（條件可為 null＝整檔輸出） */
   onProcess: (doc: ExcludeRulesDoc | null) => Promise<ExcludeExportResult>;
   /**
+   * 原檔輸出：依上傳原格式（P01／R01）整檔輸出，不套用篩選／排除，
+   * 且不跑輸出 P01／R01 的表頭檢核。不提供時隱藏按鈕。
+   */
+  onExportOriginal?: () => void;
+  /**
    * 輸出前完整格式檢核（表頭＋明細規則）。回傳 false 時中止輸出。
    */
   onValidateBeforeExport?: () => boolean;
@@ -81,6 +86,7 @@ export function ExcludeExportPanel({
   onProcessDateBlur,
   agentBank = "",
   onAgentBankChange,
+  onExportOriginal,
   onExportR01,
   onExportP01,
   exporting = false,
@@ -392,6 +398,18 @@ export function ExcludeExportPanel({
             清除條件
           </Button>
           <Box sx={{ flex: 1 }} />
+          {onExportOriginal ? (
+            <Button
+              variant="outlined"
+              color="inherit"
+              disabled={buttonsBusy}
+              startIcon={<DownloadIcon />}
+              onClick={() => onExportOriginal()}
+              title="原檔輸出：依上傳原格式整檔輸出，不套用篩選／排除（不做表頭檢核）"
+            >
+              原檔輸出
+            </Button>
+          ) : null}
           <Button
             variant="outlined"
             color="primary"

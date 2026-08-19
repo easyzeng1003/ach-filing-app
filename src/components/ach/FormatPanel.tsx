@@ -29,6 +29,7 @@ import { detailFieldsForDisplay } from "@/lib/ach/formDisplay";
 import { convertP01ToR01, convertR01ToP01 } from "@/lib/ach/convertR01";
 import {
   filterExcludedRows,
+  newExcludeCondition,
   resolveExcludeAction,
   type ExcludeRulesDoc,
 } from "@/lib/ach/exclude";
@@ -562,13 +563,25 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     await yieldForPaint();
   }
 
-  /** 以目前工作區格式輸出（套用篩選／排除） */
-  async function exportCurrentAsFile() {
-    await beginExport("正在輸出 P01…");
+  /**
+   * 以目前工作區格式輸出。
+   * 一般：套用篩選／排除並做表頭檢核。
+   * original＝原檔輸出：整檔輸出、不套用篩選／排除、跳過表頭檢核。
+   */
+  async function exportCurrentAsFile(opts?: {
+    skipValidation?: boolean;
+    original?: boolean;
+  }) {
+    const original = opts?.original ?? false;
+    await beginExport(original ? "正在輸出原檔…" : "正在輸出 P01…");
     try {
-      if (!validateBeforeExport()) return;
-      const doc = useExcludeStore.getState().syncDocFromConditions(schema.code);
-      const result = await handleExcludeExport(doc);
+      if (!opts?.skipValidation && !validateBeforeExport()) return;
+      const doc = original
+        ? null
+        : useExcludeStore.getState().syncDocFromConditions(schema.code);
+      const result = await handleExcludeExport(doc, {
+        skipControlDateCheck: original,
+      });
       useExcludeStore.getState().setLastResult(result);
       const saved = await saveAchFiles([
         {
@@ -587,11 +600,13 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       const actionVerb = action === "filter" ? "篩選" : "排除";
       const hasRules = result.excludedCount > 0;
       toast.success(
-        `${hasRules ? `${actionVerb}後輸出` : "已輸出"} ${result.detailCount.toLocaleString("zh-TW")} 筆` +
-          (result.excludedCount > 0
-            ? `（未輸出 ${result.excludedCount.toLocaleString("zh-TW")} 筆）`
-            : "") +
-          ` · ${describeSaveResult(saved)}`,
+        original
+          ? `已輸出原檔 ${result.detailCount.toLocaleString("zh-TW")} 筆 · ${describeSaveResult(saved)}`
+          : `${hasRules ? `${actionVerb}後輸出` : "已輸出"} ${result.detailCount.toLocaleString("zh-TW")} 筆` +
+              (result.excludedCount > 0
+                ? `（未輸出 ${result.excludedCount.toLocaleString("zh-TW")} 筆）`
+                : "") +
+              ` · ${describeSaveResult(saved)}`,
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "輸出失敗");
@@ -676,42 +691,53 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     }
   }
 
-  async function handleConvertToP01() {
+  async function handleConvertToP01(opts?: {
+    skipValidation?: boolean;
+    original?: boolean;
+  }) {
     const p01 = formats.ACHP01;
     if (!p01) {
       toast.error("找不到 ACHP01 格式定義");
       return;
     }
-    await beginExport("正在輸出 P01…");
+    const original = opts?.original ?? false;
+    await beginExport(original ? "正在輸出原檔…" : "正在輸出 P01…");
     try {
       const source = prepareExportSource();
-      if (!source || !validateFormData(source)) return;
+      if (!source) return;
+      if (!opts?.skipValidation && !validateFormData(source)) return;
       const sourceHeader = source.header;
       const sourceRows = source.rows;
 
       const lineEnding = usePrefsStore.getState().lineEnding;
-      const exclude = resolveExcludeDoc(schema.code);
+      // 原檔輸出：不套用篩選／排除（整檔）
+      const exclude = original ? null : resolveExcludeDoc(schema.code);
       const action = resolveExcludeAction(exclude);
       const actionVerb = action === "filter" ? "篩選" : "排除";
       const filtered = filterExcludedRows(schema, sourceRows, exclude);
       if (filtered.kept.length === 0) {
-        toast.error(`${actionVerb}後沒有可轉檔的明細`);
+        toast.error(
+          original ? "沒有可輸出的明細" : `${actionVerb}後沒有可轉檔的明細`,
+        );
         return;
       }
       const processDate = String(header.date ?? sourceHeader.date ?? "");
-      const p01DateErrs = validateExportControlDates(
-        p01,
-        { ...sourceHeader, date: processDate || sourceHeader.date || "" },
-        txids,
-        branches,
-      );
-      if (p01DateErrs.length) {
-        downloadExportErrorReport(
+      // 原檔輸出：跳過輸出 P01 的表頭（處理日期）檢核
+      if (!opts?.skipValidation) {
+        const p01DateErrs = validateExportControlDates(
           p01,
-          buildExportErrorReport({ schema: p01, headerErrors: p01DateErrs }),
+          { ...sourceHeader, date: processDate || sourceHeader.date || "" },
+          txids,
+          branches,
         );
-        toast.error("BOF／EOF 處理日期有誤（已下載錯誤說明）");
-        return;
+        if (p01DateErrs.length) {
+          downloadExportErrorReport(
+            p01,
+            buildExportErrorReport({ schema: p01, headerErrors: p01DateErrs }),
+          );
+          toast.error("BOF／EOF 處理日期有誤（已下載錯誤說明）");
+          return;
+        }
       }
       const result = convertR01ToP01(
         withLineEndingId(p01, lineEnding),
@@ -737,12 +763,50 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           ? `（已${actionVerb}未輸出 ${filtered.excludedCount.toLocaleString("zh-TW")} 筆）`
           : "";
       toast.success(
-        `已轉回 P01（${result.detailCount} 筆${excludeNote}）· ${describeSaveResult(saved)}`,
+        original
+          ? `已輸出原檔 P01（${result.detailCount} 筆）· ${describeSaveResult(saved)}`
+          : `已轉回 P01（${result.detailCount} 筆${excludeNote}）· ${describeSaveResult(saved)}`,
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "轉檔失敗");
     } finally {
       setConverting(false);
+    }
+  }
+
+  /**
+   * 原檔輸出：依上傳原格式（P01／R01）整檔輸出，不套用篩選／排除，
+   * 且不跑輸出 P01／R01 的表頭檢核。輸出前後還原篩選條件與 lastResult，
+   * 避免影響使用者目前的條件與上一次篩選結果顯示。
+   */
+  async function handleExportOriginal() {
+    const st = useExcludeStore.getState();
+    const snapshot = {
+      conditions: st.conditions,
+      matchMode: st.matchMode,
+      actionMode: st.actionMode,
+      doc: st.doc,
+      sourceName: st.sourceName,
+      lastResult: st.lastResult,
+    };
+    // 暫清條件，確保整檔輸出（不套用篩選／排除）
+    useExcludeStore.setState({
+      conditions: [newExcludeCondition()],
+      matchMode: "and",
+      actionMode: "exclude",
+      doc: null,
+      sourceName: null,
+    });
+    try {
+      const originalIsP01 = importResult?.sourceFormatCode === "ACHP01";
+      if (schema.code === "ACHR01" && originalIsP01) {
+        await handleConvertToP01({ skipValidation: true, original: true });
+      } else {
+        await exportCurrentAsFile({ skipValidation: true, original: true });
+      }
+    } finally {
+      // 還原條件與 lastResult
+      useExcludeStore.setState(snapshot);
     }
   }
 
@@ -1128,7 +1192,10 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     />
   );
 
-  async function handleExcludeExport(doc: ExcludeRulesDoc | null) {
+  async function handleExcludeExport(
+    doc: ExcludeRulesDoc | null,
+    opts?: { skipControlDateCheck?: boolean },
+  ) {
     const lineEnding = usePrefsStore.getState().lineEnding;
     const outSchema = withLineEndingId(schema, lineEnding);
     const action = resolveExcludeAction(doc);
@@ -1273,17 +1340,23 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       txids,
       branches,
     });
-    const builtDateErrs = validateBuiltControlDates(
-      outSchema,
-      headerLine,
-      trailerLine,
-    );
-    if (builtDateErrs.length) {
-      downloadExportErrorReport(
+    // 原檔輸出：整檔依原格式輸出，跳過 BOF／EOF 處理日期檢核
+    if (!opts?.skipControlDateCheck) {
+      const builtDateErrs = validateBuiltControlDates(
         outSchema,
-        buildExportErrorReport({ schema: outSchema, headerErrors: builtDateErrs }),
+        headerLine,
+        trailerLine,
       );
-      throw new Error(builtDateErrs[0] ?? "BOF／EOF 處理日期有誤");
+      if (builtDateErrs.length) {
+        downloadExportErrorReport(
+          outSchema,
+          buildExportErrorReport({
+            schema: outSchema,
+            headerErrors: builtDateErrs,
+          }),
+        );
+        throw new Error(builtDateErrs[0] ?? "BOF／EOF 處理日期有誤");
+      }
     }
     const content =
       [headerLine, ...detailLines, trailerLine].join(ending) + ending;
@@ -1329,6 +1402,9 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       onProcess={handleExcludeExport}
       onValidateBeforeExport={validateBeforeExport}
       exporting={converting}
+      onExportOriginal={() => {
+        void handleExportOriginal();
+      }}
       onExportP01={() => {
         if (schema.code === "ACHR01") {
           void handleConvertToP01();
