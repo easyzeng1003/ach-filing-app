@@ -55,8 +55,8 @@ type Props = {
   /** 執行篩選／排除（條件可為 null＝整檔輸出） */
   onProcess: (doc: ExcludeRulesDoc | null) => Promise<ExcludeExportResult>;
   /**
-   * 原檔輸出：依上傳原格式（P01／R01）整檔輸出，不套用篩選／排除，
-   * 且不跑輸出 P01／R01 的表頭檢核。不提供時隱藏按鈕。
+   * 原檔輸出：依上傳原格式（P01／R01）輸出，套用目前篩選／排除條件，
+   * 但不跑輸出 P01／R01 的表頭檢核。不提供時隱藏按鈕。
    */
   onExportOriginal?: () => void;
   /**
@@ -405,7 +405,7 @@ export function ExcludeExportPanel({
               disabled={buttonsBusy}
               startIcon={<DownloadIcon />}
               onClick={() => onExportOriginal()}
-              title="原檔輸出：依上傳原格式整檔輸出，不套用篩選／排除（不做表頭檢核）"
+              title="原檔輸出：依上傳原格式輸出，套用目前篩選／排除（不做表頭檢核）"
             >
               原檔輸出
             </Button>
