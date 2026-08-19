@@ -131,6 +131,18 @@ function padSeq8(seq: number | string): string {
   return d.padStart(8, "0").slice(-8);
 }
 
+/**
+ * 只判斷明細 N/R：取明細（第一筆有 TYPE 值者）的交易型態字首。
+ * - N＝提出：PBANK/PCLNO＝提出行／發動者；RBANK/RCLNO＝收受者。
+ * - R＝提回／退件（已對調）：PBANK/PCLNO＝退件行；RBANK/RCLNO＝原提示行。
+ * 無 TYPE 時回傳 null，由呼叫端沿用既有版面推斷。
+ */
+export function detailTypeOfRows(rows: DetailRow[]): "N" | "R" | null {
+  const withType = rows.find((r) => String(r.type ?? "").trim());
+  const c = String(withType?.type ?? "").trim().toUpperCase().charAt(0);
+  return c === "N" || c === "R" ? c : null;
+}
+
 /** R01 PSEQ ← 檔案／表單 pseq；空白才回退 SEQ 或列序 */
 function pseqFromUploadedSeq(row: DetailRow, fallbackSeq: number): string {
   const fromPseq = safeDigits(String(row.pseq ?? ""));
@@ -244,12 +256,15 @@ export function convertP01ToR01(
     },
   );
 
+  // 只判斷明細 N/R：輸出 R01 時，列已為 R（提回已對調）則不再對調；為 N 才對調。
+  const detailType = detailTypeOfRows(nonEmpty);
   const generated = generateFromSchema(
     r01Schema,
     header,
     rows,
     txids,
     branches,
+    detailType === "R" ? { swapR01Banks: false } : undefined,
   );
 
   const bad = generated.lines.find((l) => l.length !== r01Schema.recordLength);
@@ -394,7 +409,15 @@ export function convertR01ToP01(
     throw new Error("沒有明細列可轉檔");
   }
 
-  const fromExportedFile = r01RowsLookLikeExportedFile(nonEmpty);
+  // 只判斷明細 N/R：R＝提回對調（提示行在 RBANK/RCLNO）；N＝提出（提示行在 PBANK/PCLNO）。
+  // 無 TYPE 時沿用版面推斷。
+  const detailType = detailTypeOfRows(nonEmpty);
+  const fromExportedFile =
+    detailType === "R"
+      ? true
+      : detailType === "N"
+        ? false
+        : r01RowsLookLikeExportedFile(nonEmpty);
   const firstPair = r01BankAcct(
     nonEmpty[0]!,
     fromExportedFile ? "recv" : "orig",
