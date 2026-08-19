@@ -436,9 +436,12 @@ export function convertR01ToP01(
   for (const row of nonEmpty) {
     seq += 1;
     const presenter = r01BankAcct(row, fromExportedFile ? "recv" : "orig");
+    // 只判斷明細 N/R：明細為 N（不轉，逐列原樣輸出）不強制同一提出單位；
+    // 轉檔（R→P01）才要求原提示行一致以組成單一提出檔表頭。
     if (
-      presenter.bank !== presenterBank ||
-      presenter.acct !== presenterAccount
+      detailType !== "N" &&
+      (presenter.bank !== presenterBank ||
+        presenter.acct !== presenterAccount)
     ) {
       throw new Error(
         `第 ${seq} 筆原提示行／帳號與首筆不一致（須同一提出單位）`,
