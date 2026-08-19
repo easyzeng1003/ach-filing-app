@@ -406,9 +406,17 @@ function detailRowFromFields(
   fields: ParsedRecordField[],
 ): DetailRow {
   const values = collectKeyedValues(fields, "detail");
+  // 依 records.detail 欄位 ID 建索引，供 form.detail 逐欄依 id 切片取值。
+  const byId = new Map<string, ParsedRecordField>();
+  for (const f of fields) {
+    if (f.id) byId.set(f.id, f);
+  }
   const row = emptyDetailRow(schema, newRowId());
+  // 匯入依 form.detail id 切片取值：優先用該欄 id 對應的檔案切片（含 hidden 欄，供 FILTER 篩選），
+  // 缺 id／檔內無對應欄時回退 records.detail 同 key 值。
   for (const f of schema.form.detail) {
-    row[f.key] = values[f.key] ?? "";
+    const sliced = f.id ? byId.get(f.id) : undefined;
+    row[f.key] = sliced ? sliced.value : (values[f.key] ?? "");
   }
   if (schema.code === "ACHP01") {
     attachP01PresenterFromFields(row, fields);
