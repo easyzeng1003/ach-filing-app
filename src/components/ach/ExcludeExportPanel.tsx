@@ -34,7 +34,7 @@ import {
   type ExcludeExportResult,
 } from "@/lib/ach/excludeStore";
 import type { FormatSchema } from "@/lib/ach/schema";
-import { detailFieldsForDisplay } from "@/lib/ach/formDisplay";
+import { detailFieldsForFilter } from "@/lib/ach/formDisplay";
 import { describeSaveResult, saveAchFiles } from "@/lib/ach/desktop";
 import { normalizeSubmitDate, rocToDate, safeDigits, todayRoc } from "@/lib/ach/utils";
 
@@ -99,7 +99,8 @@ export function ExcludeExportPanel({
   const setLastResult = useExcludeStore((s) => s.setLastResult);
   const clear = useExcludeStore((s) => s.clear);
 
-  const fields = detailFieldsForDisplay(schema);
+  // FILTER 列出 JSON form.detail 全部欄位（含 hidden），可依任一欄位篩選／排除。
+  const fields = detailFieldsForFilter(schema);
   const showAgentBank = Boolean(onAgentBankChange) || Boolean(onExportR01);
   const dateDigits = safeDigits(processDate).slice(0, 8);
   const processDateError = !dateDigits
