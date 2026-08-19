@@ -417,9 +417,19 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     if (!source && synced.txid !== header.txid) {
       setHeaderT(schema.code, schema, "txid", synced.txid ?? "");
     }
+    // 統編（CID）自 1.4.78 起改為明細欄 cid；表頭統編空白時以第一筆有值明細 cid 回填供檢核，
+    // 避免改用逐列 cid 後仍被「公司／機關統編：未輸入」擋下輸出。
+    const effectiveTaxId =
+      String(synced.taxId ?? "").trim() ||
+      String(
+        sourceRows.find(
+          (r) => !isRowEmpty(r, schema) && String(r.cid ?? "").trim(),
+        )?.cid ?? "",
+      ).trim();
     // 輸出寫入 BOF／EOF TDATE 的是畫面「處理日期」，分割工作區也以此為準
     const exportHeader = {
       ...synced,
+      taxId: effectiveTaxId,
       date: String(header.date ?? synced.date ?? ""),
     };
     const syncedHeaderErrs = validateHeader(

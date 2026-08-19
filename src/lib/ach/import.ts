@@ -759,6 +759,9 @@ function finalizeHeader(acc: ParseAcc): HeaderValues {
     const fromDetail = {
       ...fromDetailHeader,
       ...(fromDetailBody.txid ? { txid: fromDetailBody.txid } : {}),
+      // 統編（CID）自 1.4.78 起為明細欄 cid；表頭統編以首筆明細 cid 補入
+      // （還原「匯入時填入表頭統編」行為，避免輸出時被「公司／機關統編：未輸入」擋下）
+      ...(fromDetailBody.cid ? { taxId: fromDetailBody.cid } : {}),
       // ACHR01 BOF 無 bankCode／account；參考欄由首筆明細 RBANK／RCLNO（檔案原樣）補
       // ACHP01 表頭提出行／發動者＝首筆 PBANK／PCLNO（orig*），不可用收受者覆蓋
       ...(!isP01 && fromDetailBody.bankCode
