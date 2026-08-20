@@ -48,7 +48,8 @@ export function matchFieldValue(
 ): boolean {
   const q = String(query ?? "").trim();
   if (!q) return true;
-  const value = String(cell ?? "");
+  // 比對任何欄位一律先 trim（去除固定長度補齊或匯入殘留的前後空白）
+  const value = String(cell ?? "").trim();
   // 金額欄：允許比對數字字串（去千分位空白）
   if (field?.inputType === "amount") {
     const nv = value.replace(/,/g, "").trim();
