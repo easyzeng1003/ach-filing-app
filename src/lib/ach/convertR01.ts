@@ -436,10 +436,11 @@ export function convertR01ToP01(
   for (const row of nonEmpty) {
     seq += 1;
     const presenter = r01BankAcct(row, fromExportedFile ? "recv" : "orig");
-    // 只判斷明細 N/R：明細為 N（不轉，逐列原樣輸出）不強制同一提出單位；
-    // 轉檔（R→P01）才要求原提示行一致以組成單一提出檔表頭。
+    // 只判斷明細 N/R：僅在「轉檔」（R 版面→P01，提示行取自 RBANK/RCLNO）時才要求
+    // 各列原提示行一致以組成單一提出檔表頭；明細為 N（不轉，逐列原樣輸出）時，
+    // 每列保留自身 PBANK/PCLNO，不強制同一提出單位。
     if (
-      detailType !== "N" &&
+      fromExportedFile &&
       (presenter.bank !== presenterBank ||
         presenter.acct !== presenterAccount)
     ) {
