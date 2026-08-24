@@ -589,6 +589,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       const doc = useExcludeStore.getState().syncDocFromConditions(schema.code);
       const result = await handleExcludeExport(doc, {
         skipControlDateCheck: original,
+        original,
       });
       useExcludeStore.getState().setLastResult(result);
       const saved = await saveAchFiles([
@@ -755,7 +756,8 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         filtered.kept,
         txids,
         branches,
-        { date: processDate || undefined },
+        // 原檔輸出：保留每列原始 TYPE（不強制改為 N）
+        { date: processDate || undefined, preserveDetailType: original },
       );
       const saved = await saveAchFiles(
         result.files.map((f) => ({
@@ -1188,7 +1190,11 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
 
   async function handleExcludeExport(
     doc: ExcludeRulesDoc | null,
-    opts?: { skipControlDateCheck?: boolean },
+    opts?: {
+      skipControlDateCheck?: boolean;
+      /** 原檔輸出：保留明細 TYPE（N/R）且不對調第 15–37／38–60 碼 */
+      original?: boolean;
+    },
   ) {
     const lineEnding = usePrefsStore.getState().lineEnding;
     const outSchema = withLineEndingId(schema, lineEnding);
@@ -1267,6 +1273,10 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       filtered.kept,
       txids,
       branches,
+      // 原檔輸出：保留原始 TYPE 且不對調銀行／帳號區塊（依上傳原檔逐列原樣輸出）
+      opts?.original
+        ? { preserveDetailType: true, swapR01Banks: false }
+        : undefined,
     );
     const badLen = generated.lines.find(
       (l) => l.length !== schema.recordLength,

@@ -573,6 +573,11 @@ export type GenerateFromSchemaOptions = {
    * 上傳 P01 後寫入分割工作區再解析時須關閉，否則提示行／收受者會反過來。
    */
   swapR01Banks?: boolean;
+  /**
+   * 原檔輸出：保留明細第 1 碼（TYPE）為該列原始 N／R，不套用 schema 的 literal。
+   * 列上無 N／R 時仍用 schema literal。
+   */
+  preserveDetailType?: boolean;
 };
 
 /** 表單金額：去千分位後取整（與 AMT floorInt 一致） */
@@ -649,6 +654,11 @@ export function generateFromSchema(
     });
     if (schema.code === "ACHR01" && options?.swapR01Banks !== false) {
       rec = swapR01DetailBankAccountBlocks(rec);
+    }
+    // 原檔輸出：保留該列原始 TYPE（第 1 碼），不改成 schema literal
+    if (options?.preserveDetailType) {
+      const t = String(row.type ?? "").trim().toUpperCase().charAt(0);
+      if (t === "N" || t === "R") rec = t + rec.slice(1);
     }
     detailLines.push(rec);
     seq += 1;

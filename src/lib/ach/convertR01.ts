@@ -322,6 +322,10 @@ export type ConvertR01ToP01Options = {
    * 未指定時使用提回檔處理日期。
    */
   date?: string;
+  /**
+   * 原檔輸出：保留每列原始 TYPE（N/R），不強制改為 P01 的 N。
+   */
+  preserveDetailType?: boolean;
 };
 
 export type ConvertedP01File = {
@@ -412,8 +416,10 @@ export function convertR01ToP01(
   // 只判斷明細 N/R：R＝提回對調（提示行在 RBANK/RCLNO）；N＝提出（提示行在 PBANK/PCLNO）。
   // 無 TYPE 時沿用版面推斷。
   const detailType = detailTypeOfRows(nonEmpty);
-  const fromExportedFile =
-    detailType === "R"
+  // 原檔輸出：逐列原樣輸出，提示行一律取自 PBANK/PCLNO（不對調、不重排版面）。
+  const fromExportedFile = options.preserveDetailType
+    ? false
+    : detailType === "R"
       ? true
       : detailType === "N"
         ? false
@@ -473,6 +479,10 @@ export function convertR01ToP01(
           ? presenter.acct.padStart(16, "0")
           : presenter.acct,
       ...(txid ? { txid } : {}),
+      // 原檔輸出：保留該列原始 TYPE 供輸出時沿用
+      ...(options.preserveDetailType && String(row.type ?? "").trim()
+        ? { type: String(row.type) }
+        : {}),
     });
   }
 
@@ -497,6 +507,7 @@ export function convertR01ToP01(
     rows,
     txids,
     branches,
+    options.preserveDetailType ? { preserveDetailType: true } : undefined,
   );
 
   const bad = generated.lines.find((l) => l.length !== p01Schema.recordLength);
@@ -507,7 +518,8 @@ export function convertR01ToP01(
   }
 
   const detailLine = generated.lines[1] ?? "";
-  if (detailLine[0] !== "N") {
+  // 原檔輸出保留原始 TYPE 時不強制為 N
+  if (!options.preserveDetailType && detailLine[0] !== "N") {
     throw new Error("提出明細 TYPE 應為 N");
   }
   if (!generated.lines[0]?.includes("ACHP01")) {
