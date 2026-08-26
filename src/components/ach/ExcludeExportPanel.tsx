@@ -52,6 +52,12 @@ type Props = {
    */
   agentBank?: string;
   onAgentBankChange?: (value: string) => void;
+  /**
+   * 輸出格式（首錄／尾錄 BOF/EOF）：ACHP01 或 ACHR01。
+   * 與明細轉換邏輯拆開——此下拉只決定首錄／尾錄格式。
+   */
+  responseFormat?: "ACHP01" | "ACHR01";
+  onResponseFormatChange?: (value: "ACHP01" | "ACHR01") => void;
   /** 執行篩選／排除（條件可為 null＝整檔輸出） */
   onProcess: (doc: ExcludeRulesDoc | null) => Promise<ExcludeExportResult>;
   /**
@@ -86,6 +92,8 @@ export function ExcludeExportPanel({
   onProcessDateBlur,
   agentBank = "",
   onAgentBankChange,
+  responseFormat = "ACHR01",
+  onResponseFormatChange,
   onExportOriginal,
   onExportR01,
   onExportP01,
@@ -134,9 +142,9 @@ export function ExcludeExportPanel({
   const p01Label = hasActiveConditions
     ? `${actionVerb}後輸出 P01`
     : "輸出 P01";
-  const r01Label = hasActiveConditions
-    ? `${actionVerb}後輸出 R01`
-    : "輸出 R01";
+  const responseLabel = hasActiveConditions
+    ? `${actionVerb}後輸出回應檔`
+    : "輸出回應檔";
 
   function guardDate(): boolean {
     if (!dateDigits) {
@@ -245,6 +253,27 @@ export function ExcludeExportPanel({
               sx={{ maxWidth: 280, flex: "1 1 200px" }}
               slotProps={{ htmlInput: { inputMode: "numeric", maxLength: 7 } }}
             />
+          ) : null}
+          {onResponseFormatChange ? (
+            <FormControl
+              size="small"
+              sx={{ minWidth: 160, maxWidth: 220, flex: "0 0 auto" }}
+            >
+              <InputLabel id="response-format">輸出格式（首錄／尾錄）</InputLabel>
+              <Select
+                labelId="response-format"
+                label="輸出格式（首錄／尾錄）"
+                value={responseFormat}
+                onChange={(e) =>
+                  onResponseFormatChange(
+                    e.target.value === "ACHP01" ? "ACHP01" : "ACHR01",
+                  )
+                }
+              >
+                <MenuItem value="ACHP01">ACHP01</MenuItem>
+                <MenuItem value="ACHR01">ACHR01</MenuItem>
+              </Select>
+            </FormControl>
           ) : null}
         </Stack>
         <Stack
@@ -440,9 +469,9 @@ export function ExcludeExportPanel({
               }
               onExportR01?.();
             }}
-            title={r01Label}
+            title={`${responseLabel}（明細轉為回應／退件 R；首錄／尾錄格式依「輸出格式」下拉）`}
           >
-            {r01Label}
+            {responseLabel}
           </Button>
         </Stack>
 

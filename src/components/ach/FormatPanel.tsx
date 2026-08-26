@@ -36,6 +36,7 @@ import { resolveExcludeDoc, useExcludeStore } from "@/lib/ach/excludeStore";
 import { withLineEndingId } from "@/lib/ach/lineEnding";
 import { usePrefsStore } from "@/lib/ach/prefsStore";
 import {
+  buildRecord,
   generateFromSchema,
   headerHasError,
   isRowEmpty,
@@ -146,6 +147,10 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   const [exportMaskLabel, setExportMaskLabel] = useState("輸出中…");
   /** 收受行代表行代號（輸出 ACHR01 的 RORG） */
   const [agentBank, setAgentBank] = useState("");
+  /** 輸出回應檔的首錄／尾錄格式（BOF/EOF）；與明細轉換拆開 */
+  const [responseFormat, setResponseFormat] = useState<"ACHP01" | "ACHR01">(
+    "ACHR01",
+  );
   const [partitionTools, setPartitionTools] = useState<{
     mode: "split" | "convert";
   } | null>(null);
@@ -678,8 +683,44 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         branches,
         opts,
       );
+      // 邏輯拆開：明細一律轉為回應（R，退件對調）；首錄／尾錄格式依「輸出格式」下拉。
+      // 選 ACHP01 時保留 R 明細，僅將首錄／尾錄改為 ACHP01（SORG＝原提示行、RORG＝9990250）。
+      const p01Envelope = formats.ACHP01;
+      const outFiles =
+        responseFormat === "ACHP01" && p01Envelope
+          ? result.files.map((file) => {
+              const outP01 = withLineEndingId(p01Envelope, lineEnding);
+              const ending = outP01.lineEnding || "\r\n";
+              const detailLines = file.lines.slice(1, -1);
+              const presenterBank = String(detailLines[0] ?? "").slice(37, 44);
+              const ctx = {
+                schema: outP01,
+                header: {
+                  ...convertHeader,
+                  date: String(header.date ?? convertHeader.date ?? ""),
+                  bankCode: presenterBank || String(convertHeader.bankCode ?? ""),
+                },
+                seq: 0,
+                totalCount: detailLines.length,
+                totalAmount: sumDetailRecordAmounts(detailLines, outP01),
+                txids,
+                branches,
+              };
+              const lines = [
+                buildRecord(outP01.records.header.fields, ctx),
+                ...detailLines,
+                buildRecord(outP01.records.trailer.fields, ctx),
+              ];
+              return {
+                ...file,
+                filename: file.filename.replace(/ACHR01/g, "ACHP01"),
+                content: lines.join(ending) + ending,
+                lines,
+              };
+            })
+          : result.files;
       const saved = await saveAchFiles(
-        result.files.map((f) => ({
+        outFiles.map((f) => ({
           filename: f.filename,
           content: f.content,
           mime: "text/plain;charset=utf-8",
@@ -694,7 +735,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           ? `（已${actionVerb}未輸出 ${filtered.excludedCount.toLocaleString("zh-TW")} 筆）`
           : "";
       toast.success(
-        `已轉檔整檔（${result.detailCount} 筆${excludeNote}，RCODE=${result.rcode}）· ${describeSaveResult(saved)}`,
+        `已輸出回應檔（${responseFormat === "ACHP01" ? "ACHP01" : "ACHR01"}／${result.detailCount} 筆${excludeNote}，RCODE=${result.rcode}）· ${describeSaveResult(saved)}`,
       );
       setConvertOpen(false);
     } catch (e) {
@@ -1403,6 +1444,8 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           setHeaderT(schema.code, schema, "agentBank", value);
         }
       }}
+      responseFormat={responseFormat}
+      onResponseFormatChange={setResponseFormat}
       onProcess={handleExcludeExport}
       onValidateBeforeExport={validateBeforeExport}
       exporting={converting}
