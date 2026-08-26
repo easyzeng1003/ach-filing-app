@@ -797,8 +797,12 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         filtered.kept,
         txids,
         branches,
-        // 原檔輸出：保留每列原始 TYPE（不強制改為 N）
-        { date: processDate || undefined, preserveDetailType: original },
+        // 原檔輸出：保留每列原始 TYPE（不強制改為 N）；明細為 R 時參照 ACHR01 明細規範
+        {
+          date: processDate || undefined,
+          preserveDetailType: original,
+          responseDetailSchema: original ? formats.ACHR01 : undefined,
+        },
       );
       const saved = await saveAchFiles(
         result.files.map((f) => ({

@@ -326,6 +326,11 @@ export type ConvertR01ToP01Options = {
    * 原檔輸出：保留每列原始 TYPE（N/R），不強制改為 P01 的 N。
    */
   preserveDetailType?: boolean;
+  /**
+   * 明細為 R 時參照此 schema（ACHR01）的明細規範輸出，即使首錄／尾錄為 P01。
+   * 搭配 preserveDetailType 使用。
+   */
+  responseDetailSchema?: FormatSchema;
 };
 
 export type ConvertedP01File = {
@@ -479,9 +484,16 @@ export function convertR01ToP01(
           ? presenter.acct.padStart(16, "0")
           : presenter.acct,
       ...(txid ? { txid } : {}),
-      // 原檔輸出：保留該列原始 TYPE 供輸出時沿用
+      // 原檔輸出：保留該列原始 TYPE，並保留回應（R）明細欄位（RCODE／PDATE／PSEQ／PSCHD），
+      // 使「BOF 為 P01 但明細為 R」時明細仍能參照 ACHR01 明細規範輸出。
       ...(options.preserveDetailType && String(row.type ?? "").trim()
-        ? { type: String(row.type) }
+        ? {
+            type: String(row.type),
+            rcode: String(row.rcode ?? ""),
+            pdate: String(row.pdate ?? ""),
+            pseq: String(row.pseq ?? ""),
+            pschd: String(row.pschd ?? ""),
+          }
         : {}),
     });
   }
@@ -507,7 +519,13 @@ export function convertR01ToP01(
     rows,
     txids,
     branches,
-    options.preserveDetailType ? { preserveDetailType: true } : undefined,
+    options.preserveDetailType
+      ? {
+          preserveDetailType: true,
+          // 明細為 R 時參照 ACHR01 明細規範（RCODE／PDATE／PSEQ／PSCHD）
+          responseDetailSchema: options.responseDetailSchema,
+        }
+      : undefined,
   );
 
   const bad = generated.lines.find((l) => l.length !== p01Schema.recordLength);

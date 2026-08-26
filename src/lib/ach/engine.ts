@@ -578,6 +578,12 @@ export type GenerateFromSchemaOptions = {
    * 列上無 N／R 時仍用 schema literal。
    */
   preserveDetailType?: boolean;
+  /**
+   * 明細為 R（回應／退件）時，改用此 schema 的 records.detail 規範產生明細，
+   * 即使首錄／尾錄為 ACHP01。用於「BOF 為 P01 但明細為 R」時，明細仍參照 ACHR01
+   * 明細規範（RCODE／PDATE／PSEQ／PSCHD 等）。
+   */
+  responseDetailSchema?: FormatSchema;
 };
 
 /** 表單金額：去千分位後取整（與 AMT floorInt 一致） */
@@ -642,8 +648,14 @@ export function generateFromSchema(
   const detailLines: string[] = [];
   let seq = 1;
   for (const row of nonEmpty) {
-    let rec = buildRecord(schema.records.detail.fields, {
-      schema,
+    // 明細為 R 時參照 ACHR01 明細規範（即使首錄／尾錄為 P01）
+    const rowType = String(row.type ?? "").trim().toUpperCase().charAt(0);
+    const detailSchema =
+      options?.responseDetailSchema && rowType === "R"
+        ? options.responseDetailSchema
+        : schema;
+    let rec = buildRecord(detailSchema.records.detail.fields, {
+      schema: detailSchema,
       header: effectiveHeader,
       detail: row,
       seq,
