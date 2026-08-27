@@ -184,88 +184,71 @@ export function convertP01ToR01(
 
   const seqOffset = Math.max(0, Math.floor(options.seqOffset ?? 0));
 
-  const items: Array<{
-    row: DetailRow;
-    origSeq: number;
-    returnBank: string;
-    presenterBank: string;
-    presenterAccount: string;
-  }> = [];
+  // 只判斷明細 N/R —— 逐列判斷（不再用首列型態代表整檔）：
+  // - N＝提出：PBANK/PCLNO＝發動者、RBANK/RCLNO＝收受者 → 輸出回應時對調
+  //   （收受者→退件行放 PBANK；發動者→原提示放 RBANK）。
+  // - R＝已是提回對調：PBANK/PCLNO＝退件行/收受者、RBANK/RCLNO＝原提示/發動者 → 保留。
+  // 各列先排成最終提回版面（PBANK＝退件行、RBANK＝原提示），引擎不再整批對調。
   let seq = 0;
+  const rows: DetailRow[] = [];
   for (const row of nonEmpty) {
     seq += 1;
-    const returnBank = safeDigits(String(row.bankCode ?? ""));
-    if (returnBank.length !== 7) {
-      throw new Error(`第 ${seqOffset + seq} 筆收受者銀行代號須為 7 碼`);
+    const origSeq = seqOffset + seq;
+    const isR =
+      String(row.type ?? "").trim().toUpperCase().charAt(0) === "R";
+    // 退件行（收受者）→ PBANK/PCLNO
+    const retnBank = safeDigits(String((isR ? row.origBankCode : row.bankCode) ?? ""));
+    const retnAcct = safeDigits(String((isR ? row.origAccount : row.account) ?? ""));
+    // 原提示（發動者）→ RBANK/RCLNO；缺列值時回退表頭
+    const presBankRaw = safeDigits(String((isR ? row.bankCode : row.origBankCode) ?? ""));
+    const presAcctRaw = safeDigits(String((isR ? row.account : row.origAccount) ?? ""));
+    const presBank = presBankRaw.length === 7 ? presBankRaw : headerPresenterBank;
+    const presAcct = presAcctRaw || headerPresenterAccount;
+    if (retnBank.length !== 7) {
+      throw new Error(`第 ${origSeq} 筆收受者銀行代號須為 7 碼`);
     }
-    const rowPresBank = safeDigits(String(row.origBankCode ?? ""));
-    const rowPresAcct = safeDigits(String(row.origAccount ?? ""));
-    const presenterBank =
-      rowPresBank.length === 7 ? rowPresBank : headerPresenterBank;
-    const presenterAccount = rowPresAcct || headerPresenterAccount;
-    if (presenterBank.length !== 7) {
-      throw new Error(`第 ${seqOffset + seq} 筆提出行銀行代號須為 7 碼`);
+    if (!retnAcct) {
+      throw new Error(`原提示序號 ${padSeq8(origSeq)} 收受者帳號未輸入`);
     }
-    if (!presenterAccount) {
-      throw new Error(`第 ${seqOffset + seq} 筆發動者帳號未輸入`);
+    if (presBank.length !== 7) {
+      throw new Error(`第 ${origSeq} 筆提出行銀行代號須為 7 碼`);
     }
-    items.push({
-      row,
-      origSeq: seqOffset + seq,
-      returnBank,
-      presenterBank,
-      presenterAccount,
+    if (!presAcct) {
+      throw new Error(`第 ${origSeq} 筆發動者帳號未輸入`);
+    }
+    rows.push({
+      id: row.id,
+      // PBANK/PCLNO＝退件行/收受者
+      origBankCode: retnBank,
+      origAccount:
+        retnAcct.length < 16 ? retnAcct.padStart(16, "0") : retnAcct,
+      // RBANK/RCLNO＝原提示/發動者
+      bankCode: presBank,
+      account: presAcct.length < 16 ? presAcct.padStart(16, "0") : presAcct,
+      taxId: String(row.taxId ?? ""),
+      userNo: String(row.userNo ?? ""),
+      amount: String(row.amount ?? ""),
+      rcode,
+      pdate,
+      pseq: pseqFromUploadedSeq(row, origSeq),
+      pschd: "B",
     });
   }
 
-  const headerBank = items[0]!.returnBank;
+  const headerBank = safeDigits(String(rows[0]!.origBankCode ?? ""));
   const header: HeaderValues = {
     date: tdate,
     txid: String(p01Header.txid ?? ""),
     bankCode: headerBank,
     agentBank,
-    account: safeDigits(String(items[0]!.row.account ?? "")),
+    account: safeDigits(String(rows[0]!.origAccount ?? "")),
     taxId: String(p01Header.taxId ?? ""),
     ydate,
   };
 
-  const rows: DetailRow[] = items.map(
-    ({ row, origSeq, returnBank, presenterBank, presenterAccount }) => {
-      const recvAccount = safeDigits(String(row.account ?? ""));
-      if (recvAccount.length === 0) {
-        throw new Error(`原提示序號 ${padSeq8(origSeq)} 收受者帳號未輸入`);
-      }
-      return {
-        id: row.id,
-        bankCode: returnBank,
-        account:
-          recvAccount.length < 16 ? recvAccount.padStart(16, "0") : recvAccount,
-        taxId: String(row.taxId ?? ""),
-        userNo: String(row.userNo ?? ""),
-        amount: String(row.amount ?? ""),
-        origBankCode: presenterBank,
-        origAccount:
-          presenterAccount.length < 16
-            ? presenterAccount.padStart(16, "0")
-            : presenterAccount,
-        rcode,
-        pdate,
-        pseq: pseqFromUploadedSeq(row, origSeq),
-        pschd: "B",
-      };
-    },
-  );
-
-  // 只判斷明細 N/R：輸出 R01 時，列已為 R（提回已對調）則不再對調；為 N 才對調。
-  const detailType = detailTypeOfRows(nonEmpty);
-  const generated = generateFromSchema(
-    r01Schema,
-    header,
-    rows,
-    txids,
-    branches,
-    detailType === "R" ? { swapR01Banks: false } : undefined,
-  );
+  const generated = generateFromSchema(r01Schema, header, rows, txids, branches, {
+    swapR01Banks: false,
+  });
 
   const bad = generated.lines.find((l) => l.length !== r01Schema.recordLength);
   if (bad) {
@@ -368,29 +351,10 @@ function r01BankAcct(
   };
 }
 
-function r01SideUniform(rows: DetailRow[], side: "orig" | "recv"): boolean {
-  const first = r01BankAcct(rows[0]!, side);
-  if (first.bank.length !== 7 || !first.acct) return false;
-  return rows.every((row) => {
-    const p = r01BankAcct(row, side);
-    return p.bank === first.bank && p.acct === first.acct;
-  });
-}
-
-/**
- * 輸出後的 R01 依檔案原樣解析時：schema orig*＝檔案 PBANK（提回，各列可能不同），
- * schema bank*＝檔案 RBANK（原提示，同一提出單位）。
- * 表單／未對調檔則相反（orig*＝提示且一致）。
- */
-function r01RowsLookLikeExportedFile(rows: DetailRow[]): boolean {
-  return r01SideUniform(rows, "recv") && !r01SideUniform(rows, "orig");
-}
-
 /**
  * 將 ACHR01 提回／退件表單資料轉回 ACHP01 提出檔。
  * - TYPE R→N；CDATA ACHR01→ACHP01
- * - 表單／未對調檔：P01 提出行 ← orig*（提示行）；收受者 ← bank*（提回行）
- * - 已輸出 R01 原樣列（提回在 orig*、提示在 bank* 且提示一致）：對調回來
+ * - 逐列判斷 N/R：N 保留（提示行在 PBANK/PCLNO）；R 對調回提出（提示行取自 RBANK/RCLNO）
  * - 清除 RCODE／PDATE／PSEQ／PSCHD／YDATE
  * - 一律輸出單一整檔
  */
@@ -418,63 +382,39 @@ export function convertR01ToP01(
     throw new Error("沒有明細列可轉檔");
   }
 
-  // 只判斷明細 N/R：R＝提回對調（提示行在 RBANK/RCLNO）；N＝提出（提示行在 PBANK/PCLNO）。
-  // 無 TYPE 時沿用版面推斷。
-  const detailType = detailTypeOfRows(nonEmpty);
-  // 原檔輸出：逐列原樣輸出，提示行一律取自 PBANK/PCLNO（不對調、不重排版面）。
-  const fromExportedFile = options.preserveDetailType
-    ? false
-    : detailType === "R"
-      ? true
-      : detailType === "N"
-        ? false
-        : r01RowsLookLikeExportedFile(nonEmpty);
-  const firstPair = r01BankAcct(
-    nonEmpty[0]!,
-    fromExportedFile ? "recv" : "orig",
-  );
-  const presenterBank = firstPair.bank;
-  const presenterAccount = firstPair.acct;
-  if (presenterBank.length !== 7) {
-    throw new Error("原提示行銀行代號須為 7 碼");
-  }
-  if (!presenterAccount) {
-    throw new Error("原發動者帳號未輸入");
-  }
-
+  // 只判斷明細 N/R —— 逐列判斷（不用首列型態代表整檔）：
+  // - N＝提出：提示行（發動者）在 PBANK/PCLNO、收受者在 RBANK/RCLNO → 保留版面。
+  // - R＝提回對調：提示行（原發動者）在 RBANK/RCLNO、退件行（收受者）在 PBANK/PCLNO
+  //   → 對調回提出（發動者→PBANK、收受者→RBANK）。
+  // 原檔輸出（preserveDetailType）維持逐列原樣：提示行一律取自 PBANK/PCLNO、不對調、
+  // 保留每列 TYPE 與回應欄位（RCODE／PDATE／PSEQ／PSCHD）。
   let seq = 0;
   const rows: DetailRow[] = [];
   for (const row of nonEmpty) {
     seq += 1;
-    const presenter = r01BankAcct(row, fromExportedFile ? "recv" : "orig");
-    // 只判斷明細 N/R：僅在「轉檔」（R 版面→P01，提示行取自 RBANK/RCLNO）時才要求
-    // 各列原提示行一致以組成單一提出檔表頭；明細為 N（不轉，逐列原樣輸出）時，
-    // 每列保留自身 PBANK/PCLNO，不強制同一提出單位。
-    if (
-      fromExportedFile &&
-      (presenter.bank !== presenterBank ||
-        presenter.acct !== presenterAccount)
-    ) {
-      throw new Error(
-        `第 ${seq} 筆原提示行／帳號與首筆不一致（須同一提出單位）`,
-      );
+    const rowIsR =
+      !options.preserveDetailType &&
+      String(row.type ?? "").trim().toUpperCase().charAt(0) === "R";
+    const presenter = r01BankAcct(row, rowIsR ? "recv" : "orig");
+    const recv = r01BankAcct(row, rowIsR ? "orig" : "recv");
+    if (presenter.bank.length !== 7) {
+      throw new Error(`第 ${seq} 筆原提示行銀行代號須為 7 碼`);
     }
-    const recv = r01BankAcct(row, fromExportedFile ? "orig" : "recv");
-    const recvBank = recv.bank;
-    const recvAccount = recv.acct;
-    if (recvBank.length !== 7) {
+    if (!presenter.acct) {
+      throw new Error(`第 ${seq} 筆原發動者帳號未輸入`);
+    }
+    if (recv.bank.length !== 7) {
       throw new Error(`第 ${seq} 筆收受者銀行代號須為 7 碼`);
     }
-    if (!recvAccount) {
+    if (!recv.acct) {
       throw new Error(`第 ${seq} 筆收受者帳號未輸入`);
     }
     const txid =
       String(row.txid ?? "").trim() || String(r01Header.txid ?? "").trim();
     rows.push({
       id: row.id,
-      bankCode: recvBank,
-      account:
-        recvAccount.length < 16 ? recvAccount.padStart(16, "0") : recvAccount,
+      bankCode: recv.bank,
+      account: recv.acct.length < 16 ? recv.acct.padStart(16, "0") : recv.acct,
       taxId: String(row.taxId ?? ""),
       userNo: String(row.userNo ?? ""),
       amount: String(row.amount ?? ""),
@@ -497,6 +437,10 @@ export function convertR01ToP01(
         : {}),
     });
   }
+
+  // 表頭提出行＝首列提示行（發動者）
+  const presenterBank = safeDigits(String(rows[0]!.origBankCode ?? ""));
+  const presenterAccount = safeDigits(String(rows[0]!.origAccount ?? ""));
 
   const headerTxid =
     String(r01Header.txid ?? "").trim() ||
