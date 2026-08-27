@@ -411,11 +411,14 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     setFilterOpts({ hideEmpty: false, onlyErrors: false, global: "" });
   }
 
-  function validateFormData(source?: {
-    header: import("@/lib/ach/schema").HeaderValues;
-    rows: import("@/lib/ach/schema").DetailRow[];
-    partRefs?: { part: number; row: number }[];
-  }): boolean {
+  function validateFormData(
+    source?: {
+      header: import("@/lib/ach/schema").HeaderValues;
+      rows: import("@/lib/ach/schema").DetailRow[];
+      partRefs?: { part: number; row: number }[];
+    },
+    opts?: { skipDetailKeys?: string[] },
+  ): boolean {
     const sourceHeader = source?.header ?? header;
     const sourceRows = source?.rows ?? rows;
     const synced = syncHeaderFromDetails(sourceHeader, sourceRows, schema);
@@ -482,10 +485,15 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     // 輸出前完整檢核：以傳入資料或目前表單即時 validate（不依賴畫面 rowErrs 快取）
     sourceRows.forEach((r, i) => {
       if (isRowEmpty(r, schema)) return;
-      const errs =
+      let errs =
         source != null
           ? validateDetailRow(schema, r, txids, branches, synced)
           : (rowErrs[i] ?? validateDetailRow(schema, r, txids, branches, synced));
+      // 輸出回應檔：rcode／pdate／pseq／pschd 由退件對話框與轉檔填入，輸出前不預先擋
+      if (opts?.skipDetailKeys?.length) {
+        errs = { ...errs };
+        for (const k of opts.skipDetailKeys) delete errs[k];
+      }
       const messages = rowErrorMessages(errs);
       if (messages.length) {
         const ref = source?.partRefs?.[i];
@@ -556,11 +564,17 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   }
 
   /** 輸出／轉檔前：完整檢核目前表單（表頭＋明細規則） */
-  function validateBeforeExport(): boolean {
+  function validateBeforeExport(opts?: { skipDetailKeys?: string[] }): boolean {
     const source = prepareExportSource();
     if (!source) return false;
-    return validateFormData(source);
+    return validateFormData(source, opts);
   }
+
+  /**
+   * 輸出回應檔（R）時由退件對話框＋轉檔填入的明細欄位，輸出前不預先檢核。
+   * 讓 N 明細（P01/N、R01/N）也能轉為回應檔（提示／提回互換）。
+   */
+  const RESPONSE_FILLED_KEYS = ["rcode", "pdate", "pseq", "pschd"];
 
   /** 等畫面先畫出 loading mask，再跑同步檢核／組檔 */
   function yieldForPaint(): Promise<void> {
@@ -633,6 +647,13 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     }
   }
 
+  /**
+   * 輸出回應檔（明細一律為回應 R）。四種來源檔拆分如下（只判斷明細 N/R）：
+   * - P01/N、R01/N（明細 N）：提示／提回互換轉為 R，並依 ACHR01 明細規範填入
+   *   RCODE（退件理由，對話框）／PDATE／PSEQ／PSCHD。
+   * - P01/R、R01/R（明細 R）：保留原退件對調版面與 R 明細欄位。
+   * 首錄／尾錄（BOF/EOF）格式另由「輸出格式」下拉決定（ACHP01／ACHR01），與明細轉換拆開。
+   */
   async function handleConvertToR01(opts: {
     rcode: string;
     ydate: string;
@@ -647,7 +668,8 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
     await beginExport("正在輸出 R01…");
     try {
       const source = prepareExportSource();
-      if (!source || !validateFormData(source)) return;
+      // 輸出回應檔：明細一律轉為 R；rcode／pdate／pseq／pschd 由對話框＋轉檔填入，故不預檢
+      if (!source || !validateFormData(source, { skipDetailKeys: RESPONSE_FILLED_KEYS })) return;
       const sourceHeader = source.header;
       const sourceRows = source.rows;
 
@@ -1467,7 +1489,9 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         void (async () => {
           await beginExport("檢核中…");
           try {
-            if (!validateBeforeExport()) return;
+            // 輸出回應檔：跳過退件對話框才填的欄位（rcode／pdate／pseq／pschd）預檢
+            if (!validateBeforeExport({ skipDetailKeys: RESPONSE_FILLED_KEYS }))
+              return;
             setConvertOpen(true);
           } finally {
             setConverting(false);

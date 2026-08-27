@@ -836,8 +836,11 @@ function buildResult(
       const got = expectedType === "N" ? "R" : "N";
       const label =
         expectedType === "N" ? "ACHP01（TYPE=N）" : "ACHR01（TYPE=R）";
-      acc.errors.push(
-        `明細 TYPE 與 ${label} 不符：有 ${acc.detailTypeMismatchCount.toLocaleString("zh-TW")} 筆為 TYPE=${got}`,
+      // 只判斷明細 N/R：四種檔（P01/N、P01/R、R01/N、R01/R）皆可上傳編輯，
+      // 首錄與明細 TYPE 不一致僅提示（不擋套用），輸出時依明細 N/R 處理。
+      pushWarning(
+        acc.warnings,
+        `首錄為 ${acc.schema.code}，但有 ${acc.detailTypeMismatchCount.toLocaleString("zh-TW")} 筆明細為 TYPE=${got}（可依明細 N/R 輸出）`,
       );
     }
     if (acc.detailTypeOtherCount > 0) {
