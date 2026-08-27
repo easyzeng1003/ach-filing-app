@@ -140,8 +140,8 @@ export function ExcludeExportPanel({
     (c) => c.key.trim() && String(c.value ?? "").trim(),
   );
   const p01Label = hasActiveConditions
-    ? `${actionVerb}後輸出 P01`
-    : "輸出 P01";
+    ? `${actionVerb}後輸出提出檔`
+    : "輸出提出檔";
   const responseLabel = hasActiveConditions
     ? `${actionVerb}後輸出回應檔`
     : "輸出回應檔";
@@ -154,6 +154,25 @@ export function ExcludeExportPanel({
     if (processDateError) {
       toast.error(processDateError);
       return false;
+    }
+    return true;
+  }
+
+  /**
+   * 輸出前共同守門：處理日期一律檢核；代表行代號（RORG）僅在首錄／尾錄為
+   * ACHR01 時才需要（ACHP01 首尾錄無 RORG）。與明細 N/R 無關。
+   */
+  function guardExport(): boolean {
+    if (!guardDate()) return false;
+    if (responseFormat === "ACHR01") {
+      if (!agentBankDigits) {
+        toast.error("未輸入代表行代號");
+        return false;
+      }
+      if (agentBankError) {
+        toast.error(agentBankError);
+        return false;
+      }
     }
     return true;
   }
@@ -445,10 +464,10 @@ export function ExcludeExportPanel({
             disabled={buttonsBusy}
             startIcon={<SwapHorizIcon />}
             onClick={() => {
-              if (!guardDate()) return;
+              if (!guardExport()) return;
               onExportP01?.();
             }}
-            title={p01Label}
+            title={`${p01Label}（明細轉為提出 N；首錄／尾錄格式依「輸出格式」下拉）`}
           >
             {p01Label}
           </Button>
@@ -458,15 +477,7 @@ export function ExcludeExportPanel({
             disabled={buttonsBusy}
             startIcon={<SwapHorizIcon />}
             onClick={() => {
-              if (!guardDate()) return;
-              if (!agentBankDigits) {
-                toast.error("未輸入代表行代號");
-                return;
-              }
-              if (agentBankError) {
-                toast.error(agentBankError);
-                return;
-              }
+              if (!guardExport()) return;
               onExportR01?.();
             }}
             title={`${responseLabel}（明細轉為回應／退件 R；首錄／尾錄格式依「輸出格式」下拉）`}
