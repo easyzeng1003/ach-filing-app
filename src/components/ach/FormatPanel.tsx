@@ -1507,8 +1507,28 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           // 明細互換的 rcode／pdate／pseq／pschd 由對話框＋轉檔填入，預檢時略過
           if (!validateBeforeExport({ skipDetailKeys: RESPONSE_FILLED_KEYS }))
             return;
-          // 只要明細列需要轉換（n→r 或 r→n）就跳出對話框（選擇退件理由）
-          setConvertOpen(true);
+          const src = prepareExportSource();
+          if (!src) return;
+          const kept = filterExcludedRows(
+            schema,
+            src.rows,
+            resolveExcludeDoc(schema.code),
+          ).kept;
+          // 產生回應 R（明細 N→R，須壓 RCODE）才跳退件理由對話框；
+          // 全部 R→N（產生提出 N，無退件理由）直接輸出。
+          const producesR = kept.some(
+            (r) => String(r.type ?? "").trim().toUpperCase().charAt(0) !== "R",
+          );
+          if (producesR) {
+            setConvertOpen(true);
+          } else {
+            await handleConvertToggle({
+              rcode: "",
+              ydate: "",
+              pdate: "",
+              agentBank,
+            });
+          }
         })();
       }}
     />
