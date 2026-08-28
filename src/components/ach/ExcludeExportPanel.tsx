@@ -70,15 +70,11 @@ type Props = {
    */
   onValidateBeforeExport?: () => boolean;
   /**
-   * 篩選／排除後輸出 R01：開啟 P01→R01 轉檔對話框並套用目前條件。
-   * 不提供時隱藏 R01 按鈕。
+   * 篩選／排除後「轉檔輸出」：逐列 N⇄R 互換（明細 N→回應 R、R→提出 N），
+   * 同時處理 n→r 與 r→n。首錄／尾錄格式由「輸出格式」下拉決定。
+   * 不提供時隱藏此按鈕。
    */
-  onExportR01?: () => void;
-  /**
-   * 篩選／排除後輸出 P01：將目前 R01 轉回 ACHP01 並套用條件。
-   * 不提供時隱藏轉回 P01 按鈕。
-   */
-  onExportP01?: () => void;
+  onExportToggle?: () => void;
   /** 輸出／轉檔進行中（父層全畫面 mask） */
   exporting?: boolean;
 };
@@ -95,8 +91,7 @@ export function ExcludeExportPanel({
   responseFormat = "ACHR01",
   onResponseFormatChange,
   onExportOriginal,
-  onExportR01,
-  onExportP01,
+  onExportToggle,
   exporting = false,
 }: Props) {
   const [busy, setBusy] = useState(false);
@@ -115,7 +110,7 @@ export function ExcludeExportPanel({
 
   // FILTER 列出 JSON form.detail 全部欄位（含 hidden），可依任一欄位篩選／排除。
   const fields = detailFieldsForFilter(schema);
-  const showAgentBank = Boolean(onAgentBankChange) || Boolean(onExportR01);
+  const showAgentBank = Boolean(onAgentBankChange) || Boolean(onExportToggle);
   const dateDigits = safeDigits(processDate).slice(0, 8);
   const processDateError = !dateDigits
     ? null
@@ -139,12 +134,9 @@ export function ExcludeExportPanel({
   const hasActiveConditions = conditions.some(
     (c) => c.key.trim() && String(c.value ?? "").trim(),
   );
-  const p01Label = hasActiveConditions
-    ? `${actionVerb}後輸出提出檔`
-    : "輸出提出檔";
-  const responseLabel = hasActiveConditions
-    ? `${actionVerb}後輸出回應檔`
-    : "輸出回應檔";
+  const toggleLabel = hasActiveConditions
+    ? `${actionVerb}後轉檔輸出`
+    : "轉檔輸出";
 
   function guardDate(): boolean {
     if (!dateDigits) {
@@ -458,32 +450,21 @@ export function ExcludeExportPanel({
               原檔輸出
             </Button>
           ) : null}
-          <Button
-            variant="outlined"
-            color="primary"
-            disabled={buttonsBusy}
-            startIcon={<SwapHorizIcon />}
-            onClick={() => {
-              if (!guardExport()) return;
-              onExportP01?.();
-            }}
-            title={`${p01Label}（明細轉為提出 N；首錄／尾錄格式依「輸出格式」下拉）`}
-          >
-            {p01Label}
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            disabled={buttonsBusy}
-            startIcon={<SwapHorizIcon />}
-            onClick={() => {
-              if (!guardExport()) return;
-              onExportR01?.();
-            }}
-            title={`${responseLabel}（明細轉為回應／退件 R；首錄／尾錄格式依「輸出格式」下拉）`}
-          >
-            {responseLabel}
-          </Button>
+          {onExportToggle ? (
+            <Button
+              variant="contained"
+              color="primary"
+              disabled={buttonsBusy}
+              startIcon={<SwapHorizIcon />}
+              onClick={() => {
+                if (!guardExport()) return;
+                onExportToggle();
+              }}
+              title={`${toggleLabel}（逐列 N⇄R 互換：明細 N→回應 R（退件對調＋填 RCODE 等）、R→提出 N（對調回＋清 R 欄位）；首錄／尾錄格式依「輸出格式」下拉）`}
+            >
+              {toggleLabel}
+            </Button>
+          ) : null}
         </Stack>
 
         {lastResult ? (
