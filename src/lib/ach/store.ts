@@ -430,6 +430,9 @@ export const useFormStore = create<FormState>()(
               row[f.key] = sanitizeFieldInput(f, raw);
             }
           }
+          // 保留原上傳序號（SEQ 7-14；非表單欄位），供輸出回應檔時
+          // 作為原提示序號 PSEQ／並讓輸出 SEQ 參照來源序號。
+          if (String(src.seq ?? "").trim()) row.seq = String(src.seq);
           return row;
         });
         const pad = Math.max(0, 15 - imported.length);
