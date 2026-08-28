@@ -594,6 +594,9 @@ export function convertToggleDetails(
     if (!newOrigAcct || !newAcct) {
       throw new Error(`第 ${seq} 筆帳號未輸入`);
     }
+    // 輸出 SEQ(7-14)：優先取來源序號（7-14）；空白才用列序。
+    const srcSeqDigits = safeDigits(String(row.seq ?? ""));
+    const outSeq = srcSeqDigits ? padSeq8(srcSeqDigits) : padSeq8(seq);
     const base: DetailRow = {
       id: row.id,
       origBankCode: newOrigBank,
@@ -604,12 +607,17 @@ export function convertToggleDetails(
       taxId: String(row.taxId ?? ""),
       userNo: String(row.userNo ?? ""),
       amount: String(row.amount ?? ""),
+      // 逐列保留發動者統編（CID 74-83）、交易代號；SEQ 取來源序號（7-14）
+      cid: String(row.cid ?? ""),
+      seq: outSeq,
+      ...(String(row.txid ?? "").trim() ? { txid: String(row.txid) } : {}),
       type: newType,
     } as DetailRow;
     if (newType === "R") {
       base.rcode = rcode;
       base.pdate = pdate;
-      base.pseq = pseqFromUploadedSeq(row, seq);
+      // 原提示序號 PSEQ(108-115) ← 來源 SEQ(7-14)，與輸出 SEQ 一致
+      base.pseq = outSeq;
       base.pschd = "B";
     }
     return base;

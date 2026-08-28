@@ -685,7 +685,13 @@ export function patchDetailLine(
   for (const def of schema.records.detail.fields) {
     const rawSlice = base.slice(offset, offset + def.length);
     // filler／runtime：保留原始切片（發動者專用區、備註等）
-    if (def.source === "filler" || def.source === "runtime") {
+    // TYPE：保留原列 N／R，不套 schema literal（否則存回分割包會把 N 誤寫成 R，
+    // 導致整檔轉換時該包被當成 R 反向轉回 N）。
+    if (
+      def.source === "filler" ||
+      def.source === "runtime" ||
+      def.id === "TYPE"
+    ) {
       out += padRecordLine(rawSlice, def.length);
     } else {
       const piece = fitFieldPiece(buildRecord([def], ctx), def);
