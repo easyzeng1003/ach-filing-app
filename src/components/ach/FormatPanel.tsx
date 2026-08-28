@@ -1507,27 +1507,8 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
           // 明細互換的 rcode／pdate／pseq／pschd 由對話框＋轉檔填入，預檢時略過
           if (!validateBeforeExport({ skipDetailKeys: RESPONSE_FILLED_KEYS }))
             return;
-          const src = prepareExportSource();
-          if (!src) return;
-          const kept = filterExcludedRows(
-            schema,
-            src.rows,
-            resolveExcludeDoc(schema.code),
-          ).kept;
-          // 有 N 明細（→R）才需退件理由；全 R（→N）直接轉檔輸出
-          const hasN = kept.some(
-            (r) => String(r.type ?? "").trim().toUpperCase().charAt(0) !== "R",
-          );
-          if (hasN) {
-            setConvertOpen(true);
-          } else {
-            await handleConvertToggle({
-              rcode: "",
-              ydate: "",
-              pdate: "",
-              agentBank,
-            });
-          }
+          // 只要明細列需要轉換（n→r 或 r→n）就跳出對話框（選擇退件理由）
+          setConvertOpen(true);
         })();
       }}
     />
@@ -1537,7 +1518,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       <ConvertR01Dialog
         open={convertOpen}
         detailCount={convertR01DetailCount}
-        sourceIsR01={schema.code === "ACHR01"}
+        agentBankRequired={responseFormat === "ACHR01"}
         tdate={String(header.date ?? "")}
         agentBank={agentBank}
         busy={converting}

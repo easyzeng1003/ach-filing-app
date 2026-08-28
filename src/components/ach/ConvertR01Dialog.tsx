@@ -23,8 +23,8 @@ import { prevRocDate, safeDigits } from "@/lib/ach/utils";
 type Props = {
   open: boolean;
   detailCount: number;
-  /** 來源已是 R01 時，標題改為輸出退件（仍填 RCODE） */
-  sourceIsR01?: boolean;
+  /** 代表行代號是否必填（首錄／尾錄為 ACHR01 時才需 RORG） */
+  agentBankRequired?: boolean;
   /** 提出檔處理日期（8 碼民國） */
   tdate: string;
   /** 收受行代表行代號（預填自主畫面） */
@@ -42,7 +42,7 @@ type Props = {
 export function ConvertR01Dialog({
   open,
   detailCount,
-  sourceIsR01 = false,
+  agentBankRequired = true,
   tdate,
   agentBank: agentBankProp = "",
   busy = false,
@@ -74,13 +74,16 @@ export function ConvertR01Dialog({
   const agentDigits = safeDigits(agentBank).slice(0, 7);
   const agentBankError =
     agentDigits.length > 0 && agentDigits.length !== 7 ? "須為七碼" : null;
+  const agentBankOk = agentBankRequired
+    ? agentDigits.length === 7
+    : agentDigits.length === 0 || agentDigits.length === 7;
   const canSubmit =
     !busy &&
     detailCount > 0 &&
     rDigits.length === 2 &&
     yDigits.length === 8 &&
     pDigits.length === 8 &&
-    agentDigits.length === 7;
+    agentBankOk;
 
   return (
     <Dialog
@@ -94,9 +97,7 @@ export function ConvertR01Dialog({
         <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
           <ArrowRightLeftIcon color="primary" />
           <Typography variant="h6" component="span">
-            {sourceIsR01
-              ? "輸出 R01（退件理由）"
-              : "轉檔 P01 → R01（提回／退件）"}
+            轉檔輸出（退件理由）
           </Typography>
         </Stack>
         <IconButton
@@ -112,9 +113,10 @@ export function ConvertR01Dialog({
       <DialogContent dividers>
         <Stack spacing={2.5}>
           <Alert severity="info" variant="outlined">
-            將轉換整檔{" "}
+            將整檔{" "}
             <strong>{detailCount.toLocaleString("zh-TW")}</strong>{" "}
-            筆有效明細為單一 ACHR01 檔。
+            筆有效明細逐列 N⇄R 互換後輸出（明細 N→回應 R 填退件理由；R→提出 N
+            清退件欄位）。首錄／尾錄格式依「輸出格式」下拉。
           </Alert>
 
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
@@ -210,7 +212,7 @@ export function ConvertR01Dialog({
             })
           }
         >
-          {busy ? "轉檔中…" : "產生 ACHR01"}
+          {busy ? "轉檔中…" : "產生檔案"}
         </Button>
       </DialogActions>
     </Dialog>
