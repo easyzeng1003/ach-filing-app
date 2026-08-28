@@ -704,7 +704,9 @@ export function generateFromSchema(
       totalCount: nonEmpty.length,
     }),
   );
-  lines.push(...detailLines);
+  // 逐筆 push，避免 push(...detailLines) 於大檔（明細數眾多）時觸發
+  // 「Maximum call stack size exceeded」（展開運算子會把每列當成一個引數）。
+  for (const dl of detailLines) lines.push(dl);
   lines.push(
     buildRecord(schema.records.trailer.fields, {
       ...baseCtx,

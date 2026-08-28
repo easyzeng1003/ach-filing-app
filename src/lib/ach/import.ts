@@ -877,7 +877,7 @@ function buildResult(
 
   const lines: ParsedLine[] = [];
   if (acc.headerLine) lines.push(acc.headerLine);
-  lines.push(...acc.detailSamples);
+  for (const s of acc.detailSamples) lines.push(s);
   if (acc.trailerLine) lines.push(acc.trailerLine);
 
   const trailer = acc.trailerLine
