@@ -1319,7 +1319,7 @@ export async function convertLargeP01FileToR01(
     const f = converted.files[0];
     if (!f) return;
     // lines: header, details..., trailer
-    detailLines.push(...f.lines.slice(1, -1));
+    for (const dl of f.lines.slice(1, -1)) detailLines.push(dl);
     if (!outHeader) {
       outHeader = {
         date: header.date ?? "",
@@ -1519,7 +1519,7 @@ export async function convertLargeR01FileToP01(
     );
     const f = converted.files[0];
     if (!f) return;
-    detailLines.push(...f.lines.slice(1, -1));
+    for (const dl of f.lines.slice(1, -1)) detailLines.push(dl);
     if (!outHeader) {
       presenterBank = f.presenterBank;
       outHeader = {
@@ -1741,7 +1741,7 @@ export function convertMergedP01PartitionsToR01(
     const f = converted.files[0];
     if (f) {
       if (!returnBank) returnBank = f.returnBank;
-      detailLines.push(...f.lines.slice(1, -1));
+      for (const dl of f.lines.slice(1, -1)) detailLines.push(dl);
       totalAmount += f.amount;
     }
     offset += chunk;
