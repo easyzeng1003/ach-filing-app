@@ -584,6 +584,12 @@ export type GenerateFromSchemaOptions = {
    * 明細規範（RCODE／PDATE／PSEQ／PSCHD 等）。
    */
   responseDetailSchema?: FormatSchema;
+  /**
+   * 明細為 N（提出）時，改用此 schema 的 records.detail 規範產生明細，
+   * 即使首錄／尾錄為 ACHR01。用於「BOF 為 R01 但明細為 N」時，明細仍參照 ACHP01
+   * 明細規範（避免 R 專用欄位 PDATE／PSEQ／PSCHD 造成長度不符）。
+   */
+  submitDetailSchema?: FormatSchema;
 };
 
 /** 表單金額：去千分位後取整（與 AMT floorInt 一致） */
@@ -648,12 +654,14 @@ export function generateFromSchema(
   const detailLines: string[] = [];
   let seq = 1;
   for (const row of nonEmpty) {
-    // 明細為 R 時參照 ACHR01 明細規範（即使首錄／尾錄為 P01）
+    // 明細為 R 時參照 ACHR01 明細規範、為 N 時參照 ACHP01 明細規範（與首錄／尾錄拆開）
     const rowType = String(row.type ?? "").trim().toUpperCase().charAt(0);
     const detailSchema =
-      options?.responseDetailSchema && rowType === "R"
+      rowType === "R" && options?.responseDetailSchema
         ? options.responseDetailSchema
-        : schema;
+        : rowType === "N" && options?.submitDetailSchema
+          ? options.submitDetailSchema
+          : schema;
     let rec = buildRecord(detailSchema.records.detail.fields, {
       schema: detailSchema,
       header: effectiveHeader,

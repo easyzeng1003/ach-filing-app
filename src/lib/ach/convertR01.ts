@@ -504,3 +504,157 @@ export function convertR01ToP01(
     rows,
   };
 }
+
+export type ConvertToggleOptions = {
+  /** 退件理由代號（2 碼）；有 N→R 明細時必填 */
+  rcode?: string;
+  /** 原提示交易日期 PDATE（8 碼）；未指定時用處理日期 */
+  pdate?: string;
+  /** Trailer YDATE（ACHR01 尾錄）；預設處理日前一日 */
+  ydate?: string;
+  /** 代表行代號（ACHR01 BOF/EOF RORG）；首尾錄為 ACHR01 時必填 */
+  agentBank?: string;
+};
+
+export type ConvertToggleResult = {
+  content: string;
+  filename: string;
+  lines: string[];
+  count: number;
+  amount: number;
+  detailCount: number;
+  /** N→R（提出→回應）筆數 */
+  toR: number;
+  /** R→N（回應→提出）筆數 */
+  toN: number;
+  rcode: string;
+};
+
+/**
+ * 單一「轉檔輸出」：逐列 N⇄R 互換（同時處理 n→r 與 r→n）。
+ * - 明細 N → 回應 R：提示／提回互換（PBANK/PCLNO ↔ RBANK/RCLNO）、TYPE=R，
+ *   並依 ACHR01 明細規範填 RCODE／PDATE／PSEQ／PSCHD。
+ * - 明細 R → 提出 N：提示／提回互換、TYPE=N，清除 R 明細欄位。
+ * 首錄／尾錄格式由 envSchema（輸出格式下拉，ACHP01／ACHR01）決定，與明細互換拆開；
+ * 明細為 R 者一律參照 ACHR01 明細規範（即使首尾錄為 ACHP01）。
+ */
+export function convertToggleDetails(
+  envSchema: FormatSchema,
+  p01Schema: FormatSchema,
+  r01Schema: FormatSchema,
+  header: HeaderValues,
+  rows: DetailRow[],
+  txids: Txid[],
+  branches: Branch[],
+  options: ConvertToggleOptions = {},
+): ConvertToggleResult {
+  if (envSchema.code !== "ACHP01" && envSchema.code !== "ACHR01") {
+    throw new Error("輸出格式須為 ACHP01 或 ACHR01");
+  }
+  const tdate = requireRoc8(String(header.date ?? ""), "處理日期（TDATE）");
+  const nonEmpty = rows.filter(
+    (r) => !isP01DetailEmpty(r) || !isR01DetailEmpty(r),
+  );
+  if (nonEmpty.length === 0) {
+    throw new Error("沒有明細列可轉檔");
+  }
+  const hasToR = nonEmpty.some(
+    (r) => String(r.type ?? "").trim().toUpperCase().charAt(0) !== "R",
+  );
+  const rcode = hasToR ? requireRcode(options.rcode ?? "") : "";
+  const pdate = hasToR
+    ? requireRoc8(options.pdate ?? tdate, "原提示交易日期（PDATE）")
+    : "";
+  const agentBank =
+    envSchema.code === "ACHR01"
+      ? requireAgentBank(options.agentBank ?? "", branches)
+      : safeDigits(String(options.agentBank ?? ""));
+  const ydate = resolveR01Ydate(options.ydate, tdate);
+
+  let seq = 0;
+  let toR = 0;
+  let toN = 0;
+  const flipped: DetailRow[] = nonEmpty.map((row) => {
+    seq += 1;
+    const isR = String(row.type ?? "").trim().toUpperCase().charAt(0) === "R";
+    const newType = isR ? "N" : "R";
+    if (newType === "R") toR += 1;
+    else toN += 1;
+    // 提示／提回互換：新 PBANK/PCLNO ← 原 RBANK/RCLNO；新 RBANK/RCLNO ← 原 PBANK/PCLNO
+    const newOrigBank = safeDigits(String(row.bankCode ?? ""));
+    const newOrigAcct = safeDigits(String(row.account ?? ""));
+    const newBank = safeDigits(String(row.origBankCode ?? ""));
+    const newAcct = safeDigits(String(row.origAccount ?? ""));
+    if (newOrigBank.length !== 7) {
+      throw new Error(`第 ${seq} 筆收受者／退件行銀行代號須為 7 碼`);
+    }
+    if (newBank.length !== 7) {
+      throw new Error(`第 ${seq} 筆提出行／原提示行銀行代號須為 7 碼`);
+    }
+    if (!newOrigAcct || !newAcct) {
+      throw new Error(`第 ${seq} 筆帳號未輸入`);
+    }
+    const base: DetailRow = {
+      id: row.id,
+      origBankCode: newOrigBank,
+      origAccount:
+        newOrigAcct.length < 16 ? newOrigAcct.padStart(16, "0") : newOrigAcct,
+      bankCode: newBank,
+      account: newAcct.length < 16 ? newAcct.padStart(16, "0") : newAcct,
+      taxId: String(row.taxId ?? ""),
+      userNo: String(row.userNo ?? ""),
+      amount: String(row.amount ?? ""),
+      type: newType,
+    } as DetailRow;
+    if (newType === "R") {
+      base.rcode = rcode;
+      base.pdate = pdate;
+      base.pseq = pseqFromUploadedSeq(row, seq);
+      base.pschd = "B";
+    }
+    return base;
+  });
+
+  const headerOut: HeaderValues = {
+    date: tdate,
+    txid: String(header.txid ?? ""),
+    bankCode: safeDigits(String(flipped[0]!.origBankCode ?? "")),
+    account: safeDigits(String(flipped[0]!.origAccount ?? "")),
+    taxId: String(header.taxId ?? ""),
+    ...(envSchema.code === "ACHR01" ? { agentBank, ydate } : {}),
+  };
+
+  const generated = generateFromSchema(
+    envSchema,
+    headerOut,
+    flipped,
+    txids,
+    branches,
+    {
+      preserveDetailType: true,
+      // 明細各依自身型態的規範：R→ACHR01、N→ACHP01（與首尾錄格式拆開）
+      responseDetailSchema: r01Schema,
+      submitDetailSchema: p01Schema,
+      swapR01Banks: false,
+    },
+  );
+
+  const bad = generated.lines.find((l) => l.length !== envSchema.recordLength);
+  if (bad) {
+    throw new Error(
+      `列長度 ${bad.length} 與定義 ${envSchema.recordLength} 不符`,
+    );
+  }
+
+  return {
+    content: generated.content,
+    filename: generated.filename,
+    lines: generated.lines,
+    count: generated.count,
+    amount: generated.amount,
+    detailCount: nonEmpty.length,
+    toR,
+    toN,
+    rcode,
+  };
+}

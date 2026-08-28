@@ -27,8 +27,8 @@ import {
 import type { FormatSchema } from "@/lib/ach/schema";
 import { detailFieldsForDisplay } from "@/lib/ach/formDisplay";
 import {
-  convertP01ToR01,
   convertR01ToP01,
+  convertToggleDetails,
   requireAgentBank,
 } from "@/lib/ach/convertR01";
 import {
@@ -658,28 +658,33 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   }
 
   /**
-   * 輸出回應檔（明細一律為回應 R）。四種來源檔拆分如下（只判斷明細 N/R）：
-   * - P01/N、R01/N（明細 N）：提示／提回互換轉為 R，並依 ACHR01 明細規範填入
+   * 單一「轉檔輸出」：逐列 N⇄R 互換（同時處理 n→r 與 r→n）。
+   * - 明細 N → 回應 R：提示／提回互換、TYPE=R，依 ACHR01 明細規範填
    *   RCODE（退件理由，對話框）／PDATE／PSEQ／PSCHD。
-   * - P01/R、R01/R（明細 R）：保留原退件對調版面與 R 明細欄位。
-   * 首錄／尾錄（BOF/EOF）格式另由「輸出格式」下拉決定（ACHP01／ACHR01），與明細轉換拆開。
+   * - 明細 R → 提出 N：提示／提回互換、TYPE=N，清除 R 明細欄位。
+   * 首錄／尾錄格式由「輸出格式」下拉（ACHP01／ACHR01）決定，與明細互換拆開。
    */
-  async function handleConvertToR01(opts: {
+  async function handleConvertToggle(opts: {
     rcode: string;
     ydate: string;
     pdate: string;
     agentBank: string;
   }) {
     const r01 = formats.ACHR01;
-    if (!r01) {
-      toast.error("找不到 ACHR01 格式定義");
+    const envSchema = formats[responseFormat];
+    if (!r01 || !envSchema) {
+      toast.error("找不到格式定義");
       return;
     }
-    await beginExport("正在輸出 R01…");
+    await beginExport("轉檔輸出中…");
     try {
       const source = prepareExportSource();
-      // 輸出回應檔：明細一律轉為 R；rcode／pdate／pseq／pschd 由對話框＋轉檔填入，故不預檢
-      if (!source || !validateFormData(source, { skipDetailKeys: RESPONSE_FILLED_KEYS })) return;
+      // 明細互換的 rcode／pdate／pseq／pschd 由對話框＋轉檔填入，故不預檢
+      if (
+        !source ||
+        !validateFormData(source, { skipDetailKeys: RESPONSE_FILLED_KEYS })
+      )
+        return;
       const sourceHeader = source.header;
       const sourceRows = source.rows;
 
@@ -692,72 +697,29 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         toast.error(`${actionVerb}後沒有可轉檔的明細`);
         return;
       }
-      // 單一整檔。每列用自己的 origBankCode／origAccount 對調；
-      // R01 缺列值時才回退表頭（以首筆原提示行當提出行後備）。
-      const first = filtered.kept[0];
-      const convertHeader =
-        schema.code === "ACHR01"
-          ? {
-              ...sourceHeader,
-              bankCode:
-                String(first?.origBankCode ?? "").trim() ||
-                String(sourceHeader.bankCode ?? ""),
-              account:
-                String(first?.origAccount ?? "").trim() ||
-                String(sourceHeader.account ?? ""),
-            }
-          : sourceHeader;
-      const result = convertP01ToR01(
-        withLineEndingId(r01, lineEnding),
-        convertHeader,
+      const processDate = String(header.date ?? sourceHeader.date ?? "");
+      const result = convertToggleDetails(
+        withLineEndingId(envSchema, lineEnding),
+        formats.ACHP01 ?? formats.ACHR01 ?? envSchema,
+        r01,
+        { ...sourceHeader, date: processDate || sourceHeader.date },
         filtered.kept,
         txids,
         branches,
-        opts,
+        {
+          rcode: opts.rcode,
+          pdate: opts.pdate || processDate,
+          ydate: opts.ydate,
+          agentBank: opts.agentBank || agentBank,
+        },
       );
-      // 邏輯拆開：明細一律轉為回應（R，退件對調）；首錄／尾錄格式依「輸出格式」下拉。
-      // 選 ACHP01 時保留 R 明細，僅將首錄／尾錄改為 ACHP01（SORG＝原提示行、RORG＝9990250）。
-      const p01Envelope = formats.ACHP01;
-      const outFiles =
-        responseFormat === "ACHP01" && p01Envelope
-          ? result.files.map((file) => {
-              const outP01 = withLineEndingId(p01Envelope, lineEnding);
-              const ending = outP01.lineEnding || "\r\n";
-              const detailLines = file.lines.slice(1, -1);
-              const presenterBank = String(detailLines[0] ?? "").slice(37, 44);
-              const ctx = {
-                schema: outP01,
-                header: {
-                  ...convertHeader,
-                  date: String(header.date ?? convertHeader.date ?? ""),
-                  bankCode: presenterBank || String(convertHeader.bankCode ?? ""),
-                },
-                seq: 0,
-                totalCount: detailLines.length,
-                totalAmount: sumDetailRecordAmounts(detailLines, outP01),
-                txids,
-                branches,
-              };
-              const lines = [
-                buildRecord(outP01.records.header.fields, ctx),
-                ...detailLines,
-                buildRecord(outP01.records.trailer.fields, ctx),
-              ];
-              return {
-                ...file,
-                filename: file.filename.replace(/ACHR01/g, "ACHP01"),
-                content: lines.join(ending) + ending,
-                lines,
-              };
-            })
-          : result.files;
-      const saved = await saveAchFiles(
-        outFiles.map((f) => ({
-          filename: f.filename,
-          content: f.content,
+      const saved = await saveAchFiles([
+        {
+          filename: result.filename,
+          content: result.content,
           mime: "text/plain;charset=utf-8",
-        })),
-      );
+        },
+      ]);
       if (saved.method === "canceled") {
         toast.message("已取消儲存");
         return;
@@ -766,8 +728,14 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         filtered.excludedCount > 0
           ? `（已${actionVerb}未輸出 ${filtered.excludedCount.toLocaleString("zh-TW")} 筆）`
           : "";
+      const dir =
+        result.toR && result.toN
+          ? `N→R ${result.toR}／R→N ${result.toN}`
+          : result.toR
+            ? "N→R"
+            : "R→N";
       toast.success(
-        `已輸出回應檔（${responseFormat === "ACHP01" ? "ACHP01" : "ACHR01"}／${result.detailCount} 筆${excludeNote}，RCODE=${result.rcode}）· ${describeSaveResult(saved)}`,
+        `已轉檔輸出（${responseFormat}／${dir}／${result.detailCount} 筆${excludeNote}${result.rcode ? `，RCODE=${result.rcode}` : ""}）· ${describeSaveResult(saved)}`,
       );
       setConvertOpen(false);
     } catch (e) {
@@ -1534,23 +1502,31 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       onExportOriginal={() => {
         void handleExportOriginal();
       }}
-      onExportP01={() => {
-        if (schema.code === "ACHR01") {
-          void handleConvertToP01();
-          return;
-        }
-        void exportCurrentAsFile();
-      }}
-      onExportR01={() => {
+      onExportToggle={() => {
         void (async () => {
-          await beginExport("檢核中…");
-          try {
-            // 輸出回應檔：跳過退件對話框才填的欄位（rcode／pdate／pseq／pschd）預檢
-            if (!validateBeforeExport({ skipDetailKeys: RESPONSE_FILLED_KEYS }))
-              return;
+          // 明細互換的 rcode／pdate／pseq／pschd 由對話框＋轉檔填入，預檢時略過
+          if (!validateBeforeExport({ skipDetailKeys: RESPONSE_FILLED_KEYS }))
+            return;
+          const src = prepareExportSource();
+          if (!src) return;
+          const kept = filterExcludedRows(
+            schema,
+            src.rows,
+            resolveExcludeDoc(schema.code),
+          ).kept;
+          // 有 N 明細（→R）才需退件理由；全 R（→N）直接轉檔輸出
+          const hasN = kept.some(
+            (r) => String(r.type ?? "").trim().toUpperCase().charAt(0) !== "R",
+          );
+          if (hasN) {
             setConvertOpen(true);
-          } finally {
-            setConverting(false);
+          } else {
+            await handleConvertToggle({
+              rcode: "",
+              ydate: "",
+              pdate: "",
+              agentBank,
+            });
           }
         })();
       }}
@@ -1568,7 +1544,7 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
         onClose={() => {
           if (!converting) setConvertOpen(false);
         }}
-        onConfirm={handleConvertToR01}
+        onConfirm={handleConvertToggle}
       />
     );
 
