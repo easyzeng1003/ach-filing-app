@@ -649,7 +649,7 @@
         "length": 6,
         "digitStart": 94,
         "digitEnd": 99,
-        "charset": "alnum",
+        "charset": "any",
         "required": false,
         "hidden": true,
         "pad": {
@@ -1135,11 +1135,16 @@
         },
         {
           "id": "SID",
-          "source": "filler",
+          "source": "detail",
+          "key": "sid",
           "length": 6,
           "digitStart": 94,
           "digitEnd": 99,
-          "fill": " ",
+          "charset": "any",
+          "pad": {
+            "side": "right",
+            "char": " "
+          },
           "label": "上市上櫃公司代號"
         },
         {
