@@ -1364,9 +1364,16 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       filtered.kept,
       txids,
       branches,
-      // 原檔輸出：保留原始 TYPE 且不對調銀行／帳號區塊（依上傳原檔逐列原樣輸出）
+      // 原檔輸出：保留原始 TYPE 且不對調銀行／帳號區塊（依上傳原檔逐列原樣輸出）；
+      // 明細 R 參照 ACHR01、N 參照 ACHP01 明細規範，避免「N 在 R01 首尾錄」時
+      // R 專用欄位（PDATE/PSEQ/PSCHD）pad:none 造成列長不足、欄位位移。
       opts?.original
-        ? { preserveDetailType: true, swapR01Banks: false }
+        ? {
+            preserveDetailType: true,
+            swapR01Banks: false,
+            responseDetailSchema: formats.ACHR01,
+            submitDetailSchema: formats.ACHP01,
+          }
         : undefined,
     );
     const badLen = generated.lines.find(
