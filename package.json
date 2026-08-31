@@ -99,7 +99,7 @@
     "vite-tsconfig-paths": "^6.1.1"
   },
   "description": "ACH改檔小工具 — ACH 固定長度檔產生（JSON 參數化）純 HTML + JS 靜態版",
-  "version": "1.4.96",
+  "version": "1.4.97",
   "author": "EzZeng",
   "license": "MIT",
   "homepage": "https://github.com/EzZeng/ach-filing-app",

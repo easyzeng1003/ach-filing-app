@@ -418,6 +418,8 @@ export function convertR01ToP01(
       taxId: String(row.taxId ?? ""),
       userNo: String(row.userNo ?? ""),
       amount: String(row.amount ?? ""),
+      // 逐列保留發動者統編（CID），避免輸出時回退表頭統編或空白
+      cid: String(row.cid ?? ""),
       origBankCode: presenter.bank,
       origAccount:
         presenter.acct.length < 16

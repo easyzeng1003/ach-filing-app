@@ -843,7 +843,7 @@
         "length": 20,
         "digitStart": 117,
         "digitEnd": 136,
-        "charset": "alnum",
+        "charset": "any",
         "required": false,
         "pad": {
           "side": "none"
@@ -1299,7 +1299,7 @@
           "length": 20,
           "digitStart": 117,
           "digitEnd": 136,
-          "charset": "alnum",
+          "charset": "any",
           "pad": {
             "side": "right",
             "char": " "
