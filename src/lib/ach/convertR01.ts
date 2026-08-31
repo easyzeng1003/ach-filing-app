@@ -418,8 +418,9 @@ export function convertR01ToP01(
       taxId: String(row.taxId ?? ""),
       userNo: String(row.userNo ?? ""),
       amount: String(row.amount ?? ""),
-      // 逐列保留發動者統編（CID），避免輸出時回退表頭統編或空白
+      // 逐列保留發動者統編（CID）、上市上櫃公司代號（SID）
       cid: String(row.cid ?? ""),
+      sid: String(row.sid ?? ""),
       origBankCode: presenter.bank,
       origAccount:
         presenter.acct.length < 16
@@ -609,8 +610,10 @@ export function convertToggleDetails(
       taxId: String(row.taxId ?? ""),
       userNo: String(row.userNo ?? ""),
       amount: String(row.amount ?? ""),
-      // 逐列保留發動者統編（CID 74-83）、交易代號；SEQ 取來源序號（7-14）
+      // 逐列保留發動者統編（CID 74-83）、上市上櫃公司代號（SID 94-99）、交易代號；
+      // SEQ 取來源序號（7-14）
       cid: String(row.cid ?? ""),
+      sid: String(row.sid ?? ""),
       seq: outSeq,
       ...(String(row.txid ?? "").trim() ? { txid: String(row.txid) } : {}),
       type: newType,
