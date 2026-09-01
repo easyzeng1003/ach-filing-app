@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useDeferredValue, startTransition, memo, type CSSProperties } from "react";
 import {
-  Alert,
   Backdrop,
   Box,
   Button,
@@ -171,14 +170,10 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   const partitionSession = usePartitionStore((s) => s.session);
   const markPartitionDirty = usePartitionStore((s) => s.markActiveDirty);
   const hasPartitionSession = partitionSession?.formatCode === schema.code;
-  // 篩選／分割工作區以分頁呈現
+  // 篩選／分割工作區以分頁呈現；初始固定停在「篩選／排除輸出」（不自動切換）
   const [workspaceTab, setWorkspaceTab] = useState<"filter" | "partition">(
     "filter",
   );
-  // 分割工作區建立／結束時自動切到對應分頁（使用者仍可手動切換）
-  useEffect(() => {
-    setWorkspaceTab(hasPartitionSession ? "partition" : "filter");
-  }, [hasPartitionSession]);
 
   const workspaceOpen = isWorkspaceOpen(schema.code);
   const workspace = getWorkspace(schema.code);
@@ -1675,21 +1670,21 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
             }
           />
         </Tabs>
-        {workspaceTab === "filter" ? (
-          excludePanel
-        ) : hasPartitionSession ? (
-          <Box className="card" sx={{ p: 2 }}>
-            {partitionBar}
-          </Box>
-        ) : (
-          <Alert severity="info" variant="outlined">
-            尚未建立分割工作區。上傳超過 5,000
-            筆的大型檔案時，系統會自動分割為多個工作包，可於此切換分頁、逐包編輯並整檔輸出。
-          </Alert>
-        )}
       </Box>
 
-      <div className="card">
+      {/* 篩選分頁：只顯示篩選／排除輸出面板（不顯示下方明細列）。
+          分割工作區分頁：顯示分割導覽（如有）與明細列表。 */}
+      {workspaceTab === "filter" ? (
+        excludePanel
+      ) : (
+        <>
+          {hasPartitionSession ? (
+            <Box className="card" sx={{ p: 2 }}>
+              {partitionBar}
+            </Box>
+          ) : null}
+
+          <div className="card">
         <div className="border-b border-border px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             {partitionSession?.formatCode !== schema.code ? (
@@ -1904,7 +1899,9 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
             ".MuiTablePagination-toolbar": { flexWrap: "wrap", gap: 0.5 },
           }}
         />
-      </div>
+          </div>
+        </>
+      )}
 
       <CodePicker
         open={picker?.mode === "txid"}
