@@ -418,9 +418,15 @@ export function convertR01ToP01(
       taxId: String(row.taxId ?? ""),
       userNo: String(row.userNo ?? ""),
       amount: String(row.amount ?? ""),
-      // 逐列保留發動者統編（CID）、上市上櫃公司代號（SID）
+      // 逐列保留發動者統編（CID）、上市上櫃公司代號（SID）、
+      // 發動者專用區／存摺摘要／手續費／發動行專用區／備用（137-250）
       cid: String(row.cid ?? ""),
       sid: String(row.sid ?? ""),
+      note: String(row.note ?? ""),
+      memo: String(row.memo ?? ""),
+      cfee: String(row.cfee ?? ""),
+      noteb: String(row.noteb ?? ""),
+      filler: String(row.filler ?? ""),
       origBankCode: presenter.bank,
       origAccount:
         presenter.acct.length < 16
@@ -610,10 +616,16 @@ export function convertToggleDetails(
       taxId: String(row.taxId ?? ""),
       userNo: String(row.userNo ?? ""),
       amount: String(row.amount ?? ""),
-      // 逐列保留發動者統編（CID 74-83）、上市上櫃公司代號（SID 94-99）、交易代號；
+      // 逐列保留發動者統編（CID 74-83）、上市上櫃公司代號（SID 94-99）、
+      // 發動者專用區／存摺摘要／手續費／發動行專用區／備用（137-250）、交易代號；
       // SEQ 取來源序號（7-14）
       cid: String(row.cid ?? ""),
       sid: String(row.sid ?? ""),
+      note: String(row.note ?? ""),
+      memo: String(row.memo ?? ""),
+      cfee: String(row.cfee ?? ""),
+      noteb: String(row.noteb ?? ""),
+      filler: String(row.filler ?? ""),
       seq: outSeq,
       ...(String(row.txid ?? "").trim() ? { txid: String(row.txid) } : {}),
       type: newType,

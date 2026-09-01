@@ -1313,47 +1313,72 @@
         },
         {
           "id": "NOTE",
-          "source": "filler",
+          "source": "detail",
+          "key": "note",
           "length": 40,
           "digitStart": 137,
           "digitEnd": 176,
-          "fill": " ",
+          "charset": "any",
+          "pad": {
+            "side": "right",
+            "char": " "
+          },
           "label": "發動者專用區"
         },
         {
           "id": "MEMO",
-          "source": "filler",
+          "source": "detail",
+          "key": "memo",
           "length": 10,
           "digitStart": 177,
           "digitEnd": 186,
-          "fill": " ",
+          "charset": "any",
+          "pad": {
+            "side": "right",
+            "char": " "
+          },
           "label": "存摺摘要"
         },
         {
           "id": "CFEE",
-          "source": "literal",
-          "value": "00000",
+          "source": "detail",
+          "key": "cfee",
           "length": 5,
           "digitStart": 187,
           "digitEnd": 191,
+          "charset": "any",
+          "pad": {
+            "side": "right",
+            "char": " "
+          },
           "label": "客戶支付手續費"
         },
         {
           "id": "NOTEB",
-          "source": "filler",
+          "source": "detail",
+          "key": "noteb",
           "length": 20,
           "digitStart": 192,
           "digitEnd": 211,
-          "fill": " ",
+          "charset": "any",
+          "pad": {
+            "side": "right",
+            "char": " "
+          },
           "label": "發動行專用區"
         },
         {
           "id": "FILLER",
-          "source": "filler",
+          "source": "detail",
+          "key": "filler",
           "length": 39,
           "digitStart": 212,
           "digitEnd": 250,
-          "fill": " ",
+          "charset": "any",
+          "pad": {
+            "side": "right",
+            "char": " "
+          },
           "label": "備用"
         }
       ]
