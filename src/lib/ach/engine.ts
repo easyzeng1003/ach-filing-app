@@ -515,6 +515,10 @@ function resolveField(def: RecordFieldDef, ctx: BuildCtx): string {
       if (!String(raw).trim() && def.key === "cid") {
         raw = ctx.header.taxId ?? "";
       }
+      // 客戶支付手續費：明細未填時預設 00000（財金標準值）
+      if (!String(raw).trim() && def.key === "cfee") {
+        raw = "00000";
+      }
       // ACHP01 提出行／發動者：列上 orig* 未填時回退表頭（與舊 header.source 行為相同）
       if (
         ctx.schema.code === "ACHP01" &&
