@@ -26,7 +26,7 @@
         "length": 8,
         "digitStart": 10,
         "digitEnd": 17,
-        "charset": "digit",
+        "charset": "any",
         "required": true,
         "pad": {
           "side": "none"
@@ -62,7 +62,7 @@
         "length": 7,
         "digitStart": 31,
         "digitEnd": 37,
-        "charset": "digit",
+        "charset": "any",
         "required": true,
         "pad": {
           "side": "none"
@@ -99,7 +99,7 @@
         "length": 3,
         "digitStart": 4,
         "digitEnd": 6,
-        "charset": "digit",
+        "charset": "any",
         "required": false,
         "pad": {
           "side": "none"
@@ -127,7 +127,7 @@
         "length": 7,
         "digitStart": 38,
         "digitEnd": 44,
-        "charset": "digit",
+        "charset": "any",
         "required": false,
         "pad": {
           "side": "none"
@@ -159,7 +159,7 @@
         "length": 16,
         "digitStart": 45,
         "digitEnd": 60,
-        "charset": "digit",
+        "charset": "any",
         "required": true,
         "pad": {
           "side": "left",
@@ -193,7 +193,7 @@
         "length": 10,
         "digitStart": 74,
         "digitEnd": 83,
-        "charset": "alnum",
+        "charset": "any",
         "required": true,
         "pad": {
           "side": "none"
@@ -225,7 +225,7 @@
         "length": 8,
         "digitStart": 56,
         "digitEnd": 63,
-        "charset": "digit",
+        "charset": "any",
         "required": true,
         "pad": {
           "side": "none"
@@ -262,7 +262,7 @@
         "length": 1,
         "digitStart": 1,
         "digitEnd": 1,
-        "charset": "alnum",
+        "charset": "any",
         "required": false,
         "hidden": true,
         "pad": {
@@ -283,7 +283,7 @@
         "length": 2,
         "digitStart": 2,
         "digitEnd": 3,
-        "charset": "alnum",
+        "charset": "any",
         "required": false,
         "hidden": true,
         "pad": {
@@ -306,7 +306,7 @@
         "length": 3,
         "digitStart": 4,
         "digitEnd": 6,
-        "charset": "digit",
+        "charset": "any",
         "required": false,
         "pad": {
           "side": "none"
@@ -340,7 +340,7 @@
         "length": 8,
         "digitStart": 7,
         "digitEnd": 14,
-        "charset": "digit",
+        "charset": "any",
         "required": false,
         "pad": {
           "side": "left",
@@ -371,7 +371,7 @@
         "length": 7,
         "digitStart": 15,
         "digitEnd": 21,
-        "charset": "digit",
+        "charset": "any",
         "required": true,
         "pad": {
           "side": "none"
@@ -390,7 +390,7 @@
         },
         "picker": null,
         "export": {
-          "charset": "digit",
+          "charset": "any",
           "length": 7,
           "pad": {
             "side": "none"
@@ -410,7 +410,7 @@
         "length": 16,
         "digitStart": 22,
         "digitEnd": 37,
-        "charset": "digit",
+        "charset": "any",
         "required": true,
         "pad": {
           "side": "left",
@@ -432,7 +432,7 @@
         },
         "picker": null,
         "export": {
-          "charset": "digit",
+          "charset": "any",
           "length": 16,
           "pad": {
             "side": "none"
@@ -452,7 +452,7 @@
         "length": 7,
         "digitStart": 38,
         "digitEnd": 44,
-        "charset": "digit",
+        "charset": "any",
         "required": true,
         "pad": {
           "side": "none"
@@ -471,7 +471,7 @@
         },
         "picker": null,
         "export": {
-          "charset": "digit",
+          "charset": "any",
           "length": 7,
           "pad": {
             "side": "none"
@@ -491,7 +491,7 @@
         "length": 16,
         "digitStart": 45,
         "digitEnd": 60,
-        "charset": "digit",
+        "charset": "any",
         "required": true,
         "pad": {
           "side": "left",
@@ -513,7 +513,7 @@
         },
         "picker": null,
         "export": {
-          "charset": "digit",
+          "charset": "any",
           "length": 16,
           "pad": {
             "side": "none"
@@ -533,7 +533,7 @@
         "length": 10,
         "digitStart": 61,
         "digitEnd": 70,
-        "charset": "digit",
+        "charset": "any",
         "required": true,
         "pad": {
           "side": "none"
@@ -557,7 +557,7 @@
         },
         "picker": null,
         "export": {
-          "charset": "digit",
+          "charset": "any",
           "length": 10,
           "pad": {
             "side": "left",
@@ -580,7 +580,7 @@
         "length": 2,
         "digitStart": 71,
         "digitEnd": 72,
-        "charset": "alnum",
+        "charset": "any",
         "required": true,
         "pad": {
           "side": "none"
@@ -600,7 +600,7 @@
         },
         "picker": null,
         "export": {
-          "charset": "alnum",
+          "charset": "any",
           "length": 2,
           "pad": {
             "side": "none"
@@ -620,7 +620,7 @@
         "length": 1,
         "digitStart": 73,
         "digitEnd": 73,
-        "charset": "alnum",
+        "charset": "any",
         "required": false,
         "hidden": true,
         "pad": {
@@ -641,7 +641,7 @@
         "length": 10,
         "digitStart": 74,
         "digitEnd": 83,
-        "charset": "alnum",
+        "charset": "any",
         "required": false,
         "pad": {
           "side": "right",
@@ -662,7 +662,7 @@
         "length": 10,
         "digitStart": 84,
         "digitEnd": 93,
-        "charset": "alnum",
+        "charset": "any",
         "required": true,
         "pad": {
           "side": "none"
@@ -682,7 +682,7 @@
         },
         "picker": null,
         "export": {
-          "charset": "alnum",
+          "charset": "any",
           "length": 10,
           "pad": {
             "side": "right",
@@ -724,7 +724,7 @@
         "length": 8,
         "digitStart": 100,
         "digitEnd": 107,
-        "charset": "digit",
+        "charset": "any",
         "required": true,
         "pad": {
           "side": "none"
@@ -744,7 +744,7 @@
         },
         "picker": null,
         "export": {
-          "charset": "digit",
+          "charset": "any",
           "length": 8,
           "pad": {
             "side": "none"
@@ -764,7 +764,7 @@
         "length": 8,
         "digitStart": 108,
         "digitEnd": 115,
-        "charset": "digit",
+        "charset": "any",
         "required": true,
         "pad": {
           "side": "left",
@@ -786,7 +786,7 @@
         },
         "picker": null,
         "export": {
-          "charset": "digit",
+          "charset": "any",
           "length": 8,
           "pad": {
             "side": "left",
@@ -807,7 +807,7 @@
         "length": 1,
         "digitStart": 116,
         "digitEnd": 116,
-        "charset": "alnum",
+        "charset": "any",
         "required": false,
         "hidden": true,
         "pad": {
@@ -823,7 +823,7 @@
         },
         "picker": null,
         "export": {
-          "charset": "alnum",
+          "charset": "any",
           "length": 1,
           "pad": {
             "side": "none"
@@ -866,7 +866,7 @@
         },
         "picker": null,
         "export": {
-          "charset": "alnum",
+          "charset": "any",
           "length": 20,
           "pad": {
             "side": "right",
@@ -887,7 +887,7 @@
         "length": 40,
         "digitStart": 137,
         "digitEnd": 176,
-        "charset": "alnum",
+        "charset": "any",
         "required": false,
         "hidden": true,
         "pad": {
@@ -908,7 +908,7 @@
         "length": 10,
         "digitStart": 177,
         "digitEnd": 186,
-        "charset": "alnum",
+        "charset": "any",
         "required": false,
         "hidden": true,
         "pad": {
@@ -929,7 +929,7 @@
         "length": 5,
         "digitStart": 187,
         "digitEnd": 191,
-        "charset": "alnum",
+        "charset": "any",
         "required": false,
         "hidden": true,
         "pad": {
@@ -950,7 +950,7 @@
         "length": 20,
         "digitStart": 192,
         "digitEnd": 211,
-        "charset": "alnum",
+        "charset": "any",
         "required": false,
         "hidden": true,
         "pad": {
@@ -971,7 +971,7 @@
         "length": 39,
         "digitStart": 212,
         "digitEnd": 250,
-        "charset": "alnum",
+        "charset": "any",
         "required": false,
         "hidden": true,
         "pad": {
@@ -1017,7 +1017,7 @@
           "length": 8,
           "digitStart": 10,
           "digitEnd": 17,
-          "charset": "digit",
+          "charset": "any",
           "label": "處理日期"
         },
         {
@@ -1027,7 +1027,7 @@
           "length": 6,
           "digitStart": 18,
           "digitEnd": 23,
-          "charset": "digit",
+          "charset": "any",
           "label": "處理時間"
         },
         {
@@ -1037,7 +1037,7 @@
           "length": 7,
           "digitStart": 24,
           "digitEnd": 30,
-          "charset": "digit",
+          "charset": "any",
           "label": "發送單位代號"
         },
         {
@@ -1047,7 +1047,7 @@
           "length": 7,
           "digitStart": 31,
           "digitEnd": 37,
-          "charset": "digit",
+          "charset": "any",
           "label": "接收單位代號（代表行）"
         },
         {
@@ -1104,7 +1104,7 @@
           "length": 3,
           "digitStart": 4,
           "digitEnd": 6,
-          "charset": "digit",
+          "charset": "any",
           "pad": {
             "side": "right",
             "char": " "
@@ -1117,7 +1117,7 @@
           "length": 8,
           "digitStart": 7,
           "digitEnd": 14,
-          "charset": "digit",
+          "charset": "any",
           "pad": {
             "side": "left",
             "char": "0"
@@ -1132,7 +1132,7 @@
           "length": 7,
           "digitStart": 15,
           "digitEnd": 21,
-          "charset": "digit",
+          "charset": "any",
           "label": "提出行代號",
           "pad": {
             "side": "none"
@@ -1145,7 +1145,7 @@
           "length": 16,
           "digitStart": 22,
           "digitEnd": 37,
-          "charset": "digit",
+          "charset": "any",
           "label": "發動者帳號",
           "pad": {
             "side": "none"
@@ -1158,7 +1158,7 @@
           "length": 7,
           "digitStart": 38,
           "digitEnd": 44,
-          "charset": "digit",
+          "charset": "any",
           "pad": {
             "side": "none"
           },
@@ -1171,7 +1171,7 @@
           "length": 16,
           "digitStart": 45,
           "digitEnd": 60,
-          "charset": "digit",
+          "charset": "any",
           "pad": {
             "side": "none"
           },
@@ -1184,7 +1184,7 @@
           "length": 10,
           "digitStart": 61,
           "digitEnd": 70,
-          "charset": "digit",
+          "charset": "any",
           "pad": {
             "side": "left",
             "char": "0"
@@ -1199,7 +1199,7 @@
           "length": 2,
           "digitStart": 71,
           "digitEnd": 72,
-          "charset": "alnum",
+          "charset": "any",
           "pad": {
             "side": "right",
             "char": " "
@@ -1222,7 +1222,7 @@
           "length": 10,
           "digitStart": 74,
           "digitEnd": 83,
-          "charset": "alnum",
+          "charset": "any",
           "pad": {
             "side": "right",
             "char": " "
@@ -1236,7 +1236,7 @@
           "length": 10,
           "digitStart": 84,
           "digitEnd": 93,
-          "charset": "alnum",
+          "charset": "any",
           "pad": {
             "side": "right",
             "char": " "
@@ -1264,7 +1264,7 @@
           "length": 8,
           "digitStart": 100,
           "digitEnd": 107,
-          "charset": "digit",
+          "charset": "any",
           "pad": {
             "side": "none"
           },
@@ -1277,7 +1277,7 @@
           "length": 8,
           "digitStart": 108,
           "digitEnd": 115,
-          "charset": "digit",
+          "charset": "any",
           "pad": {
             "side": "left",
             "char": "0"
@@ -1291,7 +1291,7 @@
           "length": 1,
           "digitStart": 116,
           "digitEnd": 116,
-          "charset": "alnum",
+          "charset": "any",
           "pad": {
             "side": "none"
           },
@@ -1388,7 +1388,7 @@
           "length": 8,
           "digitStart": 10,
           "digitEnd": 17,
-          "charset": "digit",
+          "charset": "any",
           "label": "處理日期"
         },
         {
@@ -1398,7 +1398,7 @@
           "length": 7,
           "digitStart": 18,
           "digitEnd": 24,
-          "charset": "digit",
+          "charset": "any",
           "label": "發送單位代號"
         },
         {
@@ -1408,7 +1408,7 @@
           "length": 7,
           "digitStart": 25,
           "digitEnd": 31,
-          "charset": "digit",
+          "charset": "any",
           "label": "接收單位代號（代表行）"
         },
         {
@@ -1418,7 +1418,7 @@
           "length": 8,
           "digitStart": 32,
           "digitEnd": 39,
-          "charset": "digit",
+          "charset": "any",
           "pad": {
             "side": "left",
             "char": "0"
@@ -1432,7 +1432,7 @@
           "length": 16,
           "digitStart": 40,
           "digitEnd": 55,
-          "charset": "digit",
+          "charset": "any",
           "pad": {
             "side": "left",
             "char": "0"
@@ -1447,7 +1447,7 @@
           "digitEnd": 63,
           "label": "前一營業日日期",
           "key": "ydate",
-          "charset": "digit",
+          "charset": "any",
           "pad": {
             "side": "right",
             "char": " "
