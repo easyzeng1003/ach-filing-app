@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useDeferredValue, startTransition, memo, type CSSProperties } from "react";
 import {
+  Alert,
   Backdrop,
   Box,
   Button,
@@ -9,7 +10,9 @@ import {
   LinearProgress,
   Paper,
   Stack,
+  Tab,
   TablePagination,
+  Tabs,
   Typography,
 } from "@mui/material";
 import {
@@ -167,6 +170,15 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
   const [partitionFormDirty, setPartitionFormDirty] = useState(false);
   const partitionSession = usePartitionStore((s) => s.session);
   const markPartitionDirty = usePartitionStore((s) => s.markActiveDirty);
+  const hasPartitionSession = partitionSession?.formatCode === schema.code;
+  // 篩選／分割工作區以分頁呈現
+  const [workspaceTab, setWorkspaceTab] = useState<"filter" | "partition">(
+    "filter",
+  );
+  // 分割工作區建立／結束時自動切到對應分頁（使用者仍可手動切換）
+  useEffect(() => {
+    setWorkspaceTab(hasPartitionSession ? "partition" : "filter");
+  }, [hasPartitionSession]);
 
   const workspaceOpen = isWorkspaceOpen(schema.code);
   const workspace = getWorkspace(schema.code);
@@ -1638,7 +1650,44 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
       {importLoadingMask}
       {exportLoadingMask}
 
-      {excludePanel}
+      {/* 篩選／排除輸出 與 分割工作區 以分頁呈現 */}
+      <Box>
+        <Tabs
+          value={workspaceTab}
+          onChange={(_, v) =>
+            setWorkspaceTab(v as "filter" | "partition")
+          }
+          sx={{
+            mb: 1.5,
+            minHeight: 42,
+            borderBottom: 1,
+            borderColor: "divider",
+            "& .MuiTab-root": { minHeight: 42, fontWeight: 600 },
+          }}
+        >
+          <Tab value="filter" label="篩選／排除輸出" />
+          <Tab
+            value="partition"
+            label={
+              hasPartitionSession
+                ? `分割工作區（${partitionSession?.parts.length ?? 0} 包）`
+                : "分割工作區"
+            }
+          />
+        </Tabs>
+        {workspaceTab === "filter" ? (
+          excludePanel
+        ) : hasPartitionSession ? (
+          <Box className="card" sx={{ p: 2 }}>
+            {partitionBar}
+          </Box>
+        ) : (
+          <Alert severity="info" variant="outlined">
+            尚未建立分割工作區。上傳超過 5,000
+            筆的大型檔案時，系統會自動分割為多個工作包，可於此切換分頁、逐包編輯並整檔輸出。
+          </Alert>
+        )}
+      </Box>
 
       <div className="card">
         <div className="border-b border-border px-4 py-3">
@@ -1670,10 +1719,6 @@ export function FormatPanel({ schema, onSelectFormat }: Props) {
               </span>
             </Stack>
           </div>
-
-          {partitionSession?.formatCode === schema.code ? (
-            <div className="mt-3">{partitionBar}</div>
-          ) : null}
 
           {filterEnabled && (
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
